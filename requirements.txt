@@ -1,0 +1,4 @@
+requests
+gspread
+pandas
+schedule

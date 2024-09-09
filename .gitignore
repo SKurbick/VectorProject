@@ -1,0 +1,14 @@
+.venv/
+.venv2/
+main_new.py
+result.py
+.env
+some_script.py
+google_poligon.py
+database.json
+creds.json
+old_tokens.json
+.idea/
+__pycache__/
+poligon.py
+tokens.json
