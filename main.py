@@ -59,6 +59,7 @@ def main():
                     service_gs_table.change_cards_and_tables_data(valid_data=valid_data_result)
     print("Упали в ожидание")
 
+
 gs_service_for_schedule = ServiceGoogleSheet(
     token=None, sheet=test_sheet, spreadsheet=test_spreadsheet, creds_json=test_creds_json)
 """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
@@ -68,7 +69,7 @@ schedule.every(300).seconds.do(gs_service_for_schedule.add_actually_data_to_tabl
 schedule.every(30).seconds.do(main)
 
 """Сдвигает таблицы по выручам. Условие должно работать раз в день каждые 5 утра"""
-schedule.every().day.at("05:00").do(gs_service_for_schedule.add_new_day_revenue_to_table)
+schedule.every().day.at("09:16:15").do(gs_service_for_schedule.add_new_day_revenue_to_table)
 
 if __name__ == '__main__':
     print("СЕРВИС ЗАПУЩЕН")

@@ -314,7 +314,7 @@ class GoogleSheetServiceRevenue:
 
         all_values = sheet.get_all_values()
 
-        # Находим индекс столбца "Артикул" и "03-09-2024"
+        # Находим индекс столбца "Артикул" и колонку формата="03-09-2024"
         header_row = all_values[0]
         article_col_index = header_row.index('Артикул')
         date_col_index = header_row.index(last_day)

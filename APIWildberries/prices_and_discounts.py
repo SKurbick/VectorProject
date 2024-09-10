@@ -36,8 +36,7 @@ class ListOfGoodsPricesAndDiscounts:
                 "filterNmID": nm_ids
             }
             response = requests.get(url, headers=self.headers, params=params)
-            pprint(response.json())
-            pprint(self.headers)
+
             if response.json()["data"]["listGoods"] is None:  # сли артикул не будет найден, то он его пропустит
                 continue
             response_result = response.json()["data"]["listGoods"][0]
@@ -61,7 +60,7 @@ class ListOfGoodsPricesAndDiscounts:
 
         response = requests.post(url=url, headers=self.headers, json={"data": data})
 
-        print("price and discount edit result:", response.json())
+        # print("price and discount edit result:", response.json())
         time.sleep(10)
         if False is response.json()["error"]:
             return True
