@@ -66,7 +66,7 @@ gs_service_for_schedule = ServiceGoogleSheet(
 schedule.every(300).seconds.do(gs_service_for_schedule.add_actually_data_to_table)
 
 """Смотрит в таблицу, оценивает изменения"""
-schedule.every(30).seconds.do(main)
+schedule.every(180).seconds.do(main)
 
 """Сдвигает таблицы по выручам. Условие должно работать раз в день каждые 5 утра"""
 schedule.every().day.at("09:16:15").do(gs_service_for_schedule.add_new_day_revenue_to_table)
