@@ -168,6 +168,9 @@ class GoogleSheet:
 
         return result_data
 
+
+
+
     def create_lk_articles_list(self):
         """Создает словарь из ключей кабинета и его Артикулов"""
         # client = self.client_init_json()
@@ -190,6 +193,11 @@ class GoogleSheet:
                 lk_articles_dict[lk.upper()] = []
             lk_articles_dict[lk.upper()].append(article)
         return lk_articles_dict
+
+    def check_status_service_sheet(self):
+        data = self.sheet.get_all_records()
+        sheet_status = data[0]['ВКЛ - 1 /ВЫКЛ - 0']
+        return sheet_status
 
 
 class GoogleSheetServiceRevenue:

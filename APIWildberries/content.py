@@ -44,7 +44,18 @@ class ListOfCardsContent:
         count = 0
         while True:
             count += 1
-            response = requests.post(url, headers=self.headers, json=json_obj)
+            try:
+                for i in range(10):
+                    response = requests.post(url, headers=self.headers, json=json_obj)
+                    if response.status_code >= 400:
+                        print("[ERROR]", response.status_code, f"попытка {i}")
+                        print("ожидание 1 минута")
+                        time.sleep(60)
+                    else:
+                        break
+            except Exception as e:
+                print(e)
+
             request_wb = response.json()
 
             for card in request_wb["cards"]:

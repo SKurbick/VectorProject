@@ -178,52 +178,59 @@ class ServiceGoogleSheet:
                                                                  last_day=last_day)
             print(f"добавлена выручка по новом заголовку {last_day} по всем артикулам")
 
+    @staticmethod
+    def check_status():
+        sheet_status = GoogleSheet(creds_json="creds.json",
+                                   spreadsheet="START Курбан", sheet="ВКЛ/ВЫКЛ Бот")
+        return sheet_status.check_status_service_sheet()
+
     def add_actually_data_to_table(self):
-        print("[INFO]", datetime.datetime.now(), "актуализируем данные в таблице")
-        """
-        Обновление данных по артикулам в гугл таблицу с WB api.
-        Задумана, чтобы использовать в schedule.
-        """
-        gs_connect = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet=self.sheet)
-        lk_articles = gs_connect.create_lk_articles_list()
-        print(lk_articles)
-        result_updates_rows = {}
-        for account, articles in lk_articles.items():
-            print(account, articles)
-            token = get_wb_tokens()[account.capitalize()]
-            wb_api_content = ListOfCardsContent(token=token)
-            wb_api_price_and_discount = ListOfGoodsPricesAndDiscounts(token=token)
-            commission_traffics = CommissionTariffs(token=token)
+        if ServiceGoogleSheet.check_status():
+            print("[INFO]", datetime.datetime.now(), "актуализируем данные в таблице")
+            """
+            Обновление данных по артикулам в гугл таблицу с WB api.
+            Задумана, чтобы использовать в schedule.
+            """
+            gs_connect = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet=self.sheet)
+            lk_articles = gs_connect.create_lk_articles_list()
+            print(lk_articles)
+            result_updates_rows = {}
+            for account, articles in lk_articles.items():
+                print(account, articles)
+                token = get_wb_tokens()[account.capitalize()]
+                wb_api_content = ListOfCardsContent(token=token)
+                wb_api_price_and_discount = ListOfGoodsPricesAndDiscounts(token=token)
+                commission_traffics = CommissionTariffs(token=token)
 
-            card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=articles, limit=100,
-                                                                       only_edits_data=True, add_data_in_db=False)
-            goods_nm_ids = wb_api_price_and_discount.get_log_for_nm_ids(filter_nm_ids=articles)
-            # объединяем полученные данные
-            merge_json_data = merge_dicts(goods_nm_ids, card_from_nm_ids_filter)
-            subject_names = set()  # итог всех полученных с карточек предметов
-            current_tariffs_data = commission_traffics.get_tariffs_box_from_marketplace()
+                card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=articles, limit=100,
+                                                                           only_edits_data=True, add_data_in_db=False)
+                goods_nm_ids = wb_api_price_and_discount.get_log_for_nm_ids(filter_nm_ids=articles)
+                # объединяем полученные данные
+                merge_json_data = merge_dicts(goods_nm_ids, card_from_nm_ids_filter)
+                subject_names = set()  # итог всех полученных с карточек предметов
+                current_tariffs_data = commission_traffics.get_tariffs_box_from_marketplace()
 
-            for i in merge_json_data.values():
-                subject_names.add(i["Предмет"])  # собираем множество с предметами
+                for i in merge_json_data.values():
+                    subject_names.add(i["Предмет"])  # собираем множество с предметами
 
-                result_log_value = calculate_sum_for_logistic(  # на лету считаем "Логистика от склада WB до ПВЗ"
-                    for_one_liter=int(current_tariffs_data["boxDeliveryBase"]),
-                    next_liters=int(current_tariffs_data["boxDeliveryLiter"]),
-                    height=int(i['Текущая\nВысота (см)']),
-                    length=int(i['Текущая\nДлина (см)']),
-                    width=int(i['Текущая\nШирина (см)']), )
-                i[
-                    "Логистика от склада WB до ПВЗ"] = result_log_value  # добавляем результат вычислений в итоговые данные
+                    result_log_value = calculate_sum_for_logistic(  # на лету считаем "Логистика от склада WB до ПВЗ"
+                        for_one_liter=int(current_tariffs_data["boxDeliveryBase"]),
+                        next_liters=int(current_tariffs_data["boxDeliveryLiter"]),
+                        height=int(i['Текущая\nВысота (см)']),
+                        length=int(i['Текущая\nДлина (см)']),
+                        width=int(i['Текущая\nШирина (см)']), )
+                    i[
+                        "Логистика от склада WB до ПВЗ"] = result_log_value  # добавляем результат вычислений в итоговые данные
 
-            # получение комиссии WB
-            subject_commissions = commission_traffics.get_commission_on_subject(subject_names=subject_names)
+                # получение комиссии WB
+                subject_commissions = commission_traffics.get_commission_on_subject(subject_names=subject_names)
 
-            # добавляем данные в merge_json_data
-            for sc in subject_commissions.items():
-                for result_card in merge_json_data.values():
-                    if sc[0] == result_card["Предмет"]:
-                        result_card['Комиссия WB'] = sc[1]
+                # добавляем данные в merge_json_data
+                for sc in subject_commissions.items():
+                    for result_card in merge_json_data.values():
+                        if sc[0] == result_card["Предмет"]:
+                            result_card['Комиссия WB'] = sc[1]
 
-            result_updates_rows.update(merge_json_data)
-            """обновляем данные по артикулам"""
-        gs_connect.update_rows(data_json=result_updates_rows)
+                result_updates_rows.update(merge_json_data)
+                """обновляем данные по артикулам"""
+            gs_connect.update_rows(data_json=result_updates_rows)

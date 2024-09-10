@@ -12,3 +12,4 @@ old_tokens.json
 __pycache__/
 poligon.py
 tokens.json
+table_status.py
