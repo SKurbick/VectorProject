@@ -36,7 +36,7 @@ def add_orders_data(revenue_data: dict):  # добавление или обно
             else:  # если артикула нет, то будет добавлен с актуальными данными
                 database["revenue_result"].update({nm_id: revenue_data[nm_id]})
         file.seek(0)
-        json.dump(database, file, indent=4)
+        json.dump(database, file, indent=4, ensure_ascii=False)
         file.truncate()
 
 
@@ -55,7 +55,7 @@ def add_nm_ids_in_db(account, new_nm_ids):
             data['account_nm_ids'].update({account: []})
         data['account_nm_ids'][account].extend(new_nm_ids)
         file.seek(0)
-        json.dump(data, file, indent=4,ensure_ascii=False )
+        json.dump(data, file, indent=4, ensure_ascii=False)
         file.truncate()
 
 
@@ -150,8 +150,6 @@ def get_nm_ids_in_db(account):
         if account not in nm_ids["account_nm_ids"]:
             return []
     return nm_ids["account_nm_ids"][account]
-
-
 
 
 fake_data = {'': {'price_discount': {'Установить новую скидку %': '',
