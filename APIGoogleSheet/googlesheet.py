@@ -1,4 +1,5 @@
 import json
+import time
 from datetime import timedelta, datetime
 from pprint import pprint
 
@@ -14,6 +15,18 @@ class GoogleSheet:
         self.spreadsheet = spreadsheet
         self.sheet = sheet
 
+        client = self.client_init_json()
+        try:
+            spreadsheet = client.open(self.spreadsheet)
+            self.sheet = spreadsheet.worksheet(self.sheet)
+
+        except gspread.exceptions.APIError as e:
+            print(datetime.now())
+            print(e)
+            time.sleep(60)
+            spreadsheet = client.open(self.spreadsheet)
+            self.sheet = spreadsheet.worksheet(self.sheet)
+
     def client_init_json(self) -> Client:
         """Создание клиента для работы с Google Sheets."""
         return service_account(filename=self.creds_json)
@@ -24,18 +37,18 @@ class GoogleSheet:
         return client.open_by_key(table_key)
 
     def get_nm_ids(self):
-        print(self.spreadsheet)
-        client = self.client_init_json()
-        print(client.http_client)
-        spreadsheet = client.open(self.spreadsheet)
-        sheet = spreadsheet.worksheet(self.sheet)
+        # print(self.spreadsheet)
+        # client = self.client_init_json()
+        # print(client.http_client)
+        # spreadsheet = client.open(self.spreadsheet)
+        # sheet = spreadsheet.worksheet(self.sheet)
 
         column_index = None
-        headers = sheet.row_values(1)
+        headers = self.sheet.row_values(1)
         if "Артикул" in headers:
             column_index = headers.index("Артикул") + 1
 
-        column_data = sheet.col_values(column_index)
+        column_data = self.sheet.col_values(column_index)
         column_data.pop(0)
 
         column_data = [int(item) for item in column_data if item.isdigit()]
@@ -56,87 +69,13 @@ class GoogleSheet:
 
     def update_rows(self, data_json, edit_column_clean=None):
 
-        client = self.client_init_json()
-        spreadsheet = client.open(self.spreadsheet)
-        sheet = spreadsheet.worksheet(self.sheet)
-        data = sheet.get_all_records(expected_headers=[])
+        # client = self.client_init_json()
+        # spreadsheet = client.open(self.spreadsheet)
+        # sheet = spreadsheet.worksheet(self.sheet)
+        data = self.sheet.get_all_records(expected_headers=[])
         df = pd.DataFrame(data)
         json_df = pd.DataFrame(list(data_json.values()))
 
-        # # Обновите данные в основном DataFrame на основе "Артикул"
-        # for index, row in json_df.iterrows():
-        #     matching_rows = df[df["Артикул"] == row["Артикул"]].index
-        #     for idx in matching_rows:
-        #         if pd.isna(df.at[idx, "Фото"]) or df.at[idx, "Фото"] == "":
-        #             df.at[idx, "Фото"] = row["Фото"]
-        #         if pd.isna(df.at[idx, "Предмет"]) or df.at[idx, "Предмет"] == "":
-        #             df.at[idx, "Предмет"] = row["Предмет"]
-        #         if pd.isna(df.at[idx, "Артикул продавца"]) or df.at[idx, "Артикул продавца"] == "":
-        #             df.at[idx, "Артикул продавца"] = row["Артикул продавца"]
-        #         if pd.isna(df.at[idx, "Текущая\nДлина (см)"]) or df.at[idx, "Текущая\nДлина (см)"] == "":
-        #             df.at[idx, "Текущая\nДлина (см)"] = row["Текущая\nДлина (см)"]
-        #         if pd.isna(df.at[idx, "Текущая\nШирина (см)"]) or df.at[idx, "Текущая\nШирина (см)"] == "":
-        #             df.at[idx, "Текущая\nШирина (см)"] = row["Текущая\nШирина (см)"]
-        #         if pd.isna(df.at[idx, "Текущая\nВысота (см)"]) or df.at[idx, "Текущая\nВысота (см)"] == "":
-        #             df.at[idx, "Текущая\nВысота (см)"] = row["Текущая\nВысота (см)"]
-        #         if pd.isna(df.at[idx, "Скидка %"]) or df.at[idx, "Скидка %"] == "":
-        #             df.at[idx, "Скидка %"] = row["Скидка %"]
-        #         if pd.isna(df.at[idx, "Цена на WB без скидки"]) or df.at[idx, "Цена на WB без скидки"] == "":
-        #             df.at[idx, "Цена на WB без скидки"] = row["Цена на WB без скидки"]
-        #         if pd.isna(df.at[idx, "Комиссия WB"]) or df.at[idx, "Комиссия WB"] == "":
-        #             df.at[idx, "Комиссия WB"] = row["Комиссия WB"]
-        #         if pd.isna(df.at[idx, "Логистика от склада WB до ПВЗ"]) or df.at[
-        #             idx, "Логистика от склада WB до ПВЗ"] == "":
-        #             df.at[idx, "Логистика от склада WB до ПВЗ"] = row["Логистика от склада WB до ПВЗ"]
-        #
-        #         if edit_column_clean is not None:
-        #             if edit_column_clean["price_discount"]:
-        #                 df.at[idx, 'Установить новую скидку %'] = ""
-        #                 df.at[idx, 'Установить новую цену'] = ""
-        #
-        #             if edit_column_clean["dimensions"]:
-        #                 df.at[idx, 'Новая\nДлина (см)'] = ""
-        #                 df.at[idx, 'Новая\nШирина (см)'] = ""
-        #                 df.at[idx, 'Новая\nВысота (см)'] = ""
-        #
-        # # """'Установить новую цену', 'Установить новую скидку %',"""
-        #
-        # # Обновите Google Таблицу только для измененных строк
-        # updates = []
-        # for index, row in json_df.iterrows():
-        #     matching_rows = df[df["Артикул"] == row["Артикул"]].index
-        #     for idx in matching_rows:
-        #         row_number = idx + 2  # +2 потому что индексация в Google Таблицах начинается с 1, а первая строка - заголовки
-        #         updates.append({'range': f'B{row_number}', 'values': [[row["Фото"]]]})
-        #         updates.append({'range': f'D{row_number}', 'values': [[row["Предмет"]]]})
-        #         updates.append({'range': f'F{row_number}', 'values': [[row["Артикул продавца"]]]})
-        #         updates.append({'range': f'P{row_number}', 'values': [[row["Текущая\nДлина (см)"]]]})
-        #         updates.append({'range': f'Q{row_number}', 'values': [[row["Текущая\nШирина (см)"]]]})
-        #         updates.append({'range': f'R{row_number}', 'values': [[row["Текущая\nВысота (см)"]]]})
-        #         updates.append({'range': f'H{row_number}', 'values': [[row["Цена на WB без скидки"]]]})
-        #         updates.append({'range': f'J{row_number}', 'values': [[row["Скидка %"]]]})
-        #         updates.append({'range': f'V{row_number}', 'values': [[row["Комиссия WB"]]]})
-        #         updates.append({'range': f'O{row_number}', 'values': [[row["Логистика от склада WB до ПВЗ"]]]})
-        #
-        #         # очистка столбца с изменяемыми данными
-        #         if edit_column_clean is not None:
-        #             if edit_column_clean["price_discount"]:
-        #                 updates.append(
-        #                     {'range': f'K{row_number}',
-        #                      'values': [['']]})  # Очистка столбца 'Установить новую скидку %'
-        #                 updates.append(
-        #                     {'range': f'I{row_number}',
-        #                      'values': [['']]})  # Очистка столбца 'Установить новую цену'
-        #             if edit_column_clean["dimensions"]:
-        #                 updates.append(
-        #                     {'range': f'S{row_number}', 'values': [['']]})
-        #                 updates.append(
-        #                     {'range': f'T{row_number}', 'values': [['']]})
-        #                 updates.append(
-        #                     {'range': f'U{row_number}', 'values': [['']]})
-        # sheet.batch_update(updates)
-        # print("Данные успешно обновлены.")
-        # return True
         # Преобразуем все значения в json_df в типы данных, которые могут быть сериализованы в JSON
         json_df = json_df.astype(object).where(pd.notnull(json_df), None)
         # Обновите данные в основном DataFrame на основе "Артикул"
@@ -181,8 +120,7 @@ class GoogleSheet:
                         updates.append({'range': f'T{row_number}', 'values': [['']]})
                         updates.append({'range': f'U{row_number}', 'values': [['']]})
 
-
-        sheet.batch_update(updates)
+        self.sheet.batch_update(updates)
         print("Данные успешно обновлены.")
         return True
 
@@ -190,11 +128,11 @@ class GoogleSheet:
         """
         Получает данные с запросом на изменение с таблицы
         """
-        client = self.client_init_json()
-        spreadsheet = client.open(self.spreadsheet)
-        sheet = spreadsheet.worksheet(self.sheet)
+        # client = self.client_init_json()
+        # spreadsheet = client.open(self.spreadsheet)
+        # sheet = spreadsheet.worksheet(self.sheet)
 
-        data = sheet.get_all_values()
+        data = self.sheet.get_all_values()
 
         # Преобразуйте данные в DataFrame
         df = pd.DataFrame(data[1:], columns=data[0])
@@ -232,12 +170,11 @@ class GoogleSheet:
 
     def create_lk_articles_list(self):
         """Создает словарь из ключей кабинета и его Артикулов"""
-        client = self.client_init_json()
-        spreadsheet = client.open(self.spreadsheet)
-        sheet = spreadsheet.worksheet(self.sheet)
-        data = sheet.get_all_records()
+        # client = self.client_init_json()
+        # spreadsheet = client.open(self.spreadsheet)
+        # sheet = spreadsheet.worksheet(self.sheet)
+        data = self.sheet.get_all_records()
         df = pd.DataFrame(data)
-
         lk_articles_dict = {}
         for index, row in df.iterrows():
 
@@ -279,22 +216,41 @@ class GoogleSheetServiceRevenue:
         sheet = spreadsheet.worksheet(self.sheet)
         all_values = sheet.get_all_values()
 
+        # # Находим индекс столбца "Артикул"
+        # header_row = all_values[0]
+        # article_col_index = header_row.index('Артикул')
+        #
+        # # Обновление значений в таблице
+        # updates = []
+        # for row_index, row in enumerate(all_values[1:], start=2):  # Начинаем с 2, так как первая строка - заголовки
+        #     article = row[article_col_index]
+        #     if article in nm_ids_revenue_data:
+        #         for date_col_name in nm_ids_revenue_data[article]:
+        #             if date_col_name in header_row:
+        #                 date_col_index = header_row.index(date_col_name)
+        #                 value = nm_ids_revenue_data[article][date_col_name]
+        #                 cell = sheet.cell(row_index, date_col_index + 1)
+        #                 updates.append({
+        #                     'range': cell.address,
+        #                     'values': [[value]]
+        #                 })
         # Находим индекс столбца "Артикул"
         header_row = all_values[0]
         article_col_index = header_row.index('Артикул')
 
-        # Обновление значений в таблице
+        # Создаем словарь для хранения обновлений
         updates = []
-        for row_index, row in enumerate(all_values[1:], start=2):  # Начинаем с 2, так как первая строка - заголовки
+
+        # Проходим по всем строкам, начиная со второй (индекс 1)
+        for row_index, row in enumerate(all_values[1:], start=2):
             article = row[article_col_index]
             if article in nm_ids_revenue_data:
-                for date_col_name in nm_ids_revenue_data[article]:
+                for date_col_name, value in nm_ids_revenue_data[article].items():
                     if date_col_name in header_row:
                         date_col_index = header_row.index(date_col_name)
-                        value = nm_ids_revenue_data[article][date_col_name]
-                        cell = sheet.cell(row_index, date_col_index + 1)
+                        cell_address = gspread.utils.rowcol_to_a1(row_index, date_col_index + 1)
                         updates.append({
-                            'range': cell.address,
+                            'range': cell_address,
                             'values': [[value]]
                         })
 
