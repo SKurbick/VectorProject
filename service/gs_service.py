@@ -31,15 +31,17 @@ class ServiceGoogleSheet:
         for account, articles in lk_articles.items():
             # получаем токен и корректируем регистр для чтения из файла
             token = get_wb_tokens()[account.capitalize()]
-            analytics = AnalyticsNMReport(token=token)
-            revenue_data_by_article = analytics.get_last_days_revenue(nm_ids=articles,
-                                                                      begin_date=datetime.date.today() - datetime.timedelta(
-                                                                          days=7),
-                                                                      end_date=datetime.date.today() - datetime.timedelta(
-                                                                          days=1))
-            """добавляет данные по выручке в БД"""
-            add_orders_data(revenue_data_by_article)
-            nm_ids_revenue_data.update(revenue_data_by_article)
+            nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=articles)
+            if len(nm_ids_result) > 0:
+                analytics = AnalyticsNMReport(token=token)
+                revenue_data_by_article = analytics.get_last_days_revenue(nm_ids=articles,
+                                                                          begin_date=datetime.date.today() - datetime.timedelta(
+                                                                              days=7),
+                                                                          end_date=datetime.date.today() - datetime.timedelta(
+                                                                              days=1))
+                """добавляет данные по выручке в БД"""
+                add_orders_data(revenue_data_by_article)
+                nm_ids_revenue_data.update(revenue_data_by_article)
         return nm_ids_revenue_data
         # self.gs_service_revenue_connect.add_for_all_new_nm_id_revenue(nm_ids_revenue_data=nm_ids_revenue_data)
         # todo сделать database class для add_orders_data
