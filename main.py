@@ -11,11 +11,6 @@ import schedule
 test_creds_json = "creds.json"
 test_spreadsheet = "START Курбан"
 test_sheet = "Тестовая версия"
-# test_sheet = "Лист3"
-
-
-# gs_connect = GoogleSheet(creds_json=test_creds_json,
-#                          spreadsheet=test_spreadsheet, sheet=test_sheet)
 
 
 def gs_connection():
@@ -77,10 +72,10 @@ def main():
 schedule.every(300).seconds.do(gs_service_for_schedule_connection().add_actually_data_to_table)
 
 """Смотрит в таблицу, оценивает изменения"""
-schedule.every(10).seconds.do(main)
+schedule.every(180).seconds.do(main)
 
 """Сдвигает таблицы по выручам. Условие должно работать раз в день каждые 5 утра"""
-schedule.every().day.at("10:16:15").do(gs_service_for_schedule_connection().add_new_day_revenue_to_table)
+schedule.every().day.at("09:40").do(gs_service_for_schedule_connection().add_new_day_revenue_to_table)
 
 if __name__ == '__main__':
     print("СЕРВИС ЗАПУЩЕН")

@@ -168,7 +168,6 @@ class ServiceGoogleSheet:
             for account, articles in lk_articles.items():
                 token = get_wb_tokens()[account.capitalize()]
                 analytics = AnalyticsNMReport(token=token)
-                print("Добавляем данные за вчерашний день выручки со сдвигом колонок")
                 # получаем данные по выручке с апи ВБ
                 revenue_data_by_article = analytics.get_last_days_revenue(nm_ids=articles)
                 all_accounts_new_revenue_data.update(revenue_data_by_article)
@@ -177,6 +176,9 @@ class ServiceGoogleSheet:
             self.gs_service_revenue_connect.add_last_day_revenue(nm_ids_revenue_data=all_accounts_new_revenue_data,
                                                                  last_day=last_day)
             print(f"добавлена выручка по новом заголовку {last_day} по всем артикулам")
+            """добавляет данные по выручке в БД"""
+            print("Выручка добавлена в БД")
+            add_orders_data(all_accounts_new_revenue_data)
 
     @staticmethod
     def check_status():
