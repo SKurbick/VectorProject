@@ -118,25 +118,28 @@ def validate_data(data: dict):
     for nm_id, edit_data in data.items():
         if nm_id.isdigit():
             nm_ids_data = {}
-            if edit_data["price_discount"]["Установить новую скидку %"].isdigit():
-                nm_ids_data.setdefault("price_discount", {})["discount"] = int(edit_data["price_discount"][
-                                                                                   "Установить новую скидку %"])
+            if "price_discount" in edit_data:
+                if edit_data["price_discount"]["Установить новую скидку %"].isdigit():
+                    nm_ids_data.setdefault("price_discount", {})["discount"] = int(edit_data["price_discount"][
+                                                                                       "Установить новую скидку %"])
 
-            if edit_data["price_discount"]["Установить новую цену"].isdigit():
-                nm_ids_data.setdefault("price_discount", {})["price"] = int(edit_data["price_discount"][
-                                                                                "Установить новую цену"])
-
-            if edit_data["dimensions"]['Новая\nВысота (см)'].isdigit() and edit_data["dimensions"][
-                'Новая\nДлина (см)'].isdigit() and edit_data["dimensions"]['Новая\nШирина (см)'].isdigit():
-                nm_ids_data.setdefault("dimensions", {})["height"] = int(edit_data["dimensions"][
-                                                                             'Новая\nВысота (см)'])
-                nm_ids_data.setdefault("dimensions", {})["length"] = int(edit_data["dimensions"][
-                                                                             'Новая\nДлина (см)'])
-                nm_ids_data.setdefault("dimensions", {})["width"] = int(edit_data["dimensions"][
-                                                                            'Новая\nШирина (см)'])
+                if edit_data["price_discount"]["Установить новую цену"].isdigit():
+                    nm_ids_data.setdefault("price_discount", {})["price"] = int(edit_data["price_discount"][
+                                                                                    "Установить новую цену"])
+            if "dimensions" in edit_data:
+                if edit_data["dimensions"]['Новая\nВысота (см)'].isdigit() and edit_data["dimensions"][
+                    'Новая\nДлина (см)'].isdigit() and edit_data["dimensions"]['Новая\nШирина (см)'].isdigit():
+                    nm_ids_data.setdefault("dimensions", {})["height"] = int(edit_data["dimensions"][
+                                                                                 'Новая\nВысота (см)'])
+                    nm_ids_data.setdefault("dimensions", {})["length"] = int(edit_data["dimensions"][
+                                                                                 'Новая\nДлина (см)'])
+                    nm_ids_data.setdefault("dimensions", {})["width"] = int(edit_data["dimensions"][
+                                                                                'Новая\nШирина (см)'])
 
             if len(nm_ids_data) > 0:
                 nm_ids_data["vendorCode"] = edit_data['Артикул продавца']
+                if "price_discount" in nm_ids_data:
+                    nm_ids_data['net_profit'] = int(edit_data['Чистая прибыль 1ед.'].replace(" ", "").replace("₽", ""))
                 if "dimensions" in nm_ids_data:
                     nm_ids_data["sizes"] = nm_ids_db_data[nm_id]["sizes"]
 

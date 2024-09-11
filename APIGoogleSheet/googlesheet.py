@@ -37,11 +37,6 @@ class GoogleSheet:
         return client.open_by_key(table_key)
 
     def get_nm_ids(self):
-        # print(self.spreadsheet)
-        # client = self.client_init_json()
-        # print(client.http_client)
-        # spreadsheet = client.open(self.spreadsheet)
-        # sheet = spreadsheet.worksheet(self.sheet)
 
         column_index = None
         headers = self.sheet.row_values(1)
@@ -69,9 +64,6 @@ class GoogleSheet:
 
     def update_rows(self, data_json, edit_column_clean=None):
 
-        # client = self.client_init_json()
-        # spreadsheet = client.open(self.spreadsheet)
-        # sheet = spreadsheet.worksheet(self.sheet)
         data = self.sheet.get_all_records(expected_headers=[])
         df = pd.DataFrame(data)
         json_df = pd.DataFrame(list(data_json.values()))
@@ -124,14 +116,10 @@ class GoogleSheet:
         print("Данные успешно обновлены.")
         return True
 
-    def get_edit_data(self):
+    def get_edit_data(self, dimension_status, price_and_discount_status):
         """
         Получает данные с запросом на изменение с таблицы
         """
-        # client = self.client_init_json()
-        # spreadsheet = client.open(self.spreadsheet)
-        # sheet = spreadsheet.worksheet(self.sheet)
-
         data = self.sheet.get_all_values()
 
         # Преобразуйте данные в DataFrame
@@ -152,24 +140,25 @@ class GoogleSheet:
                 continue
             # Создание словаря для текущего артикула
             article_dict = {
-                "price_discount": {'Установить новую цену': row['Установить новую цену'],
-                                   'Установить новую скидку %': row['Установить новую скидку %']},
-                "dimensions": {
+                'Новый остаток': row['Новый остаток'],
+                'Артикул продавца': row['Артикул продавца'],
+                'Чистая прибыль 1ед.': row['Чистая прибыль 1ед.']
+            }
+            if price_and_discount_status:
+                article_dict.update({"price_discount": {'Установить новую цену': row['Установить новую цену'],
+                                                        'Установить новую скидку %': row['Установить новую скидку %']}})
+            if dimension_status:
+                article_dict.update({"dimensions": {
                     'Новая\nДлина (см)': row['Новая\nДлина (см)'],
                     'Новая\nШирина (см)': row['Новая\nШирина (см)'],
-                    'Новая\nВысота (см)': row['Новая\nВысота (см)']},
-                'Новый остаток': row['Новый остаток'],
-                'Артикул продавца': row['Артикул продавца']
-            }
+                    'Новая\nВысота (см)': row['Новая\nВысота (см)']}})
+
             if account not in result_data:
                 result_data[account] = {}
             # Добавление словаря в результирующий словарь
             result_data[account][article] = article_dict
 
         return result_data
-
-
-
 
     def create_lk_articles_list(self):
         """Создает словарь из ключей кабинета и его Артикулов"""
@@ -196,7 +185,7 @@ class GoogleSheet:
 
     def check_status_service_sheet(self):
         data = self.sheet.get_all_records()
-        sheet_status = data[0]['ВКЛ - 1 /ВЫКЛ - 0']
+        sheet_status = data[0]
         return sheet_status
 
 

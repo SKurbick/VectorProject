@@ -1,5 +1,8 @@
 import datetime
+import time
 from pprint import pprint
+
+import gspread.exceptions
 
 from APIGoogleSheet.googlesheet import GoogleSheetServiceRevenue, GoogleSheet
 from APIWildberries.analytics import AnalyticsNMReport
@@ -14,11 +17,11 @@ class ServiceGoogleSheet:
     def __init__(self, token, spreadsheet: str, sheet: str, creds_json='creds.json'):
         self.wb_api_token = token
         self.gs_connect = GoogleSheet(creds_json=creds_json, spreadsheet=spreadsheet, sheet=sheet)
-        self.commission_traffics = CommissionTariffs(token=self.wb_api_token)
-        self.wb_api_content = ListOfCardsContent(token=self.wb_api_token)
+        # self.commission_traffics = CommissionTariffs(token=self.wb_api_token)
+        # self.wb_api_content = ListOfCardsContent(token=self.wb_api_token)
         self.database = ...
-        self.analytics = AnalyticsNMReport(token=self.wb_api_token)
-        self.wb_api_price_and_discount = ListOfGoodsPricesAndDiscounts(token=self.wb_api_token)
+        # self.analytics = AnalyticsNMReport(token=self.wb_api_token)
+        # self.wb_api_price_and_discount = ListOfGoodsPricesAndDiscounts(token=self.wb_api_token)
         self.gs_service_revenue_connect = GoogleSheetServiceRevenue(creds_json=creds_json, spreadsheet=spreadsheet,
                                                                     sheet=sheet)
         self.sheet = sheet
@@ -50,6 +53,8 @@ class ServiceGoogleSheet:
 
     def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
                                 add_data_in_db=True) -> dict:
+        """Функция была изменена. Теперь она просто выдает данные на добавления в таблицу, а не изменяет внутри"""
+
         result_nm_ids_data = {}
         for account, nm_ids in lk_articles.items():
             token = get_wb_tokens()[account.capitalize()]
@@ -102,11 +107,17 @@ class ServiceGoogleSheet:
         # self.gs_connect.update_rows(data_json=result_nm_ids_data, edit_column_clean=edit_column_clean)
 
     def change_cards_and_tables_data(self, edit_data_from_table):
+        sheet_statuses = ServiceGoogleSheet.check_status()
+        net_profit_status = sheet_statuses['Отрицательная \nЧП']
+        price_discount_edit_status = sheet_statuses['Цены/Скидки']
+        dimensions_edit_status = sheet_statuses['Габариты']
         updates_nm_ids_data = {}
+
         print("Получил данные по ячейкам на изменение товара")
         for account, nm_ids_data in edit_data_from_table.items():
             valid_data_result = validate_data(nm_ids_data)
             # пройдет если данные будут валидны для изменения
+
             if len(valid_data_result) > 0:
                 print("Данные валидны")
                 token = get_wb_tokens()[account.capitalize()]
@@ -117,15 +128,19 @@ class ServiceGoogleSheet:
                 price_discount_data = []  # данные с артикулами на изменение цены и/или цены
 
                 for nm_id, data in valid_data_result.items():
-
-                    if "price_discount" in data:
-                        price_discount_data.append(
-                            {
-                                "nmID": nm_id,
-                                **data["price_discount"]
-                            }
-                        )
-                    if "sizes" and "dimensions" in data:
+                    # статус на изменение цены\скидки должен быть активным
+                    if "price_discount" in data and price_discount_edit_status:
+                        # если "Чистая прибыль" > выходит больше 0 или если статус редактирование по
+                        # отрицательному ЧП стоит 1,то артикул, с запросом на изменение цены или скидки, будет добавлен
+                        if data['net_profit'] >= 0 or net_profit_status:
+                            price_discount_data.append(
+                                {
+                                    "nmID": nm_id,
+                                    **data["price_discount"]
+                                }
+                            )
+                    # статус на изменение габаритов должен быть активным
+                    if "sizes" and "dimensions" in data and dimensions_edit_status:
                         size_edit_data.append(
                             {
                                 "nmID": nm_id,
@@ -136,18 +151,20 @@ class ServiceGoogleSheet:
                         )
 
                 """запрос на изменение цены и/или скидки по артикулу"""
-                edit_column_clean = {"price_discount": False, "dimensions": False}
+                # edit_column_clean = {"price_discount": True, "dimensions": False}
+                print("price_discount_data",price_discount_data)
                 if len(price_discount_data) > 0:
                     pd_bool_result = wb_api_price_and_discount.add_new_price_and_discount(price_discount_data)
-                    edit_column_clean["price_discount"] = pd_bool_result
+                    # edit_column_clean["price_discount"] = pd_bool_result
 
                 """Запрос на изменение габаритов товара по артикулу и vendorCode(артикул продавца)"""
                 if len(size_edit_data) > 0:
                     c_bool_result = wb_api_content.size_edit(size_edit_data)
-                    edit_column_clean["dimensions"] = c_bool_result
+                    # edit_column_clean["dimensions"] = c_bool_result
                 """Перезаписываем данные в таблице после их изменений на WB"""
                 nm_ids_result = [int(nm_ids_str) for nm_ids_str in valid_data_result.keys()]
                 updates_nm_ids_data.update({account: nm_ids_result})
+        # если хоть по одному артикулу данные будут валидны...
         if len(updates_nm_ids_data) > 0:
             return self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
                                                 only_edits_data=True, add_data_in_db=False)
@@ -184,12 +201,21 @@ class ServiceGoogleSheet:
 
     @staticmethod
     def check_status():
-        sheet_status = GoogleSheet(creds_json="creds.json",
-                                   spreadsheet="START Курбан", sheet="ВКЛ/ВЫКЛ Бот")
-        return sheet_status.check_status_service_sheet()
+        for i in range(10):
+            try:
+
+                sheet_status = GoogleSheet(creds_json="creds.json",
+                                           spreadsheet="START Курбан", sheet="ВКЛ/ВЫКЛ Бот")
+                return sheet_status.check_status_service_sheet()
+            except gspread.exceptions.APIError as e:
+                print(f"попытка {i}", e, "следующая попытка через 75 секунд")
+                time.sleep(75)
+
+        return False
+
 
     def add_actually_data_to_table(self):
-        if ServiceGoogleSheet.check_status():
+        if ServiceGoogleSheet.check_status()['ВКЛ - 1 /ВЫКЛ - 0']:
             print("[INFO]", datetime.datetime.now(), "актуализируем данные в таблице")
             """
             Обновление данных по артикулам в гугл таблицу с WB api.
