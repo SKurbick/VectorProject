@@ -152,7 +152,7 @@ class ServiceGoogleSheet:
 
                 """запрос на изменение цены и/или скидки по артикулу"""
                 # edit_column_clean = {"price_discount": True, "dimensions": False}
-                print("price_discount_data",price_discount_data)
+                print("price_discount_data", price_discount_data)
                 if len(price_discount_data) > 0:
                     pd_bool_result = wb_api_price_and_discount.add_new_price_and_discount(price_discount_data)
                     # edit_column_clean["price_discount"] = pd_bool_result
@@ -213,7 +213,6 @@ class ServiceGoogleSheet:
 
         return False
 
-
     def add_actually_data_to_table(self):
         if ServiceGoogleSheet.check_status()['ВКЛ - 1 /ВЫКЛ - 0']:
             print("[INFO]", datetime.datetime.now(), "актуализируем данные в таблице")
@@ -240,6 +239,11 @@ class ServiceGoogleSheet:
                 subject_names = set()  # итог всех полученных с карточек предметов
                 current_tariffs_data = commission_traffics.get_tariffs_box_from_marketplace()
 
+                if len(merge_json_data) == 0:
+                    print(f"По токену {account} не получили Артикулы с данным с API WB")
+                    print(f"Артикулы:{articles}")
+                    print(f"Результат с API WB {merge_json_data}")
+                    continue  # пропускаем этот артикул
                 for i in merge_json_data.values():
                     subject_names.add(i["Предмет"])  # собираем множество с предметами
 

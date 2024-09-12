@@ -51,8 +51,7 @@ class ListOfCardsContent:
                         print("[ERROR]", response.status_code, f"попытка {i}")
                         print("ожидание 1 минута")
                         time.sleep(60)
-                    else:
-                        break
+
             except Exception as e:
                 print(e)
 
