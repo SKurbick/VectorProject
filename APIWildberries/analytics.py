@@ -42,11 +42,13 @@ class AnalyticsNMReport:
             response = requests.post(url=url, headers=self.headers, json=json_data)
 
             # обработка ограничения API WB на количество запросов
-            if response.status_code == 429:
-                print("[INFO] просмотр выручки. Попал в исключение. Ожидание 75 с.")
-                time.sleep(75)
-                response = requests.post(url=url, headers=self.headers, json=json_data)
-
+            if response.status_code > 400:
+                for _ in range(10):
+                    print("[INFO] просмотр выручки. Попал в исключение. Ожидание 75 с.")
+                    time.sleep(75)
+                    response = requests.post(url=url, headers=self.headers, json=json_data)
+                    if response.status_code < 400:
+                        break
             for data in response.json()["data"]:
 
                 nm_id_from_data = str(data["nmID"])

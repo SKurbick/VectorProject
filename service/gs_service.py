@@ -7,6 +7,7 @@ import gspread.exceptions
 from APIGoogleSheet.googlesheet import GoogleSheetServiceRevenue, GoogleSheet
 from APIWildberries.analytics import AnalyticsNMReport
 from APIWildberries.content import ListOfCardsContent
+from APIWildberries.marketplace import WarehouseMarketplaceWB, LeftoversMarketplace
 from APIWildberries.prices_and_discounts import ListOfGoodsPricesAndDiscounts
 from APIWildberries.tariffs import CommissionTariffs
 from settings import get_wb_tokens
@@ -46,11 +47,11 @@ class ServiceGoogleSheet:
                 """добавляет данные по выручке в БД"""
                 add_orders_data(revenue_data_by_article)
                 nm_ids_revenue_data.update(revenue_data_by_article)
+                """добавляем артикулы в БД"""
+                # артикулы добавляем после получения выручки
+                add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
         return nm_ids_revenue_data
-        # self.gs_service_revenue_connect.add_for_all_new_nm_id_revenue(nm_ids_revenue_data=nm_ids_revenue_data)
-        # todo сделать database class для add_orders_data
-        # """добавляет данные по выручке в БД"""
-        # add_orders_data(nm_ids_revenue_data)
+
 
     def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
                                 add_data_in_db=True):
@@ -67,6 +68,8 @@ class ServiceGoogleSheet:
                 """Обновление/добавление данных по артикулам в гугл таблицу с WB api"""
                 wb_api_content = ListOfCardsContent(token=token)
                 wb_api_price_and_discount = ListOfGoodsPricesAndDiscounts(token=token)
+                warehouses = WarehouseMarketplaceWB(token=token)
+                barcodes_quantity = LeftoversMarketplace(token=token)
                 card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=nm_ids_result, limit=100,
                                                                            only_edits_data=only_edits_data,
                                                                            account=account)
@@ -75,12 +78,13 @@ class ServiceGoogleSheet:
                 # объединяем полученные данные
                 merge_json_data = merge_dicts(goods_nm_ids, card_from_nm_ids_filter)
 
-                subject_names = set()  # итог всех полученных с карточек предметов
+                subject_names = set()  # итог предметов со всех карточек
+                account_barcodes = []
                 current_tariffs_data = commission_traffics.get_tariffs_box_from_marketplace()
 
                 for i in merge_json_data.values():
                     subject_names.add(i["Предмет"])  # собираем множество с предметами
-
+                    account_barcodes.append(i["Баркод"])
                     result_log_value = calculate_sum_for_logistic(  # на лету считаем "Логистика от склада WB до ПВЗ"
                         for_one_liter=int(current_tariffs_data["boxDeliveryBase"]),
                         next_liters=int(current_tariffs_data["boxDeliveryLiter"]),
@@ -89,15 +93,29 @@ class ServiceGoogleSheet:
                         width=int(i['Текущая\nШирина (см)']), )
                     i[
                         "Логистика от склада WB до ПВЗ"] = result_log_value  # добавляем результат вычислений в итоговые данные
+                barcodes_quantity_result = []
+                for warehouse_id in warehouses.get_account_warehouse():
+                    bqs_result = barcodes_quantity.get_amount_from_warehouses(
+                        warehouse_id=warehouse_id['id'],
+                        barcodes=account_barcodes)
+                    barcodes_quantity_result.extend(bqs_result)
 
                 # получение комиссии WB
                 subject_commissions = commission_traffics.get_commission_on_subject(subject_names=subject_names)
 
                 # добавляем данные в merge_json_data
-                for sc in subject_commissions.items():
-                    for result_card in merge_json_data.values():
-                        if sc[0] == result_card["Предмет"]:
-                            result_card['Комиссия WB'] = sc[1]
+                # for sc in subject_commissions.items():
+                #     for result_card in merge_json_data.values():
+                #         if sc[0] == result_card["Предмет"]:
+                #             result_card['Комиссия WB'] = sc[1]
+
+                for card in merge_json_data.values():
+                    for sc in subject_commissions.items():
+                        if sc[0] == card["Предмет"]:
+                            card["Комиссия WB"] = sc[1]
+                    for bq_result in barcodes_quantity_result:
+                        if bq_result["Баркод"] == card["Баркод"]:
+                            card["Текущий остаток"] = bq_result["остаток"]
 
                 result_nm_ids_data.update(merge_json_data)
 
@@ -278,3 +296,19 @@ class ServiceGoogleSheet:
                 result_updates_rows.update(merge_json_data)
                 """обновляем данные по артикулам"""
             gs_connect.update_rows(data_json=result_updates_rows)
+
+    def get_actually_quantity(self):
+        from APIWildberries.marketplace import WarehouseMarketplaceWB, LeftoversMarketplace
+        from utils import get_warehouse_data
+
+        result_updates_rows = {}
+        for account, barcodes in get_warehouse_data().items():
+            token = get_wb_tokens()[account.capitalize()]
+            all_db_barcodes = []
+            for barcode in barcodes:
+                all_db_barcodes.append(barcode["skus"][-1])
+            print(account, barcodes)
+            warehouses = WarehouseMarketplaceWB(token=token).get_account_warehouse()
+            for warehouse_id in warehouses:
+                quantity = LeftoversMarketplace(token=token).get_amount_from_warehouses(warehouse_id=warehouse_id['id'],
+                                                                                        barcodes=all_db_barcodes)

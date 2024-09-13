@@ -41,7 +41,7 @@ def main():
             service_gs_table = ServiceGoogleSheet(
                 token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
 
-            result_data_for_update_rows = service_gs_table.add_new_data_from_table(lk_articles=lk_articles)
+            result_data_for_update_rows = service_gs_table.add_new_data_from_table(lk_articles=lk_articles, add_data_in_db=False)
             revenue_data_for_update_rows = service_gs_table.add_revenue_for_new_nm_ids(lk_articles=lk_articles)
 
             "Добавляем данные по выручке и инфо по полученным артикулам"
@@ -78,7 +78,7 @@ def main():
 schedule.every(300).seconds.do(gs_service_for_schedule_connection().add_actually_data_to_table)
 
 """Смотрит в таблицу, оценивает изменения"""
-schedule.every(180).seconds.do(main)
+schedule.every(15).seconds.do(main)
 
 """Сдвигает таблицы по выручкам. Условие должно работать раз в день каждые 5 утра"""
 schedule.every().day.at("09:20").do(gs_service_for_schedule_connection().add_new_day_revenue_to_table)

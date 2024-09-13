@@ -1,3 +1,5 @@
+import time
+
 import requests
 
 
@@ -8,11 +10,6 @@ class Wildberries:
 
 class MarketplaceWB:
     """Base class"""
-    pass
-
-
-class WarehouseMarketplaceWB:
-    """API складов маркетплейс"""
     pass
 
 
@@ -61,7 +58,7 @@ class LeftoversMarketplace:
 
     def get_amount_from_warehouses(self, warehouse_id, barcodes, step=1000):
         url = self.url.format(f"{warehouse_id}")
-        barcodes_quantity = {}
+        barcodes_quantity = []
         for start in range(0, len(barcodes), step):
             barcodes_part = barcodes[start: start + step]
 
@@ -73,9 +70,37 @@ class LeftoversMarketplace:
             stocks = response.json()["stocks"]
             if len(stocks) > 0:
                 for stock in stocks:
-                    barcodes_quantity.update(
+                    barcodes_quantity.append(
                         {
-                            stock["sku"]: stock["amount"]
+                            "Баркод": stock["sku"],
+                            "остаток": stock["amount"]
                         }
                     )
         return barcodes_quantity
+
+
+class WarehouseMarketplaceWB:
+    """API складов маркетплейс"""
+
+    def __init__(self, token):
+        self.token = token
+        self.headers = {
+            "Authorization": self.token,
+            'Content-Type': 'application/json'
+        }
+        self.url = "https://marketplace-api.wildberries.ru/api/v3/warehouses"
+
+    def get_account_warehouse(self, ):
+        response = requests.get(url=self.url, headers=self.headers)
+        if response.status_code > 400:
+            try:
+                for _ in range(10):
+                    response = requests.get(url=self.url, headers=self.headers)
+                    if response.status_code < 400:
+                        time.sleep(60)
+                        break
+
+            except Exception as e:
+                print(e)
+
+        return response.json()
