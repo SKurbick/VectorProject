@@ -46,7 +46,7 @@ def main():
 
             "Добавляем данные по выручке и инфо по полученным артикулам"
             if len(result_data_for_update_rows) > 0:
-                gs_connection().update_rows(data_json=result_data_for_update_rows)
+                gs_connection().update_rows(data_json=result_data_for_update_rows, edit_column_clean=None)
             if len(revenue_data_for_update_rows) > 0:
                 """Добавление информации по выручкам за последние 7 дней"""
                 gs_service_revenue_connection().add_for_all_new_nm_id_revenue(
@@ -81,7 +81,7 @@ schedule.every(300).seconds.do(gs_service_for_schedule_connection().add_actually
 schedule.every(180).seconds.do(main)
 
 """Сдвигает таблицы по выручкам. Условие должно работать раз в день каждые 5 утра"""
-schedule.every().day.at("09:40").do(gs_service_for_schedule_connection().add_new_day_revenue_to_table)
+schedule.every().day.at("09:20").do(gs_service_for_schedule_connection().add_new_day_revenue_to_table)
 
 if __name__ == '__main__':
     print("СЕРВИС ЗАПУЩЕН")

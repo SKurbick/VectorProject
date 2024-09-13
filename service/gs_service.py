@@ -29,22 +29,22 @@ class ServiceGoogleSheet:
         self.creds_json = creds_json
 
     def add_revenue_for_new_nm_ids(self, lk_articles: dict):
-        """ Добавление выручки по новым артикулам за 7 последних дней (сегоднешний не учитывается)"""
+        """ Добавление выручки по новым артикулам за 7 последних дней (сегодняшний не учитывается)"""
         nm_ids_revenue_data = {}
         for account, articles in lk_articles.items():
             # получаем токен и корректируем регистр для чтения из файла
             token = get_wb_tokens()[account.capitalize()]
-            nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=articles)
-            if len(nm_ids_result) > 0:
-                analytics = AnalyticsNMReport(token=token)
-                revenue_data_by_article = analytics.get_last_days_revenue(nm_ids=articles,
-                                                                          begin_date=datetime.date.today() - datetime.timedelta(
-                                                                              days=7),
-                                                                          end_date=datetime.date.today() - datetime.timedelta(
-                                                                              days=1))
-                """добавляет данные по выручке в БД"""
-                add_orders_data(revenue_data_by_article)
-                nm_ids_revenue_data.update(revenue_data_by_article)
+            # nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=articles)
+            # if len(nm_ids_result) > 0:
+            analytics = AnalyticsNMReport(token=token)
+            revenue_data_by_article = analytics.get_last_days_revenue(nm_ids=articles,
+                                                                      begin_date=datetime.date.today() - datetime.timedelta(
+                                                                          days=7),
+                                                                      end_date=datetime.date.today() - datetime.timedelta(
+                                                                          days=1))
+            """добавляет данные по выручке в БД"""
+            add_orders_data(revenue_data_by_article)
+            nm_ids_revenue_data.update(revenue_data_by_article)
         return nm_ids_revenue_data
         # self.gs_service_revenue_connect.add_for_all_new_nm_id_revenue(nm_ids_revenue_data=nm_ids_revenue_data)
         # todo сделать database class для add_orders_data
@@ -52,8 +52,8 @@ class ServiceGoogleSheet:
         # add_orders_data(nm_ids_revenue_data)
 
     def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
-                                add_data_in_db=True) -> dict:
-        """Функция была изменена. Теперь она просто выдает данные на добавления в таблицу, а не изменяет внутри"""
+                                add_data_in_db=True):
+        """Функция была изменена. Теперь она просто выдает данные на добавления в таблицу, а не добавляет таблицу внутри функции"""
 
         result_nm_ids_data = {}
         for account, nm_ids in lk_articles.items():
@@ -61,13 +61,15 @@ class ServiceGoogleSheet:
 
             print("поиск всех артикулов которых нет в БД")
             nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=nm_ids)
+            print("nm_ids_result", nm_ids_result)
             if len(nm_ids_result) > 0:
                 """Обновление/добавление данных по артикулам в гугл таблицу с WB api"""
                 wb_api_content = ListOfCardsContent(token=token)
                 wb_api_price_and_discount = ListOfGoodsPricesAndDiscounts(token=token)
-                card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=nm_ids, limit=100,
-                                                                           only_edits_data=only_edits_data)
-                goods_nm_ids = wb_api_price_and_discount.get_log_for_nm_ids(filter_nm_ids=nm_ids)
+                card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=nm_ids_result, limit=100,
+                                                                           only_edits_data=only_edits_data,
+                                                                           account=account)
+                goods_nm_ids = wb_api_price_and_discount.get_log_for_nm_ids(filter_nm_ids=nm_ids_result)
                 commission_traffics = CommissionTariffs(token=token)
                 # объединяем полученные данные
                 merge_json_data = merge_dicts(goods_nm_ids, card_from_nm_ids_filter)
@@ -100,8 +102,14 @@ class ServiceGoogleSheet:
 
                 if add_data_in_db is True:
                     """добавляем артикулы в БД"""
-                    add_nm_ids_in_db(account=account, new_nm_ids=nm_ids)
+                    add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
+        # ####
+        # result_nm_ids_data_list = []
+        #
+        # for a, items in result_nm_ids_data.items():
+        #     result_nm_ids_data_list.append(items)
 
+        print(result_nm_ids_data)
         return result_nm_ids_data
         # """обновляем/добавляем данные по артикулам"""
         # self.gs_connect.update_rows(data_json=result_nm_ids_data, edit_column_clean=edit_column_clean)
@@ -188,7 +196,10 @@ class ServiceGoogleSheet:
                 token = get_wb_tokens()[account.capitalize()]
                 analytics = AnalyticsNMReport(token=token)
                 # получаем данные по выручке с апи ВБ
-                revenue_data_by_article = analytics.get_last_days_revenue(nm_ids=articles)
+                revenue_data_by_article = analytics.get_last_days_revenue(nm_ids=articles,
+                                                                          begin_date=last_day_bad_format,
+                                                                          end_date=last_day_bad_format)
+
                 all_accounts_new_revenue_data.update(revenue_data_by_article)
                 pprint(revenue_data_by_article)
                 # добавляем их таблицу

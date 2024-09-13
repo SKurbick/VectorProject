@@ -5,7 +5,7 @@ from pprint import pprint
 
 import gspread
 from gspread import Client, service_account
-from utils import get_nm_ids_in_db
+from utils import get_nm_ids_in_db, column_index_to_letter
 import pandas as pd
 
 
@@ -62,7 +62,7 @@ class GoogleSheet:
         print("инфа в бд:", nm_ids_in_db)
         return result
 
-    def update_rows(self, data_json, edit_column_clean=None):
+    def update_rows(self, data_json, edit_column_clean: dict = None):
 
         data = self.sheet.get_all_records(expected_headers=[])
         df = pd.DataFrame(data)
@@ -94,13 +94,14 @@ class GoogleSheet:
         for index, row in json_df.iterrows():
             matching_rows = df[df["Артикул"] == row["Артикул"]].index
             for idx in matching_rows:
+
                 row_number = idx + 2  # +2 потому что индексация в Google Таблицах начинается с 1, а первая строка - заголовки
                 for column in row.index:
                     if column in headers:
-                        column_index = headers.index(
-                            column) + 1  # +1 потому что индексация в Google Таблицах начинается с 1
-                        updates.append({'range': f'{chr(64 + column_index)}{row_number}', 'values': [[row[column]]]})
-
+                        # +1 потому что индексация в Google Таблицах начинается с 1
+                        column_index = headers.index(column) + 1
+                        column_letter = column_index_to_letter(column_index)
+                        updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
                 if edit_column_clean is not None:
                     if edit_column_clean["price_discount"]:
                         updates.append({'range': f'K{row_number}',
@@ -111,7 +112,7 @@ class GoogleSheet:
                         updates.append({'range': f'S{row_number}', 'values': [['']]})
                         updates.append({'range': f'T{row_number}', 'values': [['']]})
                         updates.append({'range': f'U{row_number}', 'values': [['']]})
-
+        pprint(updates)
         self.sheet.batch_update(updates)
         print("Данные успешно обновлены.")
         return True
@@ -213,24 +214,6 @@ class GoogleSheetServiceRevenue:
         sheet = spreadsheet.worksheet(self.sheet)
         all_values = sheet.get_all_values()
 
-        # # Находим индекс столбца "Артикул"
-        # header_row = all_values[0]
-        # article_col_index = header_row.index('Артикул')
-        #
-        # # Обновление значений в таблице
-        # updates = []
-        # for row_index, row in enumerate(all_values[1:], start=2):  # Начинаем с 2, так как первая строка - заголовки
-        #     article = row[article_col_index]
-        #     if article in nm_ids_revenue_data:
-        #         for date_col_name in nm_ids_revenue_data[article]:
-        #             if date_col_name in header_row:
-        #                 date_col_index = header_row.index(date_col_name)
-        #                 value = nm_ids_revenue_data[article][date_col_name]
-        #                 cell = sheet.cell(row_index, date_col_index + 1)
-        #                 updates.append({
-        #                     'range': cell.address,
-        #                     'values': [[value]]
-        #                 })
         # Находим индекс столбца "Артикул"
         header_row = all_values[0]
         article_col_index = header_row.index('Артикул')

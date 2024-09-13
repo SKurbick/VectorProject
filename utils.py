@@ -155,9 +155,40 @@ def get_nm_ids_in_db(account):
     return nm_ids["account_nm_ids"][account]
 
 
+def get_warehouse_data():
+    with open("database.json", "r", encoding='utf-8') as file:
+        warehouse_data = json.load(file)
+
+    return warehouse_data["warehouse_data"]
+
+
+def add_data_from_warehouse(warehouse_data):
+    with open('database.json', 'r+') as file:
+        # Загрузите данные из файла
+        database = json.load(file)
+        for account, wh_data in warehouse_data.items():
+            if account not in database["warehouse_data"].keys():
+                database["warehouse_data"].update({account: {}})
+            database["warehouse_data"][account].update(wh_data)
+        file.seek(0)
+        json.dump(database, file, indent=4, ensure_ascii=False)
+        file.truncate()
+
+
+
+def column_index_to_letter(index):
+    letter = ''
+    while index > 0:
+        index -= 1
+        letter = chr((index % 26) + 65) + letter
+        index //= 26
+    return letter
+
+
+
 fake_data = {'': {'price_discount': {'Установить новую скидку %': '',
                                      'Установить новую цену': ''},
-                  'dimdimensions': {'Новая\nВысота (см)': '',
+                  'dimensions': {'Новая\nВысота (см)': '',
                                     'Новая\nДлина (см)': '',
                                     'Новая\nШирина (см)': ''},
                   'Артикул продавца': '',
@@ -185,30 +216,4 @@ fake_data = {'': {'price_discount': {'Установить новую скидк
                          'Артикул продавца': 'тянет с апи вб',
                          'Новый остаток': 'остаток с вб по фбс парсится с апи вб'}}
 
-# pprint(validate_data(fake_data))
 
-
-# for i,w in test_result.items():
-#     if "price_discount" in w:
-#
-#         p_d_data.append(
-#             {
-#                 "nmID": i,
-#                 **w["price_discount"]
-#             }
-#         )
-#     if "sizes" in w:
-#
-# print(p_d_data)
-#
-# fake_data = {"178600541": {'02-09-2024': 24964},
-#              "248268608": {'02-09-2024': 123, '01-09-2024': 123123},
-#              "248825415": {'02-09-2024': 0},
-#              "248952002": {'02-09-2024': 0},
-#              "249111077": {'02-09-2024': 0, '01-09-2024': 0},
-#              "249111078": {'02-09-2024': 0},
-#              "249111079": {'02-09-2024': 0},
-#              "249245604": {'02-09-2024': 0},
-#              "249751299": {'02-09-2024': 0},
-#              "250111738": {'02-09-2024': 0},
-#              "250511046": {'02-09-2024': 0}}

@@ -1,7 +1,7 @@
 import json
 import time
 from pprint import pprint
-from utils import add_data_for_nm_ids
+from utils import add_data_for_nm_ids, add_data_from_warehouse
 
 import requests
 
@@ -25,12 +25,13 @@ class ListOfCardsContent:
         }
 
     def get_list_of_cards(self, nm_ids_list: list, limit: int = 1, eng_json_data: bool = False,
-                          only_edits_data=False, add_data_in_db=True) -> json:
+                          only_edits_data=False, add_data_in_db=True, account = None) -> json:
         """Получение всех карточек  по совпадению с nm_ids_list"""
         nm_ids_list_for_edit = [*nm_ids_list]
         url = self.url.format("list")
         card_result_for_match = {}
         nm_ids_data_for_database = {}
+        data_for_warehouse = {}
         json_obj = {
             "settings": {
                 "cursor": {
@@ -51,7 +52,8 @@ class ListOfCardsContent:
                         print("[ERROR]", response.status_code, f"попытка {i}")
                         print("ожидание 1 минута")
                         time.sleep(60)
-
+                    else:
+                        break
             except Exception as e:
                 print(e)
 
@@ -72,12 +74,18 @@ class ListOfCardsContent:
                         if only_edits_data is False:
                             card_result_for_match[card["nmID"]].update({
                                 "Артикул продавца": card["vendorCode"],
-                                "Фото": card["photos"][0]["tm"]})
-
+                                "Фото": card["photos"][0]["tm"],
+                                # для таблицы будет использоваться последний баркод из списка
+                                "Баркод": card["sizes"][0]["skus"][-1]})
                         # добавляем данные по размерам в БД
                         nm_ids_data_for_database[str(card["nmID"])] = {
                             "sizes": card["sizes"]
                         }
+
+                        if self.token not in data_for_warehouse.keys():
+                            data_for_warehouse[account] = {}
+                        # добавляем данные по skus с ключем кабинета и артикла
+                        data_for_warehouse[account].update({card["nmID"]: {"skus": card["sizes"][0]["skus"]}})
 
                         nm_ids_list_for_edit.remove(card["nmID"])
 
@@ -98,6 +106,11 @@ class ListOfCardsContent:
                         nm_ids_data_for_database[str(card["nmID"])] = {
                             "sizes": card["sizes"]
                         }
+                        if self.token not in data_for_warehouse.keys():
+                            data_for_warehouse[self.token] = {}
+                        # добавляем в БД данные по skus с ключем кабинета и артикла
+                        data_for_warehouse[self.token].update({card["nmID"]: {"skus": card["sizes"][0]["skus"]}})
+
                         nm_ids_list_for_edit.remove(card["nmID"])
 
                     if len(nm_ids_list_for_edit) == 0:
@@ -117,6 +130,7 @@ class ListOfCardsContent:
         # добавляем данные по размерам в БД
         if add_data_in_db is True:
             add_data_for_nm_ids(nm_ids_data_for_database)
+            add_data_from_warehouse(data_for_warehouse)
         return card_result_for_match
 
     def size_edit(self, data: list):

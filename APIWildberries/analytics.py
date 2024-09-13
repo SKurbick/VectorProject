@@ -19,12 +19,12 @@ class AnalyticsNMReport:
         }
 
     def get_last_days_revenue(self, nm_ids: list,
-                              begin_date: datetime = datetime.date.today() - datetime.timedelta(days=1),
-                              end_date: datetime = datetime.date.today() - datetime.timedelta(days=1), step: int = 20):
+                              begin_date: datetime,
+                              end_date: datetime,
+                              step: int = 20):
         """По методу есть ограничения на 3 запроса в минуту и в 20 nmID за запрос.
             По умолчанию передаются даты последнего (вчерашнего) дня
         """
-
         url = self.url.format("detail/history")
         result_data = {}
         for start in range(0, len(nm_ids), step):

@@ -13,3 +13,4 @@ __pycache__/
 poligon.py
 tokens.json
 table_status.py
+barcode_search.py
