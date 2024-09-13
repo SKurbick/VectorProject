@@ -109,7 +109,6 @@ class ServiceGoogleSheet:
         # for a, items in result_nm_ids_data.items():
         #     result_nm_ids_data_list.append(items)
 
-        print(result_nm_ids_data)
         return result_nm_ids_data
         # """обновляем/добавляем данные по артикулам"""
         # self.gs_connect.update_rows(data_json=result_nm_ids_data, edit_column_clean=edit_column_clean)
@@ -160,7 +159,6 @@ class ServiceGoogleSheet:
 
                 """запрос на изменение цены и/или скидки по артикулу"""
                 # edit_column_clean = {"price_discount": True, "dimensions": False}
-                print("price_discount_data", price_discount_data)
                 if len(price_discount_data) > 0:
                     pd_bool_result = wb_api_price_and_discount.add_new_price_and_discount(price_discount_data)
                     # edit_column_clean["price_discount"] = pd_bool_result

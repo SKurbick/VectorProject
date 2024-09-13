@@ -112,7 +112,6 @@ class GoogleSheet:
                         updates.append({'range': f'S{row_number}', 'values': [['']]})
                         updates.append({'range': f'T{row_number}', 'values': [['']]})
                         updates.append({'range': f'U{row_number}', 'values': [['']]})
-        pprint(updates)
         self.sheet.batch_update(updates)
         print("Данные успешно обновлены.")
         return True
