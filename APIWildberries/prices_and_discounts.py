@@ -37,7 +37,7 @@ class ListOfGoodsPricesAndDiscounts:
             }
             response = requests.get(url, headers=self.headers, params=params)
 
-            if response.json()["data"]["listGoods"] is None:  # сли артикул не будет найден, то он его пропустит
+            if "data" not in response.json() or response.json()["data"]["listGoods"] is None:  # сли артикул не будет найден, то он его пропустит
                 continue
             response_result = response.json()["data"]["listGoods"][0]
 
