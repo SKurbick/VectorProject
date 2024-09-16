@@ -4,6 +4,7 @@ from datetime import timedelta, datetime
 from pprint import pprint
 
 import gspread
+import requests
 from gspread import Client, service_account
 from utils import get_nm_ids_in_db, column_index_to_letter
 import pandas as pd
@@ -13,19 +14,17 @@ class GoogleSheet:
     def __init__(self, spreadsheet: str, sheet: str, creds_json='creds.json'):
         self.creds_json = creds_json
         self.spreadsheet = spreadsheet
-        self.sheet = sheet
-
         client = self.client_init_json()
-        try:
-            spreadsheet = client.open(self.spreadsheet)
-            self.sheet = spreadsheet.worksheet(self.sheet)
-
-        except gspread.exceptions.APIError as e:
-            print(datetime.now())
-            print(e)
-            time.sleep(60)
-            spreadsheet = client.open(self.spreadsheet)
-            self.sheet = spreadsheet.worksheet(self.sheet)
+        for _ in range(10):
+            try:
+                spreadsheet = client.open(self.spreadsheet)
+                self.sheet = spreadsheet.worksheet(sheet)
+                break
+            except (gspread.exceptions.APIError, requests.exceptions.ConnectionError) as e:
+                print(datetime.now())
+                print(e)
+                print("time sleep 60 sec")
+                time.sleep(60)
 
     def client_init_json(self) -> Client:
         """Создание клиента для работы с Google Sheets."""
@@ -117,7 +116,7 @@ class GoogleSheet:
                         updates.append({'range': f'U{row_number}', 'values': [['']]})
 
                     if edit_column_clean["qty"]:
-                        updates.append({'range': f'AC{row_number}', 'values': [['']]})
+                        updates.append({'range': f'AE{row_number}', 'values': [['']]})
 
         self.sheet.batch_update(updates)
         print("Данные успешно обновлены.")
@@ -209,7 +208,6 @@ class GoogleSheet:
         sheet_status = data[0]
         return sheet_status
 
-
     def get_data_quantity_limit(self):
         """Проверяем остатки и лимит по остаткам"""
         data = self.sheet.get_all_records()
@@ -219,16 +217,17 @@ class GoogleSheet:
         for index, row in df.iterrows():
             account = str(row["ЛК"])
             if str(row['Минимальный остаток']).isdigit():
-                if int(row["Минимальный остаток"])> int(row["Текущий остаток"]):
+                if int(row["Минимальный остаток"]) > int(row["Текущий остаток"]):
                     if account not in result_data:
-                        result_data[account]={"qty":[],"nm_ids":[]}
+                        result_data[account] = {"qty": [], "nm_ids": []}
                     result_data[account]["qty"].append(
-                        {"wild":row["Артикул продавца"],
-                         "sku":str(row["Баркод"])}
+                        {"wild": row["Артикул продавца"],
+                         "sku": str(row["Баркод"])}
                     )
                     result_data[account]["nm_ids"].append(int(row["Артикул"]))
 
         return result_data
+
 
 class GoogleSheetServiceRevenue:
     """Выручка: AD-AN"""
@@ -390,8 +389,6 @@ class GoogleSheetServiceRevenue:
 
             return False
 
-
-
     def update_revenue_rows(self, data_json):
         client = self.client_init_json()
         spreadsheet = client.open(self.spreadsheet)
@@ -432,9 +429,8 @@ class GoogleSheetServiceRevenue:
         sheet.batch_update(updates)
 
 
-
 class GoogleSheetSopostTable:
-    def __init__(self,sheet="Сопост",spreadsheet="Новая таблица UNIT",creds_json="creds_sopost.json"):
+    def __init__(self, sheet="Сопост", spreadsheet="Новая таблица UNIT", creds_json="creds_sopost.json"):
         self.sheet = sheet
         self.spreadsheet = spreadsheet
         self.creds_json = creds_json
