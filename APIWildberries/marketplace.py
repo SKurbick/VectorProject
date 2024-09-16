@@ -78,6 +78,20 @@ class LeftoversMarketplace:
                     )
         return barcodes_quantity
 
+    def edit_amount_from_warehouses(self, warehouse_id, edit_barcodes_list, step=1000):
+        url = self.url.format(f"{warehouse_id}")
+        for start in range(0, len(edit_barcodes_list), step):
+            barcodes_part = edit_barcodes_list[start: start + step]
+            print(barcodes_part)
+            json_data = {
+                "stocks": barcodes_part
+            }
+            response = requests.put(url=url, headers=self.headers, json=json_data)
+            if response.status_code > 399:
+                print("Запрос на изменение остатков:", response.json())
+            else:
+                print("Запрос на изменение остатков. Код:", response.status_code)
+
 
 class WarehouseMarketplaceWB:
     """API складов маркетплейс"""

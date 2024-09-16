@@ -12,5 +12,6 @@ old_tokens.json
 __pycache__/
 poligon.py
 tokens.json
+creds_sopost.json
 table_status.py
 barcode_search.py

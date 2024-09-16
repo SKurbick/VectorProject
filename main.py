@@ -41,23 +41,26 @@ def main():
             service_gs_table = ServiceGoogleSheet(
                 token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
 
-            result_data_for_update_rows = service_gs_table.add_new_data_from_table(lk_articles=lk_articles, add_data_in_db=False)
+            result_data_for_update_rows = service_gs_table.add_new_data_from_table(lk_articles=lk_articles,
+                                                                                   add_data_in_db=False)
             revenue_data_for_update_rows = service_gs_table.add_revenue_for_new_nm_ids(lk_articles=lk_articles)
 
             "Добавляем данные по выручке и инфо по полученным артикулам"
             if len(result_data_for_update_rows) > 0:
                 gs_connection().update_rows(data_json=result_data_for_update_rows, edit_column_clean=None)
             if len(revenue_data_for_update_rows) > 0:
+                print("Добавляем выручку в таблицу")
                 """Добавление информации по выручкам за последние 7 дней"""
-                gs_service_revenue_connection().add_for_all_new_nm_id_revenue(
-                    nm_ids_revenue_data=revenue_data_for_update_rows)
+                gs_service_revenue_connection().update_revenue_rows(
+                    data_json=revenue_data_for_update_rows)
 
             """Получение данных с запросом на изменение с таблицы.
             Условие сработает если данные с запросом на изменение с таблицы будут валидны и артикулы с таблицы будут в БД"""
             edit_statuses = ServiceGoogleSheet.check_status()
 
             edit_data_from_table = gs_connect.get_edit_data(dimension_status=edit_statuses["Габариты"],
-                                                            price_and_discount_status=edit_statuses["Цены/Скидки"])
+                                                            price_and_discount_status=edit_statuses["Цены/Скидки"],
+                                                            qty_status=edit_statuses["Остаток"])
             print("Смотрим в таблицу. Оцениваем ячейки по изменениям товара")
             if len(edit_data_from_table) > 0:
                 service_gs_table = ServiceGoogleSheet(
@@ -68,20 +71,23 @@ def main():
                 if len(edit_nm_ids_data) > 0:
                     gs_connection().update_rows(data_json=edit_nm_ids_data,
                                                 edit_column_clean={"price_discount": statuses['Цены/Скидки'],
-                                                                   "dimensions": statuses['Габариты']})
+                                                                   "dimensions": statuses['Габариты'],
+                                                                   "qty": statuses["Остаток"]})
         print("Упали в ожидание")
     else:
         print("СЕРВИС ОТКЛЮЧЕН (0)")
 
 
-"""Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
+# """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
 schedule.every(300).seconds.do(gs_service_for_schedule_connection().add_actually_data_to_table)
-
-"""Смотрит в таблицу, оценивает изменения"""
+#
+# """Смотрит в таблицу, оценивает изменения"""
 schedule.every(15).seconds.do(main)
 
-"""Сдвигает таблицы по выручкам. Условие должно работать раз в день каждые 5 утра"""
+# """Сдвигает таблицы по выручкам. Условие должно работать раз в день каждые 5 утра"""
 schedule.every().day.at("09:20").do(gs_service_for_schedule_connection().add_new_day_revenue_to_table)
+# проверяет остатки
+schedule.every(1).hours.do(gs_service_for_schedule_connection().check_quantity_flag)
 
 if __name__ == '__main__':
     print("СЕРВИС ЗАПУЩЕН")

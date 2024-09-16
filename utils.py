@@ -31,10 +31,11 @@ def add_orders_data(revenue_data: dict):  # добавление или обно
         # Загрузите данные из файла
         database = json.load(file)
         for nm_id in revenue_data:
-            if nm_id in database["revenue_result"]:  # если артикул есть, то данные будут обновленны или дополненны
-                database["revenue_result"][nm_id].update(revenue_data[nm_id])
+            str_nm_id = str(nm_id)
+            if str_nm_id in database["revenue_result"]:  # если артикул есть, то данные будут обновленны или дополненны
+                database["revenue_result"][str_nm_id].update(revenue_data[nm_id])
             else:  # если артикула нет, то будет добавлен с актуальными данными
-                database["revenue_result"].update({nm_id: revenue_data[nm_id]})
+                database["revenue_result"].update({str_nm_id: revenue_data[nm_id]})
         file.seek(0)
         json.dump(database, file, indent=4, ensure_ascii=False)
         file.truncate()
@@ -184,32 +185,22 @@ def column_index_to_letter(index):
     return letter
 
 
-fake_data = {'': {'price_discount': {'Установить новую скидку %': '',
-                                     'Установить новую цену': ''},
-                  'dimensions': {'Новая\nВысота (см)': '',
-                                 'Новая\nДлина (см)': '',
-                                 'Новая\nШирина (см)': ''},
-                  'Артикул продавца': '',
-                  'Новый остаток': ''},
-             '190912901': {'price_discount': {'Установить новую скидку %': '10',
-                                              'Установить новую цену': '500'},
-                           'dimensions': {'Новая\nВысота (см)': '21',
-                                          'Новая\nДлина (см)': '30',
-                                          'Новая\nШирина (см)': '40'},
-                           'Артикул продавца': 'wild608',
-                           'Новый остаток': ''},
-             '3123131': {'price_discount': {'Установить новую скидку %': '2',
-                                            'Установить новую цену': ''},
-                         'dimensions': {'Новая\nВысота (см)': '',
-                                        'Новая\nДлина (см)': '',
-                                        'Новая\nШирина (см)': ''},
-                         'Артикул продавца': 'wild1301',
-                         'Новый остаток': ''},
-             'вручную': {'price_discount': {'Установить новую скидку %': 'обмен данными с '
-                                                                         'вб',
-                                            'Установить новую цену': 'обмен данными с вб'},
-                         'dimensions': {'Новая\nВысота (см)': '',
-                                        'Новая\nДлина (см)': '',
-                                        'Новая\nШирина (см)': ''},
-                         'Артикул продавца': 'тянет с апи вб',
-                         'Новый остаток': 'остаток с вб по фбс парсится с апи вб'}}
+def get_last_weeks_dates(last_week_count=1):
+    """Функция для получения срезов дат начало и конца недели не включая текущую.
+     last_week_count: количество недель (указывая 1 - получишь последнюю)"""
+    now = datetime.datetime.now()
+    current_week_start = now - datetime.timedelta(days=now.weekday())
+
+    result_dates = {}
+    for i in range(1, last_week_count + 1):
+        week_start = current_week_start - datetime.timedelta(weeks=i)
+        week_end = week_start + datetime.timedelta(days=6)
+
+        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_end = week_end.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        date_key = f"{week_start.strftime('%m.%d')}-{week_end.strftime('%m.%d')}"
+        result_dates[date_key] = {"Start": week_start.strftime('%Y-%m-%d %H:%M:%S'),
+                                  "End": week_end.strftime('%Y-%m-%d %H:%M:%S')}
+
+    return result_dates

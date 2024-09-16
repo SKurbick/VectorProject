@@ -88,6 +88,9 @@ class GoogleSheet:
                         df.at[idx, 'Новая\nШирина (см)'] = ""
                         df.at[idx, 'Новая\nВысота (см)'] = ""
 
+                    if edit_column_clean["qty"]:
+                        df.at[idx, 'Новый остаток'] = ""
+
         # Обновите Google Таблицу только для измененных строк
         updates = []
         headers = df.columns.tolist()
@@ -112,11 +115,15 @@ class GoogleSheet:
                         updates.append({'range': f'S{row_number}', 'values': [['']]})
                         updates.append({'range': f'T{row_number}', 'values': [['']]})
                         updates.append({'range': f'U{row_number}', 'values': [['']]})
+
+                    if edit_column_clean["qty"]:
+                        updates.append({'range': f'AC{row_number}', 'values': [['']]})
+
         self.sheet.batch_update(updates)
         print("Данные успешно обновлены.")
         return True
 
-    def get_edit_data(self, dimension_status, price_and_discount_status):
+    def get_edit_data(self, dimension_status, price_and_discount_status, qty_status):
         """
         Получает данные с запросом на изменение с таблицы
         """
@@ -129,8 +136,8 @@ class GoogleSheet:
         header_indices = {header: df.columns.get_loc(header) for header in df.columns}
 
         # Инициализация пустого словаря для результата
-        result_data = {}
-
+        result_nm_ids_data = {}
+        result_qty_edit_data = {}
         # Перебор строк DataFrame
         for index, row in df.iterrows():
             article = row['Артикул']
@@ -140,7 +147,7 @@ class GoogleSheet:
                 continue
             # Создание словаря для текущего артикула
             article_dict = {
-                'Новый остаток': row['Новый остаток'],
+                # 'Новый остаток': row['Новый остаток'],
                 'Артикул продавца': row['Артикул продавца'],
                 'Чистая прибыль 1ед.': row['Чистая прибыль 1ед.']
             }
@@ -153,12 +160,26 @@ class GoogleSheet:
                     'Новая\nШирина (см)': row['Новая\nШирина (см)'],
                     'Новая\nВысота (см)': row['Новая\nВысота (см)']}})
 
-            if account not in result_data:
-                result_data[account] = {}
-            # Добавление словаря в результирующий словарь
-            result_data[account][article] = article_dict
+            if qty_status:
+                if account not in result_qty_edit_data:
+                    result_qty_edit_data[account] = {"stocks": [], "nm_ids": []}
+                if str(row["Новый остаток"]).isdigit():
+                    result_qty_edit_data[account]["stocks"].append(
+                        {
+                            "sku": row["Баркод"],
+                            "amount": int(row["Новый остаток"])
+                        },
+                    )
+                    # nm_id нам будет нужен для функции обновления данных
+                    result_qty_edit_data[account]["nm_ids"].append(int(row["Артикул"]))
 
-        return result_data
+            if account not in result_nm_ids_data:
+                result_nm_ids_data[account] = {}
+            # Добавление словаря в результирующий словарь
+            result_nm_ids_data[account][article] = article_dict
+
+        # возвращаем словарь
+        return {"nm_ids_edit_data": result_nm_ids_data, "qty_edit_data": result_qty_edit_data}
 
     def create_lk_articles_list(self):
         """Создает словарь из ключей кабинета и его Артикулов"""
@@ -188,6 +209,26 @@ class GoogleSheet:
         sheet_status = data[0]
         return sheet_status
 
+
+    def get_data_quantity_limit(self):
+        """Проверяем остатки и лимит по остаткам"""
+        data = self.sheet.get_all_records()
+        df = pd.DataFrame(data)
+
+        result_data = {}
+        for index, row in df.iterrows():
+            account = str(row["ЛК"])
+            if str(row['Минимальный остаток']).isdigit():
+                if int(row["Минимальный остаток"])> int(row["Текущий остаток"]):
+                    if account not in result_data:
+                        result_data[account]={"qty":[],"nm_ids":[]}
+                    result_data[account]["qty"].append(
+                        {"wild":row["Артикул продавца"],
+                         "sku":str(row["Баркод"])}
+                    )
+                    result_data[account]["nm_ids"].append(int(row["Артикул"]))
+
+        return result_data
 
 class GoogleSheetServiceRevenue:
     """Выручка: AD-AN"""
@@ -348,3 +389,73 @@ class GoogleSheetServiceRevenue:
             print("Заголовок с выручкой вчерашнего дня уже есть в таблице")
 
             return False
+
+
+
+    def update_revenue_rows(self, data_json):
+        client = self.client_init_json()
+        spreadsheet = client.open(self.spreadsheet)
+        sheet = spreadsheet.worksheet(self.sheet)
+        # Получаем все записи из таблицы
+        data = sheet.get_all_records(expected_headers=[])
+        df = pd.DataFrame(data)
+
+        # Преобразуем данные из словаря в DataFrame
+        json_df = pd.DataFrame.from_dict(data_json, orient='index')
+
+        # Преобразуем все значения в json_df в типы данных, которые могут быть сериализованы в JSON
+        json_df = json_df.astype(object).where(pd.notnull(json_df), None)
+
+        # Обновите данные в основном DataFrame на основе "Артикул"
+        for index, row in json_df.iterrows():
+            matching_rows = df[df["Артикул"] == index].index
+            for idx in matching_rows:
+                for column in row.index:
+                    # if pd.isna(df.at[idx, column]) or df.at[idx, column] == "":
+                    if column in df.columns and (pd.isna(df.at[idx, column]) or df.at[idx, column] == ""):
+                        df.at[idx, column] = row[column]
+
+        # Обновите Google Таблицу только для измененных строк
+        updates = []
+        headers = df.columns.tolist()
+        for index, row in json_df.iterrows():
+            matching_rows = df[df["Артикул"] == index].index
+            for idx in matching_rows:
+                row_number = idx + 2  # +2 потому что индексация в Google Таблицах начинается с 1, а первая строка - заголовки
+                for column in row.index:
+                    if column in headers:
+                        # +1 потому что индексация в Google Таблицах начинается с 1
+                        column_index = headers.index(column) + 1
+                        column_letter = column_index_to_letter(column_index)
+                        updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
+
+        sheet.batch_update(updates)
+
+
+
+class GoogleSheetSopostTable:
+    def __init__(self,sheet="Сопост",spreadsheet="Новая таблица UNIT",creds_json="creds_sopost.json"):
+        self.sheet = sheet
+        self.spreadsheet = spreadsheet
+        self.creds_json = creds_json
+        client = self.client_init_json()
+        try:
+            spreadsheet = client.open(self.spreadsheet)
+            self.sheet = spreadsheet.worksheet(self.sheet)
+
+        except gspread.exceptions.APIError as e:
+            print(datetime.now())
+            print(e)
+            time.sleep(60)
+            spreadsheet = client.open(self.spreadsheet)
+            self.sheet = spreadsheet.worksheet(self.sheet)
+
+    def client_init_json(self) -> Client:
+        """Создание клиента для работы с Google Sheets."""
+        return service_account(filename=self.creds_json)
+
+    def wild_quantity(self):
+        data = self.sheet.get_all_records(expected_headers=["wild", "Добавляем"])
+        df = pd.DataFrame(data)
+
+        return dict(zip(df["wild"], df["Добавляем"]))

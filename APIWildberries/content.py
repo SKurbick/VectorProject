@@ -58,7 +58,6 @@ class ListOfCardsContent:
                 print(e)
 
             request_wb = response.json()
-
             for card in request_wb["cards"]:
                 if eng_json_data is False:
                     if card["nmID"] in nm_ids_list_for_edit:
@@ -69,14 +68,14 @@ class ListOfCardsContent:
                             "Текущая\nШирина (см)": card["dimensions"]["width"],
                             "Текущая\nВысота (см)": card["dimensions"]["height"],
                             "Предмет": card["subjectName"],
-
+                            "Баркод": card["sizes"][0]["skus"][-1]
                         }
                         if only_edits_data is False:
                             card_result_for_match[card["nmID"]].update({
                                 "Артикул продавца": card["vendorCode"],
                                 "Фото": card["photos"][0]["tm"],
                                 # для таблицы будет использоваться последний баркод из списка
-                                "Баркод": card["sizes"][0]["skus"][-1]})
+                                })
                         # добавляем данные по размерам в БД
                         nm_ids_data_for_database[str(card["nmID"])] = {
                             "sizes": card["sizes"]

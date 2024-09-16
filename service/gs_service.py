@@ -4,7 +4,7 @@ from pprint import pprint
 
 import gspread.exceptions
 
-from APIGoogleSheet.googlesheet import GoogleSheetServiceRevenue, GoogleSheet
+from APIGoogleSheet.googlesheet import GoogleSheetServiceRevenue, GoogleSheet, GoogleSheetSopostTable
 from APIWildberries.analytics import AnalyticsNMReport
 from APIWildberries.content import ListOfCardsContent
 from APIWildberries.marketplace import WarehouseMarketplaceWB, LeftoversMarketplace
@@ -18,11 +18,7 @@ class ServiceGoogleSheet:
     def __init__(self, token, spreadsheet: str, sheet: str, creds_json='creds.json'):
         self.wb_api_token = token
         self.gs_connect = GoogleSheet(creds_json=creds_json, spreadsheet=spreadsheet, sheet=sheet)
-        # self.commission_traffics = CommissionTariffs(token=self.wb_api_token)
-        # self.wb_api_content = ListOfCardsContent(token=self.wb_api_token)
         self.database = ...
-        # self.analytics = AnalyticsNMReport(token=self.wb_api_token)
-        # self.wb_api_price_and_discount = ListOfGoodsPricesAndDiscounts(token=self.wb_api_token)
         self.gs_service_revenue_connect = GoogleSheetServiceRevenue(creds_json=creds_json, spreadsheet=spreadsheet,
                                                                     sheet=sheet)
         self.sheet = sheet
@@ -44,26 +40,36 @@ class ServiceGoogleSheet:
                                                                               days=7),
                                                                           end_date=datetime.date.today() - datetime.timedelta(
                                                                               days=1))
-                """добавляет данные по выручке в БД"""
+                """добавляет данные по ежедневной выручке в БД"""
                 add_orders_data(revenue_data_by_article)
+
+                revenue_week_data_by_article = analytics.get_last_week_revenue(week_count=4, nm_ids=articles)
+
                 nm_ids_revenue_data.update(revenue_data_by_article)
+
+                for nm_id in revenue_week_data_by_article:
+                    if nm_id in nm_ids_revenue_data:
+                        nm_ids_revenue_data[nm_id].update(revenue_week_data_by_article[nm_id])
+
                 """добавляем артикулы в БД"""
                 # артикулы добавляем после получения выручки
                 add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
         return nm_ids_revenue_data
 
-
     def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
-                                add_data_in_db=True):
+                                add_data_in_db=True, check_nm_ids_in_db=True):
         """Функция была изменена. Теперь она просто выдает данные на добавления в таблицу, а не добавляет таблицу внутри функции"""
 
         result_nm_ids_data = {}
         for account, nm_ids in lk_articles.items():
             token = get_wb_tokens()[account.capitalize()]
+            nm_ids_result = nm_ids
+            if check_nm_ids_in_db:
+                print("КАБИНЕТ: ",account)
+                print("поиск всех артикулов которых нет в БД")
+                nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=nm_ids)
+                print("новые артикулы", nm_ids_result)
 
-            print("поиск всех артикулов которых нет в БД")
-            nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=nm_ids)
-            print("nm_ids_result", nm_ids_result)
             if len(nm_ids_result) > 0:
                 """Обновление/добавление данных по артикулам в гугл таблицу с WB api"""
                 wb_api_content = ListOfCardsContent(token=token)
@@ -103,12 +109,6 @@ class ServiceGoogleSheet:
                 # получение комиссии WB
                 subject_commissions = commission_traffics.get_commission_on_subject(subject_names=subject_names)
 
-                # добавляем данные в merge_json_data
-                # for sc in subject_commissions.items():
-                #     for result_card in merge_json_data.values():
-                #         if sc[0] == result_card["Предмет"]:
-                #             result_card['Комиссия WB'] = sc[1]
-
                 for card in merge_json_data.values():
                     for sc in subject_commissions.items():
                         if sc[0] == card["Предмет"]:
@@ -122,37 +122,34 @@ class ServiceGoogleSheet:
                 if add_data_in_db is True:
                     """добавляем артикулы в БД"""
                     add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
-        # ####
-        # result_nm_ids_data_list = []
-        #
-        # for a, items in result_nm_ids_data.items():
-        #     result_nm_ids_data_list.append(items)
 
         return result_nm_ids_data
-        # """обновляем/добавляем данные по артикулам"""
-        # self.gs_connect.update_rows(data_json=result_nm_ids_data, edit_column_clean=edit_column_clean)
 
     def change_cards_and_tables_data(self, edit_data_from_table):
         sheet_statuses = ServiceGoogleSheet.check_status()
         net_profit_status = sheet_statuses['Отрицательная \nЧП']
         price_discount_edit_status = sheet_statuses['Цены/Скидки']
         dimensions_edit_status = sheet_statuses['Габариты']
+        quantity_edit_status = sheet_statuses['Остаток']
         updates_nm_ids_data = {}
+        edit_column_clean = {"price_discount": True, "dimensions": False, "qty": False}
 
         print("Получил данные по ячейкам на изменение товара")
-        for account, nm_ids_data in edit_data_from_table.items():
+        for account, nm_ids_data in edit_data_from_table["nm_ids_edit_data"].items():
             valid_data_result = validate_data(nm_ids_data)
-            # пройдет если данные будут валидны для изменения
+            token = get_wb_tokens()[account.capitalize()]
+            warehouses = WarehouseMarketplaceWB(token=token)
+            warehouses_qty_edit = LeftoversMarketplace(token=token)
 
+            # пройдет если данные будут валидны для изменения
             if len(valid_data_result) > 0:
                 print("Данные валидны")
-                token = get_wb_tokens()[account.capitalize()]
                 wb_api_price_and_discount = ListOfGoodsPricesAndDiscounts(token=token)
                 wb_api_content = ListOfCardsContent(token=token)
 
                 size_edit_data = []  # данные с артикулами на изменение габаритов
                 price_discount_data = []  # данные с артикулами на изменение цены и/или цены
-
+                quantity_edit_data = []
                 for nm_id, data in valid_data_result.items():
                     # статус на изменение цены\скидки должен быть активным
                     if "price_discount" in data and price_discount_edit_status:
@@ -177,22 +174,37 @@ class ServiceGoogleSheet:
                         )
 
                 """запрос на изменение цены и/или скидки по артикулу"""
-                # edit_column_clean = {"price_discount": True, "dimensions": False}
                 if len(price_discount_data) > 0:
                     pd_bool_result = wb_api_price_and_discount.add_new_price_and_discount(price_discount_data)
-                    # edit_column_clean["price_discount"] = pd_bool_result
+                    edit_column_clean["price_discount"] = True
 
                 """Запрос на изменение габаритов товара по артикулу и vendorCode(артикул продавца)"""
                 if len(size_edit_data) > 0:
                     c_bool_result = wb_api_content.size_edit(size_edit_data)
-                    # edit_column_clean["dimensions"] = c_bool_result
+                    edit_column_clean["dimensions"] = True
                 """Перезаписываем данные в таблице после их изменений на WB"""
                 nm_ids_result = [int(nm_ids_str) for nm_ids_str in valid_data_result.keys()]
                 updates_nm_ids_data.update({account: nm_ids_result})
+
+            if len(edit_data_from_table["qty_edit_data"][account]["stocks"]) > 0 and quantity_edit_status:
+                "изменение остатков на всех складах продавца"
+                for warehouse in warehouses.get_account_warehouse():
+                    warehouses_qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse["id"],
+                                                                    edit_barcodes_list=
+                                                                    edit_data_from_table["qty_edit_data"][
+                                                                        account]["stocks"])
+                edit_column_clean["qty"] = True
+                # добавляем артикул для обновления данных
+                if account not in updates_nm_ids_data:
+                    updates_nm_ids_data[account] = []
+                updates_nm_ids_data[account].append(*edit_data_from_table["qty_edit_data"][account]["nm_ids"])
+
         # если хоть по одному артикулу данные будут валидны...
-        if len(updates_nm_ids_data) > 0:
+        if len(updates_nm_ids_data):
+            print(updates_nm_ids_data)
+            # todo реализовать словарь для очистки столбцов на изменение данных для каждого столбца отдельно
             return self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
-                                                only_edits_data=True, add_data_in_db=False)
+                                                only_edits_data=True, add_data_in_db=False, check_nm_ids_in_db=False)
         return updates_nm_ids_data
 
     def add_new_day_revenue_to_table(self):
@@ -257,6 +269,8 @@ class ServiceGoogleSheet:
                 token = get_wb_tokens()[account.capitalize()]
                 wb_api_content = ListOfCardsContent(token=token)
                 wb_api_price_and_discount = ListOfGoodsPricesAndDiscounts(token=token)
+                warehouses = WarehouseMarketplaceWB(token=token)
+                barcodes_quantity = LeftoversMarketplace(token=token)
                 commission_traffics = CommissionTariffs(token=token)
 
                 card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=articles, limit=100,
@@ -265,16 +279,18 @@ class ServiceGoogleSheet:
                 # объединяем полученные данные
                 merge_json_data = merge_dicts(goods_nm_ids, card_from_nm_ids_filter)
                 subject_names = set()  # итог всех полученных с карточек предметов
+                account_barcodes = []
                 current_tariffs_data = commission_traffics.get_tariffs_box_from_marketplace()
 
-                if len(merge_json_data) == 0:
-                    print(f"По токену {account} не получили Артикулы с данным с API WB")
+                # если мы не получил данные по артикулам, то аккаунт будет пропущен
+                if len(card_from_nm_ids_filter) == 0:
+                    print(f"По токену {account} не получили Артикулы с данными с API WB")
                     print(f"Артикулы:{articles}")
                     print(f"Результат с API WB {merge_json_data}")
-                    continue  # пропускаем этот артикул
+                    continue  # пропускаем этот аккаунт
                 for i in merge_json_data.values():
                     subject_names.add(i["Предмет"])  # собираем множество с предметами
-
+                    account_barcodes.append(i["Баркод"])
                     result_log_value = calculate_sum_for_logistic(  # на лету считаем "Логистика от склада WB до ПВЗ"
                         for_one_liter=int(current_tariffs_data["boxDeliveryBase"]),
                         next_liters=int(current_tariffs_data["boxDeliveryLiter"]),
@@ -284,31 +300,63 @@ class ServiceGoogleSheet:
                     i[
                         "Логистика от склада WB до ПВЗ"] = result_log_value  # добавляем результат вычислений в итоговые данные
 
+                barcodes_quantity_result = []
+                for warehouse_id in warehouses.get_account_warehouse():
+                    bqs_result = barcodes_quantity.get_amount_from_warehouses(
+                        warehouse_id=warehouse_id['id'],
+                        barcodes=account_barcodes)
+                    barcodes_quantity_result.extend(bqs_result)
+
                 # получение комиссии WB
                 subject_commissions = commission_traffics.get_commission_on_subject(subject_names=subject_names)
 
                 # добавляем данные в merge_json_data
-                for sc in subject_commissions.items():
-                    for result_card in merge_json_data.values():
-                        if sc[0] == result_card["Предмет"]:
-                            result_card['Комиссия WB'] = sc[1]
+                for card in merge_json_data.values():
+                    for sc in subject_commissions.items():
+                        if sc[0] == card["Предмет"]:
+                            card["Комиссия WB"] = sc[1]
+                    for bq_result in barcodes_quantity_result:
+                        if bq_result["Баркод"] == card["Баркод"]:
+                            card["Текущий остаток"] = bq_result["остаток"]
 
                 result_updates_rows.update(merge_json_data)
                 """обновляем данные по артикулам"""
             gs_connect.update_rows(data_json=result_updates_rows)
 
-    def get_actually_quantity(self):
-        from APIWildberries.marketplace import WarehouseMarketplaceWB, LeftoversMarketplace
-        from utils import get_warehouse_data
+    def check_quantity_flag(self):
+        print("Проверка остатков по лимитам из столбца 'Минимальный остаток'")
+        status_limit_edit = ServiceGoogleSheet.check_status()["Добавить если"]
+        print("статус проверки: ",status_limit_edit)
+        low_limit_qty_data = self.gs_connect.get_data_quantity_limit()
+        sopost_data = GoogleSheetSopostTable().wild_quantity()
+        nm_ids_for_update_data = {}
+        if len(low_limit_qty_data) > 0 and status_limit_edit:
+            print("Есть остатки ниже установленного флага")
+            for account, edit_data in low_limit_qty_data.items():
+                update_qty_data = []
+                token = get_wb_tokens()[account.capitalize()]
+                warehouses = WarehouseMarketplaceWB(token=token).get_account_warehouse()
+                qty_edit = LeftoversMarketplace(token=token)
 
-        result_updates_rows = {}
-        for account, barcodes in get_warehouse_data().items():
-            token = get_wb_tokens()[account.capitalize()]
-            all_db_barcodes = []
-            for barcode in barcodes:
-                all_db_barcodes.append(barcode["skus"][-1])
-            print(account, barcodes)
-            warehouses = WarehouseMarketplaceWB(token=token).get_account_warehouse()
-            for warehouse_id in warehouses:
-                quantity = LeftoversMarketplace(token=token).get_amount_from_warehouses(warehouse_id=warehouse_id['id'],
-                                                                                        barcodes=all_db_barcodes)
+                for qty_data in edit_data["qty"]:
+                    if sopost_data[qty_data["wild"]]:
+                        update_qty_data.append(
+                            {
+                                "sku": qty_data["sku"],
+                                "amount": int(sopost_data[qty_data["wild"]])
+                            }
+                        )
+
+                for warehouse_id in warehouses:
+                    qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse_id["id"],
+                                                         edit_barcodes_list=update_qty_data)
+
+                if account not in nm_ids_for_update_data:
+                    nm_ids_for_update_data[account] = []
+                nm_ids_for_update_data[account].append(*low_limit_qty_data[account]['nm_ids'])
+
+        nm_ids_data_json = self.add_new_data_from_table(lk_articles=nm_ids_for_update_data,
+                                                        only_edits_data=True, add_data_in_db=False,
+                                                        check_nm_ids_in_db=False)
+        self.gs_connect.update_rows(data_json=nm_ids_data_json,
+                                    edit_column_clean={"qty": True, "price_discount": False, "dimensions": False})
