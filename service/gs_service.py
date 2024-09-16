@@ -92,7 +92,8 @@ class ServiceGoogleSheet:
 
                 for i in merge_json_data.values():
                     # собираем и удаляем фото
-                    nm_ids_photo[i["Артикул"]] = i.pop("Фото")
+                    if only_edits_data is True:
+                        nm_ids_photo[i["Артикул"]] = i.pop("Фото")
                     subject_names.add(i["Предмет"])  # собираем множество с предметами
                     account_barcodes.append(i["Баркод"])
                     result_log_value = calculate_sum_for_logistic(  # на лету считаем "Логистика от склада WB до ПВЗ"
