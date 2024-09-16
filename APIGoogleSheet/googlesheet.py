@@ -228,6 +228,37 @@ class GoogleSheet:
 
         return result_data
 
+    def add_photo(self, data_dict):
+        client = self.client_init_json()
+        spreadsheet = client.open("START Курбан")
+        sheet = spreadsheet.worksheet("ФОТО")
+
+        all_values = sheet.get_all_values()
+
+        # Используем первую строку как заголовки
+        headers = all_values[0]
+        records = all_values[1:]
+
+        # Преобразуем записи в DataFrame
+        df = pd.DataFrame(records, columns=headers)
+
+        # Проверяем наличие столбца "АРТИКУЛ" и создаем его, если он отсутствует
+        if 'АРТИКУЛ' not in df.columns:
+            df['АРТИКУЛ'] = pd.Series(dtype='object')
+
+        # Добавляем новые данные в DataFrame
+        new_rows = []
+        for article, photo in data_dict.items():
+            if article not in df['АРТИКУЛ'].values:
+                new_rows.append({'АРТИКУЛ': article, 'ФОТО': photo})
+
+        # Преобразуем новые строки в список списков
+        new_data = [list(row.values()) for row in new_rows]
+
+        # Добавляем новые данные в таблицу
+        if new_data:
+            sheet.append_rows(new_data)
+
 
 class GoogleSheetServiceRevenue:
     """Выручка: AD-AN"""

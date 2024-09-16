@@ -60,6 +60,7 @@ class ServiceGoogleSheet:
                                 add_data_in_db=True, check_nm_ids_in_db=True):
         """Функция была изменена. Теперь она просто выдает данные на добавления в таблицу, а не добавляет таблицу внутри функции"""
 
+        nm_ids_photo = {}
         result_nm_ids_data = {}
         for account, nm_ids in lk_articles.items():
             token = get_wb_tokens()[account.capitalize()]
@@ -67,7 +68,7 @@ class ServiceGoogleSheet:
             if check_nm_ids_in_db:
                 "поиск всех артикулов которых нет в БД"
                 nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=nm_ids)
-                if len(nm_ids_result)>0:
+                if len(nm_ids_result) > 0:
                     print("КАБИНЕТ: ", account)
                     print("новые артикулы в таблице", nm_ids_result)
 
@@ -90,6 +91,8 @@ class ServiceGoogleSheet:
                 current_tariffs_data = commission_traffics.get_tariffs_box_from_marketplace()
 
                 for i in merge_json_data.values():
+                    # собираем и удаляем фото
+                    nm_ids_photo[i["Артикул"]] = i.pop("Фото")
                     subject_names.add(i["Предмет"])  # собираем множество с предметами
                     account_barcodes.append(i["Баркод"])
                     result_log_value = calculate_sum_for_logistic(  # на лету считаем "Логистика от склада WB до ПВЗ"
@@ -123,7 +126,7 @@ class ServiceGoogleSheet:
                 if add_data_in_db is True:
                     """добавляем артикулы в БД"""
                     add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
-
+        self.gs_connect.add_photo(nm_ids_photo)
         return result_nm_ids_data
 
     def change_cards_and_tables_data(self, edit_data_from_table):
@@ -263,10 +266,8 @@ class ServiceGoogleSheet:
             """
             gs_connect = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet=self.sheet)
             lk_articles = gs_connect.create_lk_articles_list()
-            print(lk_articles)
             result_updates_rows = {}
             for account, articles in lk_articles.items():
-                print(account, articles)
                 token = get_wb_tokens()[account.capitalize()]
                 wb_api_content = ListOfCardsContent(token=token)
                 wb_api_price_and_discount = ListOfGoodsPricesAndDiscounts(token=token)
@@ -327,7 +328,7 @@ class ServiceGoogleSheet:
     def check_quantity_flag(self):
         print("Проверка остатков по лимитам из столбца 'Минимальный остаток'")
         status_limit_edit = ServiceGoogleSheet.check_status()["Добавить если"]
-        print("статус проверки: ",status_limit_edit)
+        print("статус проверки: ", status_limit_edit)
         low_limit_qty_data = self.gs_connect.get_data_quantity_limit()
         sopost_data = GoogleSheetSopostTable().wild_quantity()
         nm_ids_for_update_data = {}
