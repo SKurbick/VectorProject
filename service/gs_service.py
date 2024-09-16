@@ -65,10 +65,11 @@ class ServiceGoogleSheet:
             token = get_wb_tokens()[account.capitalize()]
             nm_ids_result = nm_ids
             if check_nm_ids_in_db:
-                print("КАБИНЕТ: ",account)
-                print("поиск всех артикулов которых нет в БД")
+                "поиск всех артикулов которых нет в БД"
                 nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=nm_ids)
-                print("новые артикулы", nm_ids_result)
+                if len(nm_ids_result)>0:
+                    print("КАБИНЕТ: ", account)
+                    print("новые артикулы в таблице", nm_ids_result)
 
             if len(nm_ids_result) > 0:
                 """Обновление/добавление данных по артикулам в гугл таблицу с WB api"""
