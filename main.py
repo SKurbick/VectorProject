@@ -85,6 +85,7 @@ def check_edits_columns():
         else:
             print("Сервис заблокирован на изменения: (Цены/Скидки, Остаток, Габариты)")
 
+
 # """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
 schedule.every(300).seconds.do(gs_service_for_schedule_connection().add_actually_data_to_table)
 #
@@ -92,8 +93,7 @@ schedule.every(300).seconds.do(gs_service_for_schedule_connection().add_actually
 schedule.every(15).seconds.do(check_new_nm_ids)
 
 # """Смотрит в таблицу, оценивает изменения"""
-schedule.every(20).seconds.do(check_edits_columns)
-
+schedule.every(120).seconds.do(check_edits_columns)
 
 # """Сдвигает таблицы по выручкам. Условие должно работать раз в день каждые 5 утра"""
 schedule.every().day.at("09:20").do(gs_service_for_schedule_connection().add_new_day_revenue_to_table)

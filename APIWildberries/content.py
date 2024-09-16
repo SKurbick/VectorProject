@@ -71,9 +71,13 @@ class ListOfCardsContent:
                             "Баркод": card["sizes"][0]["skus"][-1]
                         }
                         if only_edits_data is False:
+                            photo = "НЕТ"
+                            if "photos" in card:
+                                photo = card["photos"][0]["tm"]
+
                             card_result_for_match[card["nmID"]].update({
                                 "Артикул продавца": card["vendorCode"],
-                                "Фото": card["photos"][0]["tm"],
+                                "Фото": photo,
                                 # для таблицы будет использоваться последний баркод из списка
                                 })
                         # добавляем данные по размерам в БД
