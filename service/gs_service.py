@@ -97,8 +97,8 @@ class ServiceGoogleSheet:
                 for i in merge_json_data.values():
                     # собираем и удаляем фото
                     if only_edits_data is False:
-                        nm_ids_photo[i["Артикул"]] = i.pop("Фото", "НЕТ")
-                        if i["Артикул продавца"] != "не найдено":
+                        nm_ids_photo[int(i["Артикул"])] = i.pop("Фото", "НЕТ")
+                        if i["wild"] != "не найдено":
                             subject_names.add(i["Предмет"])  # собираем множество с предметами
                             account_barcodes.append(i["Баркод"])
                             result_log_value = calculate_sum_for_logistic(  # на лету считаем "Логистика от склада WB до ПВЗ"
@@ -188,7 +188,7 @@ class ServiceGoogleSheet:
                     pd_bool_result = wb_api_price_and_discount.add_new_price_and_discount(price_discount_data)
                     edit_column_clean["price_discount"] = True
 
-                """Запрос на изменение габаритов товара по артикулу и vendorCode(артикул продавца)"""
+                """Запрос на изменение габаритов товара по артикулу и vendorCode (wild)"""
                 if len(size_edit_data) > 0:
                     c_bool_result = wb_api_content.size_edit(size_edit_data)
                     edit_column_clean["dimensions"] = True
@@ -297,16 +297,19 @@ class ServiceGoogleSheet:
                     print(f"Результат с API WB {merge_json_data}")
                     continue  # пропускаем этот аккаунт
                 for i in merge_json_data.values():
-                    subject_names.add(i["Предмет"])  # собираем множество с предметами
-                    account_barcodes.append(i["Баркод"])
-                    result_log_value = calculate_sum_for_logistic(  # на лету считаем "Логистика от склада WB до ПВЗ"
-                        for_one_liter=int(current_tariffs_data["boxDeliveryBase"]),
-                        next_liters=int(current_tariffs_data["boxDeliveryLiter"]),
-                        height=int(i['Текущая\nВысота (см)']),
-                        length=int(i['Текущая\nДлина (см)']),
-                        width=int(i['Текущая\nШирина (см)']), )
-                    i[
-                        "Логистика от склада WB до ПВЗ"] = result_log_value  # добавляем результат вычислений в итоговые данные
+                    if i["wild"] != "не найдено":
+                        subject_names.add(i["Предмет"])  # собираем множество с предметами
+                        account_barcodes.append(i["Баркод"])
+                        subject_names.add(i["Предмет"])  # собираем множество с предметами
+                        account_barcodes.append(i["Баркод"])
+                        result_log_value = calculate_sum_for_logistic(  # на лету считаем "Логистика от склада WB до ПВЗ"
+                            for_one_liter=int(current_tariffs_data["boxDeliveryBase"]),
+                            next_liters=int(current_tariffs_data["boxDeliveryLiter"]),
+                            height=int(i['Текущая\nВысота (см)']),
+                            length=int(i['Текущая\nДлина (см)']),
+                            width=int(i['Текущая\nШирина (см)']), )
+                        # добавляем результат вычислений в итоговые данные
+                        i["Логистика от склада WB до ПВЗ"] = result_log_value
 
                 barcodes_quantity_result = []
                 for warehouse_id in warehouses.get_account_warehouse():

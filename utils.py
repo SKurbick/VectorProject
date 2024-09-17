@@ -3,6 +3,7 @@ import json
 import time
 from collections import ChainMap
 from pprint import pprint
+import re
 
 
 def merge_dicts(d1, d2):
@@ -21,6 +22,7 @@ def new_merge_dicts(d1, d2):
         }
 
     return result
+
 
 def calculate_sum_for_logistic(for_one_liter: int,
                                next_liters: int,
@@ -147,7 +149,7 @@ def validate_data(data: dict):
                                                                                 'Новая\nШирина (см)'])
 
             if len(nm_ids_data) > 0:
-                nm_ids_data["vendorCode"] = edit_data['Артикул продавца']
+                nm_ids_data["vendorCode"] = edit_data['wild']
                 if "price_discount" in nm_ids_data:
                     nm_ids_data['net_profit'] = int(edit_data['Чистая прибыль 1ед.'].replace(" ", "").replace("₽", ""))
                 if "dimensions" in nm_ids_data:
@@ -213,3 +215,16 @@ def get_last_weeks_dates(last_week_count=1):
                                   "End": week_end.strftime('%Y-%m-%d %H:%M:%S')}
 
     return result_dates
+
+
+def process_string(s):
+    # Шаблон для извлечения "wild" и цифр
+    wild_pattern = r'^wild(\d+).*$'
+    word_pattern = r'^[a-zA-Z\s]+$'
+    wild_match = re.match(wild_pattern, s)
+    if wild_match:
+        return f"wild{wild_match.group(1)}"
+    word_match = re.match(word_pattern, s)
+    if word_match:
+        return s
+    return s

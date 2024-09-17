@@ -1,7 +1,7 @@
 import json
 import time
 from pprint import pprint
-from utils import add_data_for_nm_ids, add_data_from_warehouse
+from utils import add_data_for_nm_ids, add_data_from_warehouse, process_string
 
 import requests
 
@@ -80,7 +80,7 @@ class ListOfCardsContent:
                                 photo = card["photos"][0]["tm"]
 
                             card_result_for_match[card["nmID"]].update({
-                                "Артикул продавца": card["vendorCode"],
+                                "wild": process_string(card["vendorCode"]),
                                 "Фото": photo,
                                 # для таблицы будет использоваться последний баркод из списка
                             })
@@ -127,7 +127,7 @@ class ListOfCardsContent:
                     "Текущая\nВысота (см)": "не найдено",
                     "Предмет": "не найдено",
                     "Баркод": "не найдено",
-                    "Артикул продавца": "не найдено",
+                    "wild": "не найдено",
                     "Фото": "НЕТ",
                 }
         return card_result_for_match

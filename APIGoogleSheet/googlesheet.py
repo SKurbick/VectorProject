@@ -149,7 +149,7 @@ class GoogleSheet:
             # Создание словаря для текущего артикула
             article_dict = {
                 # 'Новый остаток': row['Новый остаток'],
-                'Артикул продавца': row['Артикул продавца'],
+                'wild': row['wild'],
                 'Чистая прибыль 1ед.': row['Чистая прибыль 1ед.']
             }
             if price_and_discount_status:
@@ -223,7 +223,7 @@ class GoogleSheet:
                     if account not in result_data:
                         result_data[account] = {"qty": [], "nm_ids": []}
                     result_data[account]["qty"].append(
-                        {"wild": row["Артикул продавца"],
+                        {"wild": row["wild"],
                          "sku": str(row["Баркод"])}
                     )
                     result_data[account]["nm_ids"].append(int(row["Артикул"]))
@@ -261,10 +261,11 @@ class GoogleSheet:
         # if new_data:
         #     sheet.append_rows(new_data)
         # Получаем все значения из столбца "АРТИКУЛ" (индекс "A")
+        ####################################################################################3
         existing_articles = sheet.col_values(1)  # Столбец "A" имеет индекс 1
 
         # Преобразуем ключи в словаре в строки
-        data_dict_str = {str(article): photo for article, photo in data_dict.items()}
+        data_dict_str = {article: photo for article, photo in data_dict.items()}
 
         # Создаем список для обновлений
         updates = []
@@ -278,6 +279,7 @@ class GoogleSheet:
         # Отправляем все обновления одним запросом
         if updates:
             sheet.append_rows(updates)
+#################################################################################
 
 
 class GoogleSheetServiceRevenue:
