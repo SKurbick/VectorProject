@@ -46,8 +46,8 @@ class AnalyticsNMReport:
             # обработка ограничения API WB на количество запросов
             if response.status_code > 400:
                 for _ in range(10):
-                    print("[INFO] просмотр выручки. Попал в исключение. Ожидание 75 с.")
-                    time.sleep(75)
+                    print("[INFO] просмотр выручки. Попал в исключение. Ожидание 65 с.")
+                    time.sleep(65)
                     response = requests.post(url=url, headers=self.headers, json=json_data)
                     if response.status_code < 400:
                         break

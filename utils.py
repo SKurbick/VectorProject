@@ -12,6 +12,16 @@ def merge_dicts(d1, d2):
     return result
 
 
+def new_merge_dicts(d1, d2):
+    result = {}
+
+    for nm_id, data in d1.items():
+        result[nm_id] = {
+            **data, **d2[nm_id]
+        }
+
+    return result
+
 def calculate_sum_for_logistic(for_one_liter: int,
                                next_liters: int,
                                length,
@@ -69,8 +79,7 @@ def add_data_for_nm_ids(nm_ids_data: dict):
             if nm_id in database["nm_ids_data"].keys():
                 database["nm_ids_data"][nm_id].update(nm_ids_data[nm_id])
             else:
-                print("решил что nmid нет в бд")
-
+                # print("решил что nmid нет в бд")
                 database["nm_ids_data"].update({nm_id: nm_ids_data[nm_id]})
         file.seek(0)
         json.dump(database, file, indent=4, ensure_ascii=False)

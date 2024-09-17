@@ -43,11 +43,9 @@ def check_new_nm_ids():
 
             result_data_for_update_rows = service_gs_table.add_new_data_from_table(lk_articles=lk_articles,
                                                                                    add_data_in_db=False)
-            revenue_data_for_update_rows = service_gs_table.add_revenue_for_new_nm_ids(lk_articles=lk_articles)
-
-            "Добавляем данные по выручке и инфо по полученным артикулам"
             if len(result_data_for_update_rows) > 0:
                 gs_connection().update_rows(data_json=result_data_for_update_rows, edit_column_clean=None)
+            revenue_data_for_update_rows = service_gs_table.add_revenue_for_new_nm_ids(lk_articles=lk_articles)
             if len(revenue_data_for_update_rows) > 0:
                 print("Добавляем выручку в таблицу")
                 """Добавление информации по выручкам за последние 7 дней"""
@@ -90,7 +88,7 @@ def check_edits_columns():
 schedule.every(300).seconds.do(gs_service_for_schedule_connection().add_actually_data_to_table)
 #
 # """Смотрит в таблицу, оценивает новые nm_ids"""
-schedule.every(15).seconds.do(check_new_nm_ids)
+schedule.every(5).seconds.do(check_new_nm_ids)
 
 # """Смотрит в таблицу, оценивает изменения"""
 schedule.every(120).seconds.do(check_edits_columns)

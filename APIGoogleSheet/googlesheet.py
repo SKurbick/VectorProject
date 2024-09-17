@@ -2,6 +2,7 @@ import json
 import time
 from datetime import timedelta, datetime
 from pprint import pprint
+from gspread.utils import rowcol_to_a1
 
 import gspread
 import requests
@@ -62,7 +63,7 @@ class GoogleSheet:
         return result
 
     def update_rows(self, data_json, edit_column_clean: dict = None):
-
+        print("Попал в функцию обновления таблицы")
         data = self.sheet.get_all_records(expected_headers=[])
         df = pd.DataFrame(data)
         json_df = pd.DataFrame(list(data_json.values()))
@@ -118,6 +119,7 @@ class GoogleSheet:
                     if edit_column_clean["qty"]:
                         updates.append({'range': f'AE{row_number}', 'values': [['']]})
 
+        # pprint(updates)
         self.sheet.batch_update(updates)
         print("Данные успешно обновлены.")
         return True
@@ -233,31 +235,49 @@ class GoogleSheet:
         spreadsheet = client.open("START Курбан")
         sheet = spreadsheet.worksheet("ФОТО")
 
-        all_values = sheet.get_all_values()
+        # all_values = sheet.get_all_values()
+        #
+        # # Используем первую строку как заголовки
+        # headers = all_values[0]
+        # records = all_values[1:]
+        #
+        # # Преобразуем записи в DataFrame
+        # df = pd.DataFrame(records, columns=headers)
+        #
+        # # Проверяем наличие столбца "АРТИКУЛ" и создаем его, если он отсутствует
+        # if 'АРТИКУЛ' not in df.columns:
+        #     df['АРТИКУЛ'] = pd.Series(dtype='object')
+        #
+        # # Добавляем новые данные в DataFrame
+        # new_rows = []
+        # for article, photo in data_dict.items():
+        #     if article not in df['АРТИКУЛ'].values:
+        #         new_rows.append({'АРТИКУЛ': article, 'ФОТО': photo})
+        #
+        # # Преобразуем новые строки в список списков
+        # new_data = [list(row.values()) for row in new_rows]
+        #
+        # # Добавляем новые данные в таблицу
+        # if new_data:
+        #     sheet.append_rows(new_data)
+        # Получаем все значения из столбца "АРТИКУЛ" (индекс "A")
+        existing_articles = sheet.col_values(1)  # Столбец "A" имеет индекс 1
 
-        # Используем первую строку как заголовки
-        headers = all_values[0]
-        records = all_values[1:]
+        # Преобразуем ключи в словаре в строки
+        data_dict_str = {str(article): photo for article, photo in data_dict.items()}
 
-        # Преобразуем записи в DataFrame
-        df = pd.DataFrame(records, columns=headers)
+        # Создаем список для обновлений
+        updates = []
 
-        # Проверяем наличие столбца "АРТИКУЛ" и создаем его, если он отсутствует
-        if 'АРТИКУЛ' not in df.columns:
-            df['АРТИКУЛ'] = pd.Series(dtype='object')
+        # Добавляем или обновляем данные
+        for article, photo in data_dict_str.items():
+            if article not in existing_articles:
+                # Если артикул не существует, добавляем новую строку
+                updates.append([article, photo])
 
-        # Добавляем новые данные в DataFrame
-        new_rows = []
-        for article, photo in data_dict.items():
-            if article not in df['АРТИКУЛ'].values:
-                new_rows.append({'АРТИКУЛ': article, 'ФОТО': photo})
-
-        # Преобразуем новые строки в список списков
-        new_data = [list(row.values()) for row in new_rows]
-
-        # Добавляем новые данные в таблицу
-        if new_data:
-            sheet.append_rows(new_data)
+        # Отправляем все обновления одним запросом
+        if updates:
+            sheet.append_rows(updates)
 
 
 class GoogleSheetServiceRevenue:
