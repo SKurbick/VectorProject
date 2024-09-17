@@ -54,14 +54,17 @@ class ListOfGoodsPricesAndDiscounts:
             # if "data" not in response.json():
             #     continue
             # Если артикул не будет найден, то он его пропустит
-            for card in response.json()["data"]["listGoods"]:
-                if card["nmID"] in nm_ids:
-                    if eng_json_data is False:
-                        nm_ids_list[card["nmID"]] = {
-                            "Цена на WB без скидки": card["sizes"][0]["price"],
-                            "Скидка %": card["discount"]
-                        }
-                    nm_ids.remove(card["nmID"])
+            try:
+                for card in response.json()["data"]["listGoods"]:
+                    if card["nmID"] in nm_ids:
+                        if eng_json_data is False:
+                            nm_ids_list[card["nmID"]] = {
+                                "Цена на WB без скидки": card["sizes"][0]["price"],
+                                "Скидка %": card["discount"]
+                            }
+                        nm_ids.remove(card["nmID"])
+            except Exception as e:
+                print(e)
 
             if len(nm_ids) == 0:
                 break
