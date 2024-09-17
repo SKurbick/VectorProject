@@ -25,33 +25,36 @@ class ListOfGoodsPricesAndDiscounts:
             'Content-Type': 'application/json'
         }
 
-    def get_log_for_nm_ids(self, filter_nm_ids, eng_json_data: bool = False) -> json:
+    def get_log_for_nm_ids(self, filter_nm_ids, eng_json_data: bool = False, step=1000) -> json:
         """Получение цен и скидок по совпадению с nmID"""
         url = self.url.format("filter")
         nm_ids_list = {}
-        for nm_ids in filter_nm_ids:
+        for start in range(0, len(filter_nm_ids), step):
+            nm_ids_part = filter_nm_ids[start: start + step]
             params = {
-                "limit": self.limit,
+                "limit": 1000,
                 "offset": self.offset,
-                "filterNmID": nm_ids
+                "filterNmID": nm_ids_part
             }
             response = requests.get(url, headers=self.headers, params=params)
 
-            if "data" not in response.json() or response.json()["data"]["listGoods"] is None:  # сли артикул не будет найден, то он его пропустит
+            if "data" not in response.json() or response.json()["data"]["listGoods"] is None:
+                # Если артикул не будет найден, то он его пропустит
                 continue
-            response_result = response.json()["data"]["listGoods"][0]
+            for card in response.json()["data"]["listGoods"]:
+                # response_result = response.json()["data"]["listGoods"][0]
 
-            if eng_json_data is False:
+                if eng_json_data is False:
 
-                nm_ids_list[response_result["nmID"]] = {
-                    "Цена на WB без скидки": response_result["sizes"][0]["price"],
-                    "Скидка %": response_result["discount"]
-                }
-            elif eng_json_data is True:
-                nm_ids_list[response_result["nmID"]] = {
-                    "price": response_result["sizes"][0]["price"],
-                    "discount": response_result["discount"]
-                }
+                    nm_ids_list[card["nmID"]] = {
+                        "Цена на WB без скидки": card["sizes"][0]["price"],
+                        "Скидка %": card["discount"]
+                    }
+                elif eng_json_data is True:
+                    nm_ids_list[card["nmID"]] = {
+                        "price": card["sizes"][0]["price"],
+                        "discount": card["discount"]
+                    }
 
         return nm_ids_list
 
