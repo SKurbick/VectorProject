@@ -65,13 +65,15 @@ class ListOfGoodsPricesAndDiscounts:
                         nm_ids.remove(card["nmID"])
             except Exception as e:
                 print(e)
+                break
 
             if len(nm_ids) == 0:
                 break
             else:
                 offset += limit
         print("get_log_for_nm_ids")
-        # pprint(nm_ids_list)
+        print("НЕВАЛИДНЫЕ АРТИКУЛЫ")
+        pprint(nm_ids)
         return nm_ids_list
 
     def add_new_price_and_discount(self, data: list):
