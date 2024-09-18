@@ -41,16 +41,19 @@ class AnalyticsNMReport:
                 "timezone": "Europe/Moscow",
                 "aggregationLevel": "day"
             }
-            response = requests.post(url=url, headers=self.headers, json=json_data)
-
-            # обработка ограничения API WB на количество запросов
-            if response.status_code > 400:
-                for _ in range(10):
-                    print("[INFO] просмотр выручки. Попал в исключение. Ожидание 65 с.")
-                    time.sleep(65)
+            for i in range(10):
+                try:
                     response = requests.post(url=url, headers=self.headers, json=json_data)
-                    if response.status_code < 400:
+                    if response.status_code >= 200 or response.status_code < 300:
                         break
+                except Exception as e:
+                    print("[ERROR]", e)
+                    print(i, "попытка подключения. Сон на минуту")
+                    time.sleep(63)
+                except requests.exceptions.ConnectionError as ce:
+                    time.sleep(60)
+                    print(i, "попытка подключения. Сон на минуту")
+                    print("[ERROR]", ce)
             for data in response.json()["data"]:
 
                 nm_id_from_data = data["nmID"]

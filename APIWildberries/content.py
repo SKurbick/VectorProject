@@ -72,7 +72,9 @@ class ListOfCardsContent:
                             "Текущая\nШирина (см)": card["dimensions"]["width"],
                             "Текущая\nВысота (см)": card["dimensions"]["height"],
                             "Предмет": card["subjectName"],
-                            "Баркод": card["sizes"][0]["skus"][-1]
+                            "Баркод": card["sizes"][0]["skus"][-1],
+                            "wild": process_string(card["vendorCode"]),
+
                         }
                         if only_edits_data is False:
                             photo = "НЕТ"
@@ -80,7 +82,6 @@ class ListOfCardsContent:
                                 photo = card["photos"][0]["tm"]
 
                             card_result_for_match[card["nmID"]].update({
-                                "wild": process_string(card["vendorCode"]),
                                 "Фото": photo,
                                 # для таблицы будет использоваться последний баркод из списка
                             })

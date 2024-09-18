@@ -218,7 +218,7 @@ class GoogleSheet:
         result_data = {}
         for index, row in df.iterrows():
             account = str(row["ЛК"])
-            if str(row['Минимальный остаток']).isdigit():
+            if str(row['Минимальный остаток']).isdigit() and int(row['Минимальный остаток']) != 0:
                 if int(row["Минимальный остаток"]) > int(row["Текущий остаток"]):
                     if account not in result_data:
                         result_data[account] = {"qty": [], "nm_ids": []}
@@ -235,35 +235,7 @@ class GoogleSheet:
         spreadsheet = client.open("START Курбан")
         sheet = spreadsheet.worksheet("ФОТО")
 
-        # all_values = sheet.get_all_values()
-        #
-        # # Используем первую строку как заголовки
-        # headers = all_values[0]
-        # records = all_values[1:]
-        #
-        # # Преобразуем записи в DataFrame
-        # df = pd.DataFrame(records, columns=headers)
-        #
-        # # Проверяем наличие столбца "АРТИКУЛ" и создаем его, если он отсутствует
-        # if 'АРТИКУЛ' not in df.columns:
-        #     df['АРТИКУЛ'] = pd.Series(dtype='object')
-        #
-        # # Добавляем новые данные в DataFrame
-        # new_rows = []
-        # for article, photo in data_dict.items():
-        #     if article not in df['АРТИКУЛ'].values:
-        #         new_rows.append({'АРТИКУЛ': article, 'ФОТО': photo})
-        #
-        # # Преобразуем новые строки в список списков
-        # new_data = [list(row.values()) for row in new_rows]
-        #
-        # # Добавляем новые данные в таблицу
-        # if new_data:
-        #     sheet.append_rows(new_data)
-        # Получаем все значения из столбца "АРТИКУЛ" (индекс "A")
-        ####################################################################################3
         existing_articles = sheet.col_values(1)  # Столбец "A" имеет индекс 1
-
         # Преобразуем ключи в словаре в строки
         data_dict_str = {article: photo for article, photo in data_dict.items()}
 
@@ -277,8 +249,30 @@ class GoogleSheet:
                 updates.append([article, photo])
 
         # Отправляем все обновления одним запросом
-        if updates:
-            sheet.append_rows(updates)
+        # if updates:
+        #     sheet.append_rows(updates)
+        #
+        #     # Получаем данные только из столбца "Артикул"
+        # articles = sheet.col_values(1)  # Столбец "Артикул"
+        # photos = sheet.col_values(2)  # Столбец "ФОТО"
+        #
+        # articles = [int(article.replace("'", "")) for article in articles]
+        #
+        # # Преобразуем данные в DataFrame
+        # data = {'АРТИКУЛ': articles[1:], 'ФОТО': photos[1:]}
+        # df = pd.DataFrame(data)
+        #
+        # # Удаляем дубликаты по столбцу "Артикул", оставляя первый дубликат
+        # df_no_duplicates = df.drop_duplicates(subset=['АРТИКУЛ'], keep='first')
+        #
+        # # Преобразуем DataFrame обратно в список списков
+        # updated_data = df_no_duplicates.values.tolist()
+        #
+        # # Очищаем лист и записываем обновленные данные
+        # sheet.clear()
+        # sheet.append_rows([['АРТИКУЛ', 'ФОТО']] + updated_data)
+
+
 #################################################################################
 
 

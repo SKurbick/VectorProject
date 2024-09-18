@@ -85,7 +85,7 @@ class ServiceGoogleSheet:
                 goods_nm_ids = wb_api_price_and_discount.get_log_for_nm_ids(filter_nm_ids=nm_ids_result)
                 commission_traffics = CommissionTariffs(token=token)
                 # объединяем полученные данные
-                merge_json_data = merge_dicts(card_from_nm_ids_filter,goods_nm_ids)
+                merge_json_data = merge_dicts(card_from_nm_ids_filter, goods_nm_ids)
                 # merge_json_data = new_merge_dicts(card_from_nm_ids_filter,goods_nm_ids)
 
                 # print("MERGE JSON DATA")
@@ -101,7 +101,8 @@ class ServiceGoogleSheet:
                         if i["wild"] != "не найдено":
                             subject_names.add(i["Предмет"])  # собираем множество с предметами
                             account_barcodes.append(i["Баркод"])
-                            result_log_value = calculate_sum_for_logistic(  # на лету считаем "Логистика от склада WB до ПВЗ"
+                            result_log_value = calculate_sum_for_logistic(
+                                # на лету считаем "Логистика от склада WB до ПВЗ"
                                 for_one_liter=int(current_tariffs_data["boxDeliveryBase"]),
                                 next_liters=int(current_tariffs_data["boxDeliveryLiter"]),
                                 height=int(i['Текущая\nВысота (см)']),
@@ -298,11 +299,10 @@ class ServiceGoogleSheet:
                     continue  # пропускаем этот аккаунт
                 for i in merge_json_data.values():
                     if i["wild"] != "не найдено":
-                        subject_names.add(i["Предмет"])  # собираем множество с предметами
                         account_barcodes.append(i["Баркод"])
                         subject_names.add(i["Предмет"])  # собираем множество с предметами
-                        account_barcodes.append(i["Баркод"])
-                        result_log_value = calculate_sum_for_logistic(  # на лету считаем "Логистика от склада WB до ПВЗ"
+                        result_log_value = calculate_sum_for_logistic(
+                            # на лету считаем "Логистика от склада WB до ПВЗ"
                             for_one_liter=int(current_tariffs_data["boxDeliveryBase"]),
                             next_liters=int(current_tariffs_data["boxDeliveryLiter"]),
                             height=int(i['Текущая\nВысота (см)']),
@@ -350,7 +350,7 @@ class ServiceGoogleSheet:
                 qty_edit = LeftoversMarketplace(token=token)
 
                 for qty_data in edit_data["qty"]:
-                    if sopost_data[qty_data["wild"]]:
+                    if sopost_data[qty_data["wild"]] and str(sopost_data[qty_data["wild"]]) != "0":
                         update_qty_data.append(
                             {
                                 "sku": qty_data["sku"],
