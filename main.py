@@ -45,12 +45,12 @@ def check_new_nm_ids():
                                                                                    add_data_in_db=False)
             if len(result_data_for_update_rows) > 0:
                 gs_connection().update_rows(data_json=result_data_for_update_rows, edit_column_clean=None)
-            # revenue_data_for_update_rows = service_gs_table.add_revenue_for_new_nm_ids(lk_articles=lk_articles)
-            # if len(revenue_data_for_update_rows) > 0:
-            #     print("Добавляем выручку в таблицу")
-            #     """Добавление информации по выручкам за последние 7 дней"""
-            #     gs_service_revenue_connection().update_revenue_rows(
-            #         data_json=revenue_data_for_update_rows)
+            revenue_data_for_update_rows = service_gs_table.add_revenue_for_new_nm_ids(lk_articles=lk_articles)
+            if len(revenue_data_for_update_rows) > 0:
+                print("Добавляем выручку в таблицу")
+                """Добавление информации по выручкам за последние 7 дней"""
+                gs_service_revenue_connection().update_revenue_rows(
+                    data_json=revenue_data_for_update_rows)
 
         print("Упали в ожидание")
     else:
@@ -94,7 +94,7 @@ schedule.every(120).seconds.do(check_new_nm_ids)
 schedule.every(180).seconds.do(check_edits_columns)
 
 # """Сдвигает таблицы по выручкам. Условие должно работать раз в день каждые 5 утра"""
-schedule.every().day.at("05:20").do(gs_service_for_schedule_connection().add_new_day_revenue_to_table)
+schedule.every().day.at("06:20").do(gs_service_for_schedule_connection().add_new_day_revenue_to_table)
 # проверяет остатки
 schedule.every(1).hours.do(gs_service_for_schedule_connection().check_quantity_flag)
 

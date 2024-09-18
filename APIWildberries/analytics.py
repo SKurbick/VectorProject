@@ -113,3 +113,41 @@ class AnalyticsNMReport:
                 page += 1
 
         return result_data
+
+
+class AnalyticsWarehouseLimits:
+    def __init__(self, token):
+        self.url = "https://seller-analytics-api.wildberries.ru/api/v1/warehouse_remains"
+        self.headers = {
+            "Authorization": token,
+            'Content-Type': 'application/json'
+        }
+
+    def create_report(self):
+        """Создает и возвращает taskId для остатков по баркодам"""
+        url = self.url
+        params = {
+            "groupByBarcode": True
+        }
+        for _ in range(10):
+            try:
+                response = requests.get(url=url, headers=self.headers, params=params)
+                if response.status_code == 200:
+                    return response.json()["data"]["taskId"]
+
+            except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
+                print(e)
+                time.sleep(63)
+
+    def check_data_by_task_id(self, task_id):
+        url = f"https://seller-analytics-api.wildberries.ru/api/v1/warehouse_remains/tasks/{task_id}/download"
+
+        for _ in range(10):
+            try:
+                response = requests.get(url=url, headers=self.headers, params=task_id)
+                if response.status_code == 200:
+                    return response.json()
+
+            except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
+                print(e)
+                time.sleep(63)

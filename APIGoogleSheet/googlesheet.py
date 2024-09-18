@@ -231,22 +231,27 @@ class GoogleSheet:
         return result_data
 
     def add_photo(self, data_dict):
-        client = self.client_init_json()
-        spreadsheet = client.open("START Курбан")
-        sheet = spreadsheet.worksheet("ФОТО")
+        for _ in range(10):
+            try:
+                client = self.client_init_json()
+                spreadsheet = client.open("START Курбан")
+                sheet = spreadsheet.worksheet("ФОТО")
+                existing_articles = sheet.col_values(1)  # Столбец "A" имеет индекс 1
+                # Преобразуем ключи в словаре в строки
+                data_dict_str = {article: photo for article, photo in data_dict.items()}
 
-        existing_articles = sheet.col_values(1)  # Столбец "A" имеет индекс 1
-        # Преобразуем ключи в словаре в строки
-        data_dict_str = {article: photo for article, photo in data_dict.items()}
+                # Создаем список для обновлений
+                updates = []
 
-        # Создаем список для обновлений
-        updates = []
-
-        # Добавляем или обновляем данные
-        for article, photo in data_dict_str.items():
-            if article not in existing_articles:
-                # Если артикул не существует, добавляем новую строку
-                updates.append([article, photo])
+                # Добавляем или обновляем данные
+                for article, photo in data_dict_str.items():
+                    if article not in existing_articles:
+                        # Если артикул не существует, добавляем новую строку
+                        updates.append([article, photo])
+                break
+            except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
+                print("[ERROR]", e)
+                time.sleep(63)
 
         # Отправляем все обновления одним запросом
         # if updates:

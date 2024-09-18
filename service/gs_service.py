@@ -11,8 +11,7 @@ from APIWildberries.marketplace import WarehouseMarketplaceWB, LeftoversMarketpl
 from APIWildberries.prices_and_discounts import ListOfGoodsPricesAndDiscounts
 from APIWildberries.tariffs import CommissionTariffs
 from settings import get_wb_tokens
-from utils import add_orders_data, calculate_sum_for_logistic, merge_dicts, validate_data, add_nm_ids_in_db, \
-    new_merge_dicts
+from utils import add_orders_data, calculate_sum_for_logistic, merge_dicts, validate_data, add_nm_ids_in_db
 
 
 class ServiceGoogleSheet:
@@ -133,7 +132,8 @@ class ServiceGoogleSheet:
                 if add_data_in_db is True:
                     """добавляем артикулы в БД"""
                     add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
-        self.gs_connect.add_photo(nm_ids_photo)
+        if len(nm_ids_photo) > 0:
+            self.gs_connect.add_photo(nm_ids_photo)
         return result_nm_ids_data
 
     def change_cards_and_tables_data(self, edit_data_from_table):
