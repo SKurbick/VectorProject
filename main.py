@@ -113,13 +113,13 @@ def schedule_tasks():
     gs_service = gs_service_for_schedule_connection()
 
     """Сдвигает таблицы по выручкам. Условие должно работать раз в день каждые 5 утра"""
-    schedule.every().day.at("17:35:40").do(lambda: asyncio.create_task(gs_service.add_new_day_revenue_to_table()))
+    schedule.every().day.at("20:00:40").do(lambda: asyncio.create_task(gs_service.add_new_day_revenue_to_table()))
 
     """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
     schedule.every(100).seconds.do(lambda: asyncio.create_task(run_in_executor(gs_service.add_actually_data_to_table)))
 
     # """Смотрит в таблицу, оценивает новые nm_ids"""
-    schedule.every(10).seconds.do(lambda: asyncio.create_task(check_new_nm_ids()))
+    schedule.every(400).seconds.do(lambda: asyncio.create_task(check_new_nm_ids()))
 
     """Смотрит в таблицу, оценивает изменения"""
     schedule.every(180).seconds.do(lambda: asyncio.create_task(run_in_executor(check_edits_columns)))
