@@ -257,7 +257,7 @@ class ServiceGoogleSheet:
         # проверяем нет ли вчерашнего дня в заголовках таблицы
         print(f"проверяем {last_day}")
         if self.gs_service_revenue_connect.check_last_day_header_from_table(last_day=last_day):
-            print(last_day, "заголовка нет в таблице. Будет добавлен включая выручку под дню")
+            print(last_day, "заголовка нет в таблице. Будет добавлен включая выручку по дню")
             # сначала сдвигаем колонки с выручкой
             self.gs_service_revenue_connect.shift_revenue_columns_to_the_left(last_day=last_day)
             lk_articles = self.gs_connect.create_lk_articles_list()

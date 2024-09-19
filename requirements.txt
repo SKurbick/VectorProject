@@ -3,3 +3,4 @@ gspread
 pandas
 schedule
 python-dotenv
+aiohttp
