@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import time
 from pprint import pprint
@@ -28,32 +29,51 @@ def gs_service_revenue_connection():
     return GoogleSheetServiceRevenue(sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
 
 
-def check_new_nm_ids():
+retry = True
+
+
+async def check_new_nm_ids():
+    global retry
     statuses = ServiceGoogleSheet.check_status()
     # если сервис включен (1), то пройдет проверка
     if statuses['ВКЛ - 1 /ВЫКЛ - 0']:
-        print("Сервис АКТИВЕН. Смотрим в таблицу.")
-        gs_connect = gs_connection()
+        print("смотрим retry", retry)
+        if retry:
+            print("Сервис АКТИВЕН. Смотрим в таблицу.")
+            gs_connect = gs_connection()
 
-        # получение словаря с ключом ЛК и его Артикулами
-        lk_articles = gs_connect.create_lk_articles_list()
-        if len(lk_articles) > 0:
-            service_gs_table = ServiceGoogleSheet(
-                token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
+            # получение словаря с ключом ЛК и его Артикулами
+            lk_articles = gs_connect.create_lk_articles_list()
+            if len(lk_articles) > 0:
+                service_gs_table = ServiceGoogleSheet(
+                    token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
 
-            result_data_for_update_rows = service_gs_table.add_new_data_from_table(lk_articles=lk_articles,
-                                                                                   add_data_in_db=False)
-            if len(result_data_for_update_rows) > 0:
-                gs_connection().update_rows(data_json=result_data_for_update_rows, edit_column_clean=None)
-            revenue_data_for_update_rows = service_gs_table.add_revenue_for_new_nm_ids(lk_articles=lk_articles)
-            if len(revenue_data_for_update_rows) > 0:
-                print("Добавляем выручку в таблицу")
-                """Добавление информации по выручкам за последние 7 дней"""
-                gs_service_revenue_connection().update_revenue_rows(
-                    data_json=revenue_data_for_update_rows)
+                result_data_for_update_rows = service_gs_table.add_new_data_from_table(lk_articles=lk_articles,
+                                                                                       add_data_in_db=False)
+                if len(result_data_for_update_rows) > 0:
+                    gs_connection().update_rows(data_json=result_data_for_update_rows, edit_column_clean=None)
+                    retry = False
 
-        print("Упали в ожидание")
+                try:
+                    revenue_data_for_update_rows = await service_gs_table.add_revenue_for_new_nm_ids(
+                        lk_articles=lk_articles)
+
+                except Exception as e:
+                    print(f"Ошибка при выполнении асинхронной функции: {e}")
+                    return
+
+                if len(revenue_data_for_update_rows) > 0:
+                    print("Добавляем выручку в таблицу")
+                    """Добавление информации по выручкам за последние 7 дней"""
+                    gs_service_revenue_connection().update_revenue_rows(
+                        data_json=revenue_data_for_update_rows)
+                    retry = True
+
+            print("Упали в ожидание")
+
     else:
+        print("Упали в ожидание")
+
         print("СЕРВИС ОТКЛЮЧЕН (0)")
 
 
@@ -84,22 +104,69 @@ def check_edits_columns():
             print("Сервис заблокирован на изменения: (Цены/Скидки, Остаток, Габариты)")
 
 
-# """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
-schedule.every(300).seconds.do(gs_service_for_schedule_connection().add_actually_data_to_table)
-#
-# """Смотрит в таблицу, оценивает новые nm_ids"""
-schedule.every(120).seconds.do(check_new_nm_ids)
+async def run_in_executor(func, *args):
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, func, *args)
 
-# """Смотрит в таблицу, оценивает изменения"""
-schedule.every(180).seconds.do(check_edits_columns)
 
-# """Сдвигает таблицы по выручкам. Условие должно работать раз в день каждые 5 утра"""
-schedule.every().day.at("06:20").do(gs_service_for_schedule_connection().add_new_day_revenue_to_table)
-# проверяет остатки
-schedule.every(1).hours.do(gs_service_for_schedule_connection().check_quantity_flag)
+def schedule_tasks():
+    gs_service = gs_service_for_schedule_connection()
 
-if __name__ == '__main__':
-    print("СЕРВИС ЗАПУЩЕН")
+    """Сдвигает таблицы по выручкам. Условие должно работать раз в день каждые 5 утра"""
+    schedule.every().day.at("17:35:40").do(lambda: asyncio.create_task(gs_service.add_new_day_revenue_to_table()))
+
+    """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
+    schedule.every(100).seconds.do(lambda: asyncio.create_task(run_in_executor(gs_service.add_actually_data_to_table)))
+
+    # """Смотрит в таблицу, оценивает новые nm_ids"""
+    schedule.every(10).seconds.do(lambda: asyncio.create_task(check_new_nm_ids()))
+
+    """Смотрит в таблицу, оценивает изменения"""
+    schedule.every(180).seconds.do(lambda: asyncio.create_task(run_in_executor(check_edits_columns)))
+
+    # проверяет остатки
+    schedule.every(1).hours.do(lambda: asyncio.create_task(run_in_executor(gs_service.check_quantity_flag)))
+
+
+async def run_scheduler():
     while True:
         schedule.run_pending()
-        time.sleep(2)
+        await asyncio.sleep(1)
+
+
+async def main():
+    schedule_tasks()
+    await run_scheduler()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+# if __name__ == '__main__':
+#     print("СЕРВИС ЗАПУЩЕН")
+#     while True:
+#         schedule.run_pending()
+#         time.sleep(2)
+
+
+# # """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
+# schedule.every(300).seconds.do(gs_service_for_schedule_connection().add_actually_data_to_table)
+# #
+# # """Смотрит в таблицу, оценивает новые nm_ids"""
+# schedule.every(10).seconds.do(check_new_nm_ids)
+#
+# # """Смотрит в таблицу, оценивает изменения"""
+# schedule.every(180).seconds.do(check_edits_columns)
+#
+# """Сдвигает таблицы по выручкам. Условие должно работать раз в день каждые 5 утра"""
+# schedule.every().day.at("10:16").do(gs_service_for_schedule_connection().add_new_day_revenue_to_table)
+# # проверяет остатки
+# schedule.every(1).hours.do(gs_service_for_schedule_connection().check_quantity_flag)
+
+
+# revenue_data_for_update_rows =   service_gs_table.add_revenue_for_new_nm_ids(lk_articles=lk_articles)
+# if len(revenue_data_for_update_rows) > 0:
+#     print("Добавляем выручку в таблицу")
+#     """Добавление информации по выручкам за последние 7 дней"""
+#     gs_service_revenue_connection().update_revenue_rows(
+#         data_json=revenue_data_for_update_rows)

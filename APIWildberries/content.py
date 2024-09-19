@@ -55,13 +55,12 @@ class ListOfCardsContent:
                     else:
                         break
             except Exception as e:
+                time.sleep(60)
                 print(e)
-
+                continue
             request_wb = response.json()
             for card in request_wb["cards"]:
                 if eng_json_data is False:
-                    if card["nmID"] == 237983103 or card["nmID"] == "237983103":
-                        pprint(card)
 
                     if card["nmID"] in nm_ids_list_for_edit:
 
@@ -120,16 +119,17 @@ class ListOfCardsContent:
         # pprint(card_result_for_match)
         print(nm_ids_list_for_edit)
         if len(nm_ids_list_for_edit) > 0:
-            for nm_id in nm_ids_list_for_edit:
-                card_result_for_match[nm_id] = {
-                    "Артикул": nm_id,
-                    "Текущая\nДлина (см)": "не найдено",
-                    "Текущая\nШирина (см)": "не найдено",
-                    "Текущая\nВысота (см)": "не найдено",
-                    "Предмет": "не найдено",
-                    "Баркод": "не найдено",
-                    "wild": "не найдено",
-                    "Фото": "НЕТ",
+            if only_edits_data is False:
+                for nm_id in nm_ids_list_for_edit:
+                    card_result_for_match[nm_id] = {
+                        "Артикул": nm_id,
+                        "Текущая\nДлина (см)": "не найдено",
+                        "Текущая\nШирина (см)": "не найдено",
+                        "Текущая\nВысота (см)": "не найдено",
+                        "Предмет": "не найдено",
+                        "Баркод": "не найдено",
+                        "wild": "не найдено",
+                        "Фото": "НЕТ",
                 }
         return card_result_for_match
 

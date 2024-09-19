@@ -1,7 +1,9 @@
+import asyncio
 import datetime
 import time
 from pprint import pprint
 
+import aiohttp
 import requests
 
 from utils import get_last_weeks_dates
@@ -20,10 +22,8 @@ class AnalyticsNMReport:
             'Content-Type': 'application/json'
         }
 
-    def get_last_days_revenue(self, nm_ids: list,
-                              begin_date: datetime,
-                              end_date: datetime,
-                              step: int = 20):
+    async def get_last_days_revenue(self, nm_ids: list, begin_date: datetime, end_date: datetime, step: int = 20,
+                                    account=None):
         """По методу есть ограничения на 3 запроса в минуту и в 20 nmID за запрос.
             По умолчанию передаются даты последнего (вчерашнего) дня
         """
@@ -41,32 +41,81 @@ class AnalyticsNMReport:
                 "timezone": "Europe/Moscow",
                 "aggregationLevel": "day"
             }
+
             for i in range(10):
                 try:
-                    response = requests.post(url=url, headers=self.headers, json=json_data)
-                    if response.status_code >= 200 or response.status_code < 300:
-                        break
-                except Exception as e:
-                    print("[ERROR]", e)
-                    print(i, "попытка подключения. Сон на минуту")
-                    time.sleep(63)
-                except requests.exceptions.ConnectionError as ce:
-                    time.sleep(60)
-                    print(i, "попытка подключения. Сон на минуту")
-                    print("[ERROR]", ce)
-            for data in response.json()["data"]:
-
-                nm_id_from_data = data["nmID"]
-                revenue_by_dates = {}
-                for nm_id_history in data["history"]:
-                    date_object = datetime.datetime.strptime(nm_id_history["dt"], "%Y-%m-%d")
-                    output_date = date_object.strftime("%d-%m-%Y")
-
-                    revenue_by_dates[output_date] = nm_id_history["ordersSumRub"]
-
-                result_data[nm_id_from_data] = revenue_by_dates
+                    async with aiohttp.ClientSession() as session:
+                        async with session.post(url=url, headers=self.headers, json=json_data) as response:
+                            if response.status == 200:
+                                response_result = await response.json()
+                                for data in response_result["data"]:
+                                    nm_id_from_data = data["nmID"]
+                                    revenue_by_dates = {}
+                                    for nm_id_history in data["history"]:
+                                        date_object = datetime.datetime.strptime(nm_id_history["dt"], "%Y-%m-%d")
+                                        output_date = date_object.strftime("%d-%m-%Y")
+                                        revenue_by_dates[output_date] = nm_id_history["ordersSumRub"]
+                                    result_data[nm_id_from_data] = revenue_by_dates
+                                break
+                            else:
+                                print(f"Ошибка при выполнении запроса: {response.status}")
+                                await asyncio.sleep(63)
+                except aiohttp.ClientError as e:
+                    print(f"Ошибка при выполнении запроса: {e}")
+                    await asyncio.sleep(63)
 
         return result_data
+
+    # def get_last_days_revenue(self, nm_ids: list,
+    #                           begin_date: datetime,
+    #                           end_date: datetime,
+    #                           step: int = 20):
+    #     """По методу есть ограничения на 3 запроса в минуту и в 20 nmID за запрос.
+    #         По умолчанию передаются даты последнего (вчерашнего) дня
+    #     """
+    # url = self.url.format("detail/history")
+    # result_data = {}
+    # for start in range(0, len(nm_ids), step):
+    #     nm_ids_part = nm_ids[start: start + step]
+    #
+    #     json_data = {
+    #         "nmIDs": nm_ids_part,
+    #         "period": {
+    #             "begin": str(begin_date),
+    #             "end": str(end_date)
+    #         },
+    #         "timezone": "Europe/Moscow",
+    #         "aggregationLevel": "day"
+    #     }
+    #     for i in range(10):
+    #         try:
+    #             response = requests.post(url=url, headers=self.headers, json=json_data)
+    #             if response.status_code >= 200 or response.status_code < 300:
+    #                 break
+    #         except Exception as e:
+    #             print("[ERROR]", e)
+    #             print(i, "попытка подключения. Сон на минуту")
+    #             time.sleep(63)
+    #         except requests.exceptions.ConnectionError as ce:
+    #             time.sleep(60)
+    #             print(i, "попытка подключения. Сон на минуту")
+    #             print("[ERROR]", ce)
+    #
+    #         if "data" not in response.json():
+    #             continue
+    #         for data in response.json()["data"]:
+    #
+    #             nm_id_from_data = data["nmID"]
+    #             revenue_by_dates = {}
+    #             for nm_id_history in data["history"]:
+    #                 date_object = datetime.datetime.strptime(nm_id_history["dt"], "%Y-%m-%d")
+    #                 output_date = date_object.strftime("%d-%m-%Y")
+    #
+    #                 revenue_by_dates[output_date] = nm_id_history["ordersSumRub"]
+    #
+    #             result_data[nm_id_from_data] = revenue_by_dates
+    #
+    # return result_data
 
     def get_last_week_revenue(self, nm_ids, week_count):
         weeks = get_last_weeks_dates(last_week_count=week_count)
@@ -125,6 +174,7 @@ class AnalyticsWarehouseLimits:
 
     def create_report(self):
         """Создает и возвращает taskId для остатков по баркодам"""
+        result = None
         url = self.url
         params = {
             "groupByBarcode": True
@@ -133,21 +183,36 @@ class AnalyticsWarehouseLimits:
             try:
                 response = requests.get(url=url, headers=self.headers, params=params)
                 if response.status_code == 200:
-                    return response.json()["data"]["taskId"]
+                    result = response.json()["data"]["taskId"]
+                    break
+
+                print("create_report", response.status_code, "sleep 63 sec")
+                time.sleep(63)
 
             except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
                 print(e)
                 time.sleep(63)
 
-    def check_data_by_task_id(self, task_id):
-        url = f"https://seller-analytics-api.wildberries.ru/api/v1/warehouse_remains/tasks/{task_id}/download"
+        return result
 
+    def check_data_by_task_id(self, task_id):
+        time.sleep(10)
+
+        url = f"https://seller-analytics-api.wildberries.ru/api/v1/warehouse_remains/tasks/{task_id}/download"
+        result = {}
         for _ in range(10):
             try:
                 response = requests.get(url=url, headers=self.headers, params=task_id)
-                if response.status_code == 200:
-                    return response.json()
+                print(response.status_code)
 
+                if response.status_code == 200:
+                    result = response.json()
+                    break
+                print(response.status_code)
+                print(response.json())
+                time.sleep(63)
             except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
                 print(e)
                 time.sleep(63)
+
+        return result

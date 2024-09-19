@@ -359,15 +359,16 @@ class GoogleSheetServiceRevenue:
                 })
 
         # Отправка обновлений одним запросом
-        sheet.batch_update(updates)
+        print(updates)
+        sheet.batch_update(updates, value_input_option="USER_ENTERED")
 
         print("Значения обновлены в таблице.")
 
-    def shift_revenue_columns_to_the_left(self):
+    def shift_revenue_columns_to_the_left(self, last_day):
         """
-        Сдвигает содержимое столбцов (AD-AZ) с выручкой влево и добавляет новый день в AZ.
+        Сдвигает содержимое столбцов (AD-AJ) с выручкой влево и добавляет новый день в AZ.
         Функция задумана отрабатывать раз в день.
-        Должна отрабатывать по условию если заголовок AZ это позавчерашний день
+        Должна отрабатывать по условию если заголовок AJ это позавчерашний день
         """
 
         client = self.client_init_json()
@@ -380,24 +381,24 @@ class GoogleSheetServiceRevenue:
         df = pd.DataFrame(all_values[1:], columns=all_values[0])
 
         # Смещение заголовков и содержимого столбцов от "AD" до "AJ"
-        header_values = df.columns[29:36].tolist()  # Индексы столбцов "AD" до "AJ"
+        header_values = df.columns[32:39].tolist()  # Индексы столбцов "AG" до "AM"
         shifted_header_values = header_values[1:]
-        last_date = datetime.strptime(header_values[-1], '%d-%m-%Y') + timedelta(days=1)
-        shifted_header_values.append(last_date.strftime('%d-%m-%Y'))
-
+        # last_date = datetime.strptime(header_values[-1], '%d-%m-%Y') + timedelta(days=1)
+        # shifted_header_values.append(last_date.strftime('%d-%m-%Y'))
+        shifted_header_values.append(last_day)
         # Обновление заголовков
-        df.columns = df.columns[:29].tolist() + shifted_header_values + df.columns[36:].tolist()
+        df.columns = df.columns[:32].tolist() + shifted_header_values + df.columns[39:].tolist()
 
-        # Смещение содержимого столбцов от "AD" до "AJ"
-        df.iloc[:, 29:35] = df.iloc[:, 30:36].values
-        df.iloc[:, 35] = ""  # Очистка последнего столбца "AJ"
+        # Смещение содержимого столбцов от "AG" до "AM"
+        df.iloc[:, 32:38] = df.iloc[:, 33:39].values
+        df.iloc[:, 38] = ""  # Очистка последнего столбца "AM"
 
         # Преобразование обратно в список списков
         updated_values = [df.columns.tolist()] + df.values.tolist()
 
         # Обновление таблицы одним запросом
-        sheet.update('A1', updated_values)
-        """Значения заголовков и содержимого смещены влево в рамках индексов от 'AD' до 'AJ'."""
+        sheet.update('A1', updated_values, value_input_option='USER_ENTERED')
+        """Значения заголовков и содержимого смещены влево в рамках индексов от 'AG' до 'AM'."""
 
     def add_week_revenue_by_article(self, week_revenue_data):
         client = self.client_init_json()

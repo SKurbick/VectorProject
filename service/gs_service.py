@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import time
 from pprint import pprint
@@ -5,7 +6,7 @@ from pprint import pprint
 import gspread.exceptions
 
 from APIGoogleSheet.googlesheet import GoogleSheetServiceRevenue, GoogleSheet, GoogleSheetSopostTable
-from APIWildberries.analytics import AnalyticsNMReport
+from APIWildberries.analytics import AnalyticsNMReport, AnalyticsWarehouseLimits
 from APIWildberries.content import ListOfCardsContent
 from APIWildberries.marketplace import WarehouseMarketplaceWB, LeftoversMarketplace
 from APIWildberries.prices_and_discounts import ListOfGoodsPricesAndDiscounts
@@ -25,9 +26,10 @@ class ServiceGoogleSheet:
         self.spreadsheet = spreadsheet
         self.creds_json = creds_json
 
-    def add_revenue_for_new_nm_ids(self, lk_articles: dict):
+    async def add_revenue_for_new_nm_ids(self, lk_articles: dict):
         """ Добавление выручки по новым артикулам за 7 последних дней (сегодняшний не учитывается)"""
-        nm_ids_revenue_data = {}
+        print("Добавляем выручку, за семь дней")
+        all_accounts_new_revenue_data = {}
         for account, articles in lk_articles.items():
             # получаем токен и корректируем регистр для чтения из файла
             token = get_wb_tokens()[account.capitalize()]
@@ -35,26 +37,44 @@ class ServiceGoogleSheet:
             nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=articles)
             if len(nm_ids_result) > 0:
                 analytics = AnalyticsNMReport(token=token)
-                revenue_data_by_article = analytics.get_last_days_revenue(nm_ids=articles,
-                                                                          begin_date=datetime.date.today() - datetime.timedelta(
-                                                                              days=7),
-                                                                          end_date=datetime.date.today() - datetime.timedelta(
-                                                                              days=1))
-                """добавляет данные по ежедневной выручке в БД"""
-                add_orders_data(revenue_data_by_article)
+                # revenue_data_by_article = await analytics.get_last_days_revenue(nm_ids=articles,
+                #                                                                 begin_date=datetime.date.today() - datetime.timedelta(
+                #                                                                     days=7),
+                #                                                                 end_date=datetime.date.today() - datetime.timedelta(
+                #                                                                     days=1))
+                #
+                # revenue_week_data_by_article = analytics.get_last_week_revenue(week_count=4, nm_ids=articles)
+                #
+                # nm_ids_revenue_data.update(revenue_data_by_article)
 
-                revenue_week_data_by_article = analytics.get_last_week_revenue(week_count=4, nm_ids=articles)
+                tasks = []
+                task = asyncio.create_task(
+                    analytics.get_last_days_revenue(nm_ids=nm_ids_result,
+                                                    begin_date=datetime.date.today() - datetime.timedelta(
+                                                        days=7),
+                                                    end_date=datetime.date.today() - datetime.timedelta(
+                                                        days=1)))
+                tasks.append(task)
 
-                nm_ids_revenue_data.update(revenue_data_by_article)
+                # Ждем завершения всех задач
+                results = await asyncio.gather(*tasks)
+                for res in results:
+                    all_accounts_new_revenue_data.update(res)
+
+                    """добавляет данные по ежедневной выручке в БД"""
+                    add_orders_data(res)
+
+                revenue_week_data_by_article = analytics.get_last_week_revenue(week_count=4, nm_ids=nm_ids_result)
 
                 for nm_id in revenue_week_data_by_article:
-                    if nm_id in nm_ids_revenue_data:
-                        nm_ids_revenue_data[nm_id].update(revenue_week_data_by_article[nm_id])
+                    if nm_id in all_accounts_new_revenue_data:
+                        all_accounts_new_revenue_data[nm_id].update(revenue_week_data_by_article[nm_id])
 
                 """добавляем артикулы в БД"""
                 # артикулы добавляем после получения выручки
                 add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
-        return nm_ids_revenue_data
+
+        return all_accounts_new_revenue_data
 
     def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
                                 add_data_in_db=True, check_nm_ids_in_db=True):
@@ -83,12 +103,10 @@ class ServiceGoogleSheet:
                                                                            account=account)
                 goods_nm_ids = wb_api_price_and_discount.get_log_for_nm_ids(filter_nm_ids=nm_ids_result)
                 commission_traffics = CommissionTariffs(token=token)
+                wh_analytics = AnalyticsWarehouseLimits(token=token)
                 # объединяем полученные данные
                 merge_json_data = merge_dicts(card_from_nm_ids_filter, goods_nm_ids)
-                # merge_json_data = new_merge_dicts(card_from_nm_ids_filter,goods_nm_ids)
 
-                # print("MERGE JSON DATA")
-                # pprint(merge_json_data)
                 subject_names = set()  # итог предметов со всех карточек
                 account_barcodes = []
                 current_tariffs_data = commission_traffics.get_tariffs_box_from_marketplace()
@@ -116,17 +134,31 @@ class ServiceGoogleSheet:
                         barcodes=account_barcodes)
                     barcodes_quantity_result.extend(bqs_result)
 
+                barcodes_qty_wb = {}
+                task_id = wh_analytics.create_report()
+                wb_warehouse_qty = wh_analytics.check_data_by_task_id(task_id=task_id)
+                print()
+                if task_id is not None and len(wb_warehouse_qty) > 0:
+                    for wh_data in wb_warehouse_qty:
+                        if wh_data["barcode"] in account_barcodes:
+                            barcodes_qty_wb[wh_data["barcode"]] = wh_data["quantityWarehousesFull"]
+
                 # получение комиссии WB
                 subject_commissions = commission_traffics.get_commission_on_subject(subject_names=subject_names)
 
+                print("barcodes_qty_wb.keys()", barcodes_qty_wb.keys())
                 for card in merge_json_data.values():
                     for sc in subject_commissions.items():
-                        if sc[0] == card["Предмет"]:
+                        if "Предмет" in card and sc[0] == card["Предмет"]:
                             card["Комиссия WB"] = sc[1]
                     for bq_result in barcodes_quantity_result:
-                        if bq_result["Баркод"] == card["Баркод"]:
+                        if "Баркод" in card and bq_result["Баркод"] == card["Баркод"]:
                             card["Текущий остаток"] = bq_result["остаток"]
+                    if len(barcodes_qty_wb) > 0:
+                        if "Баркод" in card and card["Баркод"] in barcodes_qty_wb.keys():
+                            card["Текущий остаток\nСклады WB"] = barcodes_qty_wb[card["Баркод"]]
 
+                # pprint(merge_json_data)
                 result_nm_ids_data.update(merge_json_data)
 
                 if add_data_in_db is True:
@@ -218,37 +250,47 @@ class ServiceGoogleSheet:
                                                 only_edits_data=True, add_data_in_db=False, check_nm_ids_in_db=False)
         return updates_nm_ids_data
 
-    def add_new_day_revenue_to_table(self):
+    async def add_new_day_revenue_to_table(self):
         last_day_bad_format = datetime.date.today() - datetime.timedelta(days=1)
-        last_day = datetime.datetime.strftime(last_day_bad_format, "%d-%m-%Y")
+        last_day = last_day_bad_format.strftime("%d-%m-%Y")
         """Добавление нового дня в заголовки таблицы и выручки по этим дням и сдвиг последних шести дней влево"""
         # проверяем нет ли вчерашнего дня в заголовках таблицы
         print(f"проверяем {last_day}")
         if self.gs_service_revenue_connect.check_last_day_header_from_table(last_day=last_day):
             print(last_day, "заголовка нет в таблице. Будет добавлен включая выручку под дню")
             # сначала сдвигаем колонки с выручкой
-            self.gs_service_revenue_connect.shift_revenue_columns_to_the_left()
+            self.gs_service_revenue_connect.shift_revenue_columns_to_the_left(last_day=last_day)
             lk_articles = self.gs_connect.create_lk_articles_list()
-
+            print(lk_articles)
             # собираем выручку по всем артикулам аккаунтов
             all_accounts_new_revenue_data = {}
-            for account, articles in lk_articles.items():
-                token = get_wb_tokens()[account.capitalize()]
-                analytics = AnalyticsNMReport(token=token)
-                # получаем данные по выручке с апи ВБ
-                revenue_data_by_article = analytics.get_last_days_revenue(nm_ids=articles,
-                                                                          begin_date=last_day_bad_format,
-                                                                          end_date=last_day_bad_format)
 
-                all_accounts_new_revenue_data.update(revenue_data_by_article)
-                pprint(revenue_data_by_article)
-                # добавляем их таблицу
-            self.gs_service_revenue_connect.add_last_day_revenue(nm_ids_revenue_data=all_accounts_new_revenue_data,
-                                                                 last_day=last_day)
+            tasks = []
+
+            for account, nm_ids in lk_articles.items():
+                token = get_wb_tokens()[account.capitalize()]
+                anal_revenue = AnalyticsNMReport(token=token)
+                task = asyncio.create_task(
+                    anal_revenue.get_last_days_revenue(begin_date=last_day_bad_format,
+                                                       end_date=last_day_bad_format,
+                                                       nm_ids=nm_ids, account=account))
+                tasks.append(task)
+
+            # Ждем завершения всех задач
+            results = await asyncio.gather(*tasks)
+            for res in results:
+                all_accounts_new_revenue_data.update(res)
+            print(all_accounts_new_revenue_data)
+            # добавляем их таблицу
+            print("Добавляем данные по выручке в таблицу")
+            # self.gs_service_revenue_connect.add_last_day_revenue(nm_ids_revenue_data=all_accounts_new_revenue_data,
+            #                                                      last_day=last_day)
+            self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
             print(f"добавлена выручка по новом заголовку {last_day} по всем артикулам")
             """добавляет данные по выручке в БД"""
-            print("Выручка добавлена в БД")
-            add_orders_data(all_accounts_new_revenue_data)
+            # print("Выручка добавлена в БД")
+            # add_orders_data(all_accounts_new_revenue_data)
+        print("Вышли из функции добавления выручки")
 
     @staticmethod
     def check_status():
@@ -298,7 +340,7 @@ class ServiceGoogleSheet:
                     print(f"Результат с API WB {merge_json_data}")
                     continue  # пропускаем этот аккаунт
                 for i in merge_json_data.values():
-                    if i["wild"] != "не найдено":
+                    if "wild" in i and i["wild"] != "не найдено":
                         account_barcodes.append(i["Баркод"])
                         subject_names.add(i["Предмет"])  # собираем множество с предметами
                         result_log_value = calculate_sum_for_logistic(
@@ -324,10 +366,10 @@ class ServiceGoogleSheet:
                 # добавляем данные в merge_json_data
                 for card in merge_json_data.values():
                     for sc in subject_commissions.items():
-                        if sc[0] == card["Предмет"]:
+                        if "Предмет" in card and sc[0] == card["Предмет"]:
                             card["Комиссия WB"] = sc[1]
                     for bq_result in barcodes_quantity_result:
-                        if bq_result["Баркод"] == card["Баркод"]:
+                        if "Баркод" in card and bq_result["Баркод"] == card["Баркод"]:
                             card["Текущий остаток"] = bq_result["остаток"]
 
                 result_updates_rows.update(merge_json_data)
