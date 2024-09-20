@@ -135,10 +135,10 @@ class ServiceGoogleSheet:
                         barcodes=account_barcodes)
                     barcodes_quantity_result.extend(bqs_result)
 
+                # собираем остатки со складов WB
                 barcodes_qty_wb = {}
                 task_id = wh_analytics.create_report()
                 wb_warehouse_qty = wh_analytics.check_data_by_task_id(task_id=task_id)
-                print()
                 if task_id is not None and len(wb_warehouse_qty) > 0:
                     for wh_data in wb_warehouse_qty:
                         if wh_data["barcode"] in account_barcodes:
@@ -324,7 +324,7 @@ class ServiceGoogleSheet:
                 warehouses = WarehouseMarketplaceWB(token=token)
                 barcodes_quantity = LeftoversMarketplace(token=token)
                 commission_traffics = CommissionTariffs(token=token)
-
+                wh_analytics = AnalyticsWarehouseLimits(token=token)
                 card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=articles, limit=100,
                                                                            only_edits_data=True, add_data_in_db=False)
                 goods_nm_ids = wb_api_price_and_discount.get_log_for_nm_ids(filter_nm_ids=articles)
@@ -361,6 +361,15 @@ class ServiceGoogleSheet:
                         barcodes=account_barcodes)
                     barcodes_quantity_result.extend(bqs_result)
 
+                # собираем остатки со складов WB
+                barcodes_qty_wb = {}
+                task_id = wh_analytics.create_report()
+                wb_warehouse_qty = wh_analytics.check_data_by_task_id(task_id=task_id)
+                if task_id is not None and len(wb_warehouse_qty) > 0:
+                    for wh_data in wb_warehouse_qty:
+                        if wh_data["barcode"] in account_barcodes:
+                            barcodes_qty_wb[wh_data["barcode"]] = wh_data["quantityWarehousesFull"]
+
                 # получение комиссии WB
                 subject_commissions = commission_traffics.get_commission_on_subject(subject_names=subject_names)
 
@@ -372,6 +381,9 @@ class ServiceGoogleSheet:
                     for bq_result in barcodes_quantity_result:
                         if "Баркод" in card and bq_result["Баркод"] == card["Баркод"]:
                             card["Текущий остаток"] = bq_result["остаток"]
+                    if len(barcodes_qty_wb) > 0:
+                        if "Баркод" in card and card["Баркод"] in barcodes_qty_wb.keys():
+                            card["Текущий остаток\nСклады WB"] = barcodes_qty_wb[card["Баркод"]]
 
                 result_updates_rows.update(merge_json_data)
                 """обновляем данные по артикулам"""
