@@ -119,7 +119,7 @@ def schedule_tasks():
     schedule.every(800).seconds.do(lambda: asyncio.create_task(run_in_executor(gs_service.add_actually_data_to_table)))
 
     # """Смотрит в таблицу, оценивает новые nm_ids"""
-    schedule.every(400).seconds.do(lambda: asyncio.create_task(check_new_nm_ids()))
+    schedule.every(300).seconds.do(lambda: asyncio.create_task(check_new_nm_ids()))
 
     """Смотрит в таблицу, оценивает изменения"""
     schedule.every(180).seconds.do(lambda: asyncio.create_task(run_in_executor(check_edits_columns)))

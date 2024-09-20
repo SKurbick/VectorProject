@@ -230,18 +230,19 @@ class ServiceGoogleSheet:
                 nm_ids_result = [int(nm_ids_str) for nm_ids_str in valid_data_result.keys()]
                 updates_nm_ids_data.update({account: nm_ids_result})
 
-            if len(edit_data_from_table["qty_edit_data"][account]["stocks"]) > 0 and quantity_edit_status:
-                "изменение остатков на всех складах продавца"
-                for warehouse in warehouses.get_account_warehouse():
-                    warehouses_qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse["id"],
-                                                                    edit_barcodes_list=
-                                                                    edit_data_from_table["qty_edit_data"][
-                                                                        account]["stocks"])
-                edit_column_clean["qty"] = True
-                # добавляем артикул для обновления данных
-                if account not in updates_nm_ids_data:
-                    updates_nm_ids_data[account] = []
-                updates_nm_ids_data[account].append(*edit_data_from_table["qty_edit_data"][account]["nm_ids"])
+            if account in edit_data_from_table["qty_edit_data"]:
+                if len(edit_data_from_table["qty_edit_data"][account]["stocks"]) > 0 and quantity_edit_status:
+                    "изменение остатков на всех складах продавца"
+                    for warehouse in warehouses.get_account_warehouse():
+                        warehouses_qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse["id"],
+                                                                        edit_barcodes_list=
+                                                                        edit_data_from_table["qty_edit_data"][
+                                                                            account]["stocks"])
+                    edit_column_clean["qty"] = True
+                    # добавляем артикул для обновления данных
+                    if account not in updates_nm_ids_data:
+                        updates_nm_ids_data[account] = []
+                    updates_nm_ids_data[account].append(*edit_data_from_table["qty_edit_data"][account]["nm_ids"])
 
         # если хоть по одному артикулу данные будут валидны...
         if len(updates_nm_ids_data):
