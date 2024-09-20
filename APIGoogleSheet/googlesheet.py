@@ -366,38 +366,73 @@ class GoogleSheetServiceRevenue:
 
     def shift_revenue_columns_to_the_left(self, last_day):
         """
-        Сдвигает содержимое столбцов (AD-AJ) с выручкой влево и добавляет новый день в AZ.
+        Сдвигает содержимое столбцов (AG-AM) с выручкой влево и добавляет новый день в AM.
         Функция задумана отрабатывать раз в день.
-        Должна отрабатывать по условию если заголовок AJ это позавчерашний день
+        Должна отрабатывать по условию если заголовок AM это позавчерашний день
         """
 
         client = self.client_init_json()
         spreadsheet = client.open(self.spreadsheet)
         sheet = spreadsheet.worksheet(self.sheet)
 
+        # all_values = sheet.get_all_values()
+        # # Преобразование в DataFrame
+        # df = pd.DataFrame(all_values[1:], columns=all_values[0])
+        #
+        # # Смещение заголовков и содержимого столбцов от "AG" до "AM"
+        # header_values = df.columns[32:39].tolist()  # Индексы столбцов "AG" до "AM"
+        # shifted_header_values = header_values[1:]
+        # # last_date = datetime.strptime(header_values[-1], '%d-%m-%Y') + timedelta(days=1)
+        # # shifted_header_values.append(last_date.strftime('%d-%m-%Y'))
+        # shifted_header_values.append(last_day)
+        # # Обновление заголовков
+        # df.columns = df.columns[:32].tolist() + shifted_header_values + df.columns[39:].tolist()
+        #
+        # # Смещение содержимого столбцов от "AG" до "AM"
+        # df.iloc[:, 32:38] = df.iloc[:, 33:39].values
+        # df.iloc[:, 38] = ""  # Очистка последнего столбца "AM"
+        #
+        # # Преобразование обратно в список списков
+        # updated_values = [df.columns.tolist()] + df.values.tolist()
+        #
+        # # Обновление таблицы одним запросом
+        # sheet.update('A1', updated_values, value_input_option='USER_ENTERED')
+        # """Значения заголовков и содержимого смещены влево в рамках индексов от 'AG' до 'AM'."""
         all_values = sheet.get_all_values()
+        all_formulas = sheet.get_all_values(value_render_option='FORMULA')
 
         # Преобразование в DataFrame
-        df = pd.DataFrame(all_values[1:], columns=all_values[0])
+        df_values = pd.DataFrame(all_values[1:], columns=all_values[0])
+        df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
 
-        # Смещение заголовков и содержимого столбцов от "AD" до "AJ"
-        header_values = df.columns[32:39].tolist()  # Индексы столбцов "AG" до "AM"
+        # Сохраняем формулы из столбцов, которые не попадают в диапазон смещения
+        formulas_to_preserve = df_formulas.iloc[:, 39:].values
+
+        # Смещение заголовков и содержимого столбцов от "AG" до "AM"
+        header_values = df_values.columns[32:39].tolist()  # Индексы столбцов "AG" до "AM"
         shifted_header_values = header_values[1:]
-        # last_date = datetime.strptime(header_values[-1], '%d-%m-%Y') + timedelta(days=1)
-        # shifted_header_values.append(last_date.strftime('%d-%m-%Y'))
         shifted_header_values.append(last_day)
+
         # Обновление заголовков
-        df.columns = df.columns[:32].tolist() + shifted_header_values + df.columns[39:].tolist()
+        df_values.columns = df_values.columns[:32].tolist() + shifted_header_values + df_values.columns[39:].tolist()
+        df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
 
         # Смещение содержимого столбцов от "AG" до "AM"
-        df.iloc[:, 32:38] = df.iloc[:, 33:39].values
-        df.iloc[:, 38] = ""  # Очистка последнего столбца "AM"
+        df_values.iloc[:, 32:38] = df_values.iloc[:, 33:39].values
+        df_values.iloc[:, 38] = ""  # Очистка последнего столбца "AM"
+
+        # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
+        df_formulas.iloc[:, 32:38] = df_formulas.iloc[:, 33:39].values
+        df_formulas.iloc[:, 38] = ""  # Очистка последнего столбца "AM"
+        df_formulas.iloc[:, 39:] = formulas_to_preserve
 
         # Преобразование обратно в список списков
-        updated_values = [df.columns.tolist()] + df.values.tolist()
+        updated_values = [df_values.columns.tolist()] + df_values.values.tolist()
+        updated_formulas = [df_formulas.columns.tolist()] + df_formulas.values.tolist()
 
         # Обновление таблицы одним запросом
         sheet.update('A1', updated_values, value_input_option='USER_ENTERED')
+        sheet.update('A1', updated_formulas, value_input_option='USER_ENTERED')
         """Значения заголовков и содержимого смещены влево в рамках индексов от 'AG' до 'AM'."""
 
     def add_week_revenue_by_article(self, week_revenue_data):

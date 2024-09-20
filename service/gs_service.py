@@ -28,7 +28,7 @@ class ServiceGoogleSheet:
 
     async def add_revenue_for_new_nm_ids(self, lk_articles: dict):
         """ Добавление выручки по новым артикулам за 7 последних дней (сегодняшний не учитывается)"""
-        print("Добавляем выручку, за семь дней")
+        print("Смотрим новые артикулы для добавления выручки")
         all_accounts_new_revenue_data = {}
         for account, articles in lk_articles.items():
             # получаем токен и корректируем регистр для чтения из файла
@@ -36,6 +36,7 @@ class ServiceGoogleSheet:
 
             nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=articles)
             if len(nm_ids_result) > 0:
+                print("есть новые артикулы для добавления выручки за 7 последних дней")
                 analytics = AnalyticsNMReport(token=token)
                 # revenue_data_by_article = await analytics.get_last_days_revenue(nm_ids=articles,
                 #                                                                 begin_date=datetime.date.today() - datetime.timedelta(
