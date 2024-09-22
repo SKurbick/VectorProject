@@ -38,23 +38,13 @@ class ServiceGoogleSheet:
             if len(nm_ids_result) > 0:
                 print("есть новые артикулы для добавления выручки за 7 последних дней")
                 analytics = AnalyticsNMReport(token=token)
-                # revenue_data_by_article = await analytics.get_last_days_revenue(nm_ids=articles,
-                #                                                                 begin_date=datetime.date.today() - datetime.timedelta(
-                #                                                                     days=7),
-                #                                                                 end_date=datetime.date.today() - datetime.timedelta(
-                #                                                                     days=1))
-                #
-                # revenue_week_data_by_article = analytics.get_last_week_revenue(week_count=4, nm_ids=articles)
-                #
-                # nm_ids_revenue_data.update(revenue_data_by_article)
 
                 tasks = []
                 task = asyncio.create_task(
                     analytics.get_last_days_revenue(nm_ids=nm_ids_result,
                                                     begin_date=datetime.date.today() - datetime.timedelta(
                                                         days=7),
-                                                    end_date=datetime.date.today() - datetime.timedelta(
-                                                        days=1)))
+                                                    end_date=datetime.date.today()))  # было  - datetime.timedelta(days=1)
                 tasks.append(task)
 
                 # Ждем завершения всех задач
@@ -253,45 +243,45 @@ class ServiceGoogleSheet:
         return updates_nm_ids_data
 
     async def add_new_day_revenue_to_table(self):
-        last_day_bad_format = datetime.date.today() - datetime.timedelta(days=1)
+        last_day_bad_format = datetime.date.today()  # - datetime.timedelta(days=1)
         last_day = last_day_bad_format.strftime("%d-%m-%Y")
         """Добавление нового дня в заголовки таблицы и выручки по этим дням и сдвиг последних шести дней влево"""
         # проверяем нет ли вчерашнего дня в заголовках таблицы
-        print(f"проверяем {last_day}")
+        print(f"Актуализируем выручку по текущему дню: {last_day}")
         if self.gs_service_revenue_connect.check_last_day_header_from_table(last_day=last_day):
             print(last_day, "заголовка нет в таблице. Будет добавлен включая выручку по дню")
             # сначала сдвигаем колонки с выручкой
             self.gs_service_revenue_connect.shift_revenue_columns_to_the_left(last_day=last_day)
-            lk_articles = self.gs_connect.create_lk_articles_list()
-            print(lk_articles)
-            # собираем выручку по всем артикулам аккаунтов
-            all_accounts_new_revenue_data = {}
+        lk_articles = self.gs_connect.create_lk_articles_list()
+        print(lk_articles)
+        # собираем выручку по всем артикулам аккаунтов
+        all_accounts_new_revenue_data = {}
 
-            tasks = []
+        tasks = []
 
-            for account, nm_ids in lk_articles.items():
-                token = get_wb_tokens()[account.capitalize()]
-                anal_revenue = AnalyticsNMReport(token=token)
-                task = asyncio.create_task(
-                    anal_revenue.get_last_days_revenue(begin_date=last_day_bad_format,
-                                                       end_date=last_day_bad_format,
-                                                       nm_ids=nm_ids, account=account))
-                tasks.append(task)
+        for account, nm_ids in lk_articles.items():
+            token = get_wb_tokens()[account.capitalize()]
+            anal_revenue = AnalyticsNMReport(token=token)
+            task = asyncio.create_task(
+                anal_revenue.get_last_days_revenue(begin_date=last_day_bad_format,
+                                                   end_date=last_day_bad_format,
+                                                   nm_ids=nm_ids, account=account))
+            tasks.append(task)
 
-            # Ждем завершения всех задач
-            results = await asyncio.gather(*tasks)
-            for res in results:
-                all_accounts_new_revenue_data.update(res)
-            print(all_accounts_new_revenue_data)
-            # добавляем их таблицу
-            print("Добавляем данные по выручке в таблицу")
-            # self.gs_service_revenue_connect.add_last_day_revenue(nm_ids_revenue_data=all_accounts_new_revenue_data,
-            #                                                      last_day=last_day)
-            self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
-            print(f"добавлена выручка по новом заголовку {last_day} по всем артикулам")
-            """добавляет данные по выручке в БД"""
-            # print("Выручка добавлена в БД")
-            # add_orders_data(all_accounts_new_revenue_data)
+        # Ждем завершения всех задач
+        results = await asyncio.gather(*tasks)
+        for res in results:
+            all_accounts_new_revenue_data.update(res)
+        print(all_accounts_new_revenue_data)
+        # добавляем их таблицу
+        print("Добавляем данные по выручке в таблицу")
+        # self.gs_service_revenue_connect.add_last_day_revenue(nm_ids_revenue_data=all_accounts_new_revenue_data,
+        #                                                      last_day=last_day)
+        self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
+        print(f"добавлена выручка по новом заголовку {last_day} по всем артикулам")
+        """добавляет данные по выручке в БД"""
+        # print("Выручка добавлена в БД")
+        # add_orders_data(all_accounts_new_revenue_data)
         print("Вышли из функции добавления выручки")
 
     @staticmethod
