@@ -89,7 +89,7 @@ class ListOfCardsContent:
                             "sizes": card["sizes"]
                         }
 
-                        # добавляем данные по skus с ключем кабинета и артикла
+                        # добавляем данные по skus с ключом кабинета и артикула
                         if account not in data_for_warehouse.keys():
                             data_for_warehouse[account] = {}
                         data_for_warehouse[account].update({str(card["nmID"]): {"skus": card["sizes"][0]["skus"]}})

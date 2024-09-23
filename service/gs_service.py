@@ -197,7 +197,7 @@ class ServiceGoogleSheet:
                                     **data["price_discount"]
                                 }
                             )
-                    # статус на изменение габаритов должен быть активным
+                    # статус на изменение габаритов должен быть активным (вкл/выкл бот)
                     if "sizes" and "dimensions" in data and dimensions_edit_status:
                         size_edit_data.append(
                             {

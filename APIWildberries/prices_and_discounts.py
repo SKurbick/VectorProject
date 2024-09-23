@@ -25,35 +25,31 @@ class ListOfGoodsPricesAndDiscounts:
             'Content-Type': 'application/json'
         }
 
-    def get_log_for_nm_ids(self, filter_nm_ids, eng_json_data: bool = False, step=1000) -> json:
+    def get_log_for_nm_ids(self, filter_nm_ids, eng_json_data: bool = False) -> json:
         """Получение цен и скидок по совпадению с nmID"""
         url = self.url.format("filter")
         nm_ids = [*filter_nm_ids]
         nm_ids_list = {}
-        # for start in range(0, len(filter_nm_ids), step):
-        # nm_ids_part = filter_nm_ids[start: start + step]
+
         offset = 0
         limit = 1000
         while True:
             params = {
                 "limit": limit,
                 "offset": offset,
-                # "filterNmID": nm_ids_part
             }
             response = requests.get(url, headers=self.headers, params=params)
             if "data" not in response.json() or response.status_code > 400:
-                try:
-                    for i in range(1,10):
+                for i in range(1, 10):
+                    try:
                         response = requests.get(url, headers=self.headers, params=params)
                         if "data" in response.json():
                             break
-                except Exception as e:
-                    time.sleep(30)
-                    print(e)
-                    print(f"Ошибка на просмотре цены и скидки по артикулам. Попытка {i}")
-            # if "data" not in response.json():
-            #     continue
-            # Если артикул не будет найден, то он его пропустит
+                    except Exception as e:
+                        time.sleep(30)
+                        print(e)
+                        print(f"Ошибка на просмотре цены и скидки по артикулам. Попытка {i}")
+
             try:
                 for card in response.json()["data"]["listGoods"]:
                     if card["nmID"] in nm_ids:
@@ -76,17 +72,19 @@ class ListOfGoodsPricesAndDiscounts:
         pprint(nm_ids)
         return nm_ids_list
 
-    def add_new_price_and_discount(self, data: list):
+    def add_new_price_and_discount(self, data: list, step=1000):
         url = self.post_url
+        for start in range(0, len(data), step):
+            butch_data = data[start: start + step]
+            for _ in range(10):
+                try:
+                    response = requests.post(url=url, headers=self.headers, json={"data": butch_data})
+                    print("Артиклы на изменение цены:", butch_data)
+                    print("price and discount edit result:", response.json())
+                    time.sleep(10)
+                    if False is response.json()["error"]:
+                        break
 
-        response = requests.post(url=url, headers=self.headers, json={"data": data})
-
-        print("price and discount edit result:", response.json())
-        time.sleep(10)
-        if False is response.json()["error"]:
-            return True
-        else:
-            return False
-
-        # {'data': {'id': 38529453, 'alreadyExists': True}, 'error': False, 'errorText': 'Task already exists'}
-        # {'data': {}, 'error': False, 'errorText': '', 'additionalErrors': {}}
+                except (Exception, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
+                    print(e)
+                    time.sleep(63)
