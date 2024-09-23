@@ -150,16 +150,18 @@ class GoogleSheet:
             article_dict = {
                 # 'Новый остаток': row['Новый остаток'],
                 'wild': row['wild'],
-                'Чистая прибыль 1ед.': row['Чистая прибыль 1ед.']
+                'Чистая прибыль 1ед.': row['Чистая прибыль 1ед.'].replace('\xa0', '')
             }
             if price_and_discount_status:
-                article_dict.update({"price_discount": {'Установить новую цену': row['Установить новую цену'],
-                                                        'Установить новую скидку %': row['Установить новую скидку %']}})
+                article_dict.update(
+                    {"price_discount": {'Установить новую цену': row['Установить новую цену'].replace('\xa0', ''),
+                                        'Установить новую скидку %': row['Установить новую скидку %'].replace('\xa0',
+                                                                                                              '')}})
             if dimension_status:
                 article_dict.update({"dimensions": {
-                    'Новая\nДлина (см)': row['Новая\nДлина (см)'],
-                    'Новая\nШирина (см)': row['Новая\nШирина (см)'],
-                    'Новая\nВысота (см)': row['Новая\nВысота (см)']}})
+                    'Новая\nДлина (см)': row['Новая\nДлина (см)'].replace('\xa0', ''),
+                    'Новая\nШирина (см)': row['Новая\nШирина (см)'].replace('\xa0', ''),
+                    'Новая\nВысота (см)': row['Новая\nВысота (см)'].replace('\xa0', '')}})
 
             if qty_status:
                 if account not in result_qty_edit_data:
@@ -441,16 +443,16 @@ class GoogleSheetServiceRevenue:
         sheet.update('A1', updated_values)
         print("week data added")
 
-    def check_last_day_header_from_table(self, last_day):
+    def check_last_day_header_from_table(self, header):
         client = self.client_init_json()
         spreadsheet = client.open(self.spreadsheet)
         sheet = spreadsheet.worksheet(self.sheet)
         headers = sheet.row_values(1)
-        if last_day not in headers:
-            print("Вчерашнего дня не найдено в заголовках")
+        if header not in headers:
+            print(f"заголовка {header} нет в таблице")
             return True
         else:
-            print("Заголовок с выручкой вчерашнего дня уже есть в таблице")
+            print(f"Заголовок {header} уже есть в таблице")
 
             return False
 

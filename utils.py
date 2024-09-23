@@ -156,6 +156,7 @@ def validate_data(data: dict):
                     nm_ids_data["sizes"] = nm_ids_db_data[nm_id]["sizes"]
 
                 result_valid_data[int(nm_id)] = nm_ids_data
+
     return result_valid_data
 
 

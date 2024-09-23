@@ -12,7 +12,8 @@ from APIWildberries.marketplace import WarehouseMarketplaceWB, LeftoversMarketpl
 from APIWildberries.prices_and_discounts import ListOfGoodsPricesAndDiscounts
 from APIWildberries.tariffs import CommissionTariffs
 from settings import get_wb_tokens
-from utils import add_orders_data, calculate_sum_for_logistic, merge_dicts, validate_data, add_nm_ids_in_db
+from utils import add_orders_data, calculate_sum_for_logistic, merge_dicts, validate_data, add_nm_ids_in_db, \
+    get_last_weeks_dates
 
 
 class ServiceGoogleSheet:
@@ -166,7 +167,7 @@ class ServiceGoogleSheet:
         dimensions_edit_status = sheet_statuses['Габариты']
         quantity_edit_status = sheet_statuses['Остаток']
         updates_nm_ids_data = {}
-        edit_column_clean = {"price_discount": True, "dimensions": False, "qty": False}
+        edit_column_clean = {"price_discount": False, "dimensions": False, "qty": False}
 
         print("Получил данные по ячейкам на изменение товара")
         for account, nm_ids_data in edit_data_from_table["nm_ids_edit_data"].items():
@@ -209,12 +210,12 @@ class ServiceGoogleSheet:
 
                 """запрос на изменение цены и/или скидки по артикулу"""
                 if len(price_discount_data) > 0:
-                    pd_bool_result = wb_api_price_and_discount.add_new_price_and_discount(price_discount_data)
+                    wb_api_price_and_discount.add_new_price_and_discount(price_discount_data)
                     edit_column_clean["price_discount"] = True
 
                 """Запрос на изменение габаритов товара по артикулу и vendorCode (wild)"""
                 if len(size_edit_data) > 0:
-                    c_bool_result = wb_api_content.size_edit(size_edit_data)
+                    wb_api_content.size_edit(size_edit_data)
                     edit_column_clean["dimensions"] = True
                 """Перезаписываем данные в таблице после их изменений на WB"""
                 nm_ids_result = [int(nm_ids_str) for nm_ids_str in valid_data_result.keys()]
@@ -243,12 +244,13 @@ class ServiceGoogleSheet:
         return updates_nm_ids_data
 
     async def add_new_day_revenue_to_table(self):
+
         last_day_bad_format = datetime.date.today()  # - datetime.timedelta(days=1)
         last_day = last_day_bad_format.strftime("%d-%m-%Y")
         """Добавление нового дня в заголовки таблицы и выручки по этим дням и сдвиг последних шести дней влево"""
         # проверяем нет ли вчерашнего дня в заголовках таблицы
         print(f"Актуализируем выручку по текущему дню: {last_day}")
-        if self.gs_service_revenue_connect.check_last_day_header_from_table(last_day=last_day):
+        if self.gs_service_revenue_connect.check_last_day_header_from_table(header=last_day):
             print(last_day, "заголовка нет в таблице. Будет добавлен включая выручку по дню")
             # сначала сдвигаем колонки с выручкой
             self.gs_service_revenue_connect.shift_revenue_columns_to_the_left(last_day=last_day)
@@ -268,20 +270,24 @@ class ServiceGoogleSheet:
                                                    nm_ids=nm_ids, account=account))
             tasks.append(task)
 
+        # проверяем заголовок прошлой недели
+        # week_date= list(get_last_weeks_dates().keys())
+        # if self.gs_service_revenue_connect.check_last_day_header_from_table(header=week_date[0]):
+
         # Ждем завершения всех задач
         results = await asyncio.gather(*tasks)
         for res in results:
             all_accounts_new_revenue_data.update(res)
-        print(all_accounts_new_revenue_data)
+            add_orders_data(res)
+        print("Выручка добавлена в БД")
+        # print(all_accounts_new_revenue_data)
         # добавляем их таблицу
         print("Добавляем данные по выручке в таблицу")
-        # self.gs_service_revenue_connect.add_last_day_revenue(nm_ids_revenue_data=all_accounts_new_revenue_data,
-        #                                                      last_day=last_day)
+
         self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
-        print(f"добавлена выручка по новом заголовку {last_day} по всем артикулам")
+        print(f"выручка в таблице актуализирована по всем артикулам")
         """добавляет данные по выручке в БД"""
-        # print("Выручка добавлена в БД")
-        # add_orders_data(all_accounts_new_revenue_data)
+
         print("Вышли из функции добавления выручки")
 
     @staticmethod
