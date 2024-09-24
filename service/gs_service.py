@@ -245,12 +245,16 @@ class ServiceGoogleSheet:
 
     async def add_new_day_revenue_to_table(self):
 
-        last_day_bad_format = datetime.date.today()  # - datetime.timedelta(days=1)
-        last_day = last_day_bad_format.strftime("%d-%m-%Y")
+        begin_date = datetime.date.today()
+        end_date = datetime.date.today()
+        last_day = end_date.strftime("%d-%m-%Y")
         """Добавление нового дня в заголовки таблицы и выручки по этим дням и сдвиг последних шести дней влево"""
         # проверяем нет ли вчерашнего дня в заголовках таблицы
         print(f"Актуализируем выручку по текущему дню: {last_day}")
         if self.gs_service_revenue_connect.check_last_day_header_from_table(header=last_day):
+            # по умолчанию begin_date - дата сегодняшнего дня. Если будет смещение, то begin_date будет форматирован
+            # на вчерашний что бы актуализировать выручку за вчерашний день так же
+            begin_date = datetime.date.today() - datetime.timedelta(days=1)
             print(last_day, "заголовка нет в таблице. Будет добавлен включая выручку по дню")
             # сначала сдвигаем колонки с выручкой
             self.gs_service_revenue_connect.shift_revenue_columns_to_the_left(last_day=last_day)
@@ -265,8 +269,8 @@ class ServiceGoogleSheet:
             token = get_wb_tokens()[account.capitalize()]
             anal_revenue = AnalyticsNMReport(token=token)
             task = asyncio.create_task(
-                anal_revenue.get_last_days_revenue(begin_date=last_day_bad_format,
-                                                   end_date=last_day_bad_format,
+                anal_revenue.get_last_days_revenue(begin_date=begin_date,
+                                                   end_date=end_date,
                                                    nm_ids=nm_ids, account=account))
             tasks.append(task)
 
