@@ -86,7 +86,8 @@ class ListOfCardsContent:
                             })
                         # добавляем данные по размерам в БД
                         nm_ids_data_for_database[str(card["nmID"])] = {
-                            "sizes": card["sizes"]
+                            "sizes": card["sizes"],
+                            "vendorCode": card["vendorCode"],
                         }
 
                         # добавляем данные по skus с ключом кабинета и артикула
@@ -130,7 +131,7 @@ class ListOfCardsContent:
                         "Баркод": "не найдено",
                         "wild": "не найдено",
                         "Фото": "НЕТ",
-                }
+                    }
         return card_result_for_match
 
     def size_edit(self, data: list):

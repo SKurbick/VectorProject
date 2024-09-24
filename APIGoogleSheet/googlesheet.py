@@ -7,7 +7,7 @@ from gspread.utils import rowcol_to_a1
 import gspread
 import requests
 from gspread import Client, service_account
-from utils import get_nm_ids_in_db, column_index_to_letter
+from utils import get_nm_ids_in_db, column_index_to_letter, get_data_for_nm_ids
 import pandas as pd
 
 
@@ -125,6 +125,7 @@ class GoogleSheet:
         return True
 
     def get_edit_data(self, dimension_status, price_and_discount_status, qty_status):
+        db_nm_ids_data = get_data_for_nm_ids()
         """
         Получает данные с запросом на изменение с таблицы
         """
@@ -146,10 +147,13 @@ class GoogleSheet:
             # Пропуск строки, если "ЛК" или "Артикул" пустые
             if pd.isna(article) or pd.isna(article) or article.strip() == '' or article.strip() == '':
                 continue
+            # Пропуск если данных по артикулу нет в бд (нужен для подтягивания валидно вилда)
+            if str(article) not in db_nm_ids_data.keys():
+                continue
             # Создание словаря для текущего артикула
             article_dict = {
-                # 'Новый остаток': row['Новый остаток'],
-                'wild': row['wild'],
+                # подтягиваем wild с БД
+                'wild': db_nm_ids_data[str(article)]["vendorCode"],
                 'Чистая прибыль 1ед.': row['Чистая прибыль 1ед.'].replace('\xa0', '')
             }
             if price_and_discount_status:
