@@ -259,33 +259,6 @@ class GoogleSheet:
                 print("[ERROR]", e)
                 time.sleep(63)
 
-        # Отправляем все обновления одним запросом
-        # if updates:
-        #     sheet.append_rows(updates)
-        #
-        #     # Получаем данные только из столбца "Артикул"
-        # articles = sheet.col_values(1)  # Столбец "Артикул"
-        # photos = sheet.col_values(2)  # Столбец "ФОТО"
-        #
-        # articles = [int(article.replace("'", "")) for article in articles]
-        #
-        # # Преобразуем данные в DataFrame
-        # data = {'АРТИКУЛ': articles[1:], 'ФОТО': photos[1:]}
-        # df = pd.DataFrame(data)
-        #
-        # # Удаляем дубликаты по столбцу "Артикул", оставляя первый дубликат
-        # df_no_duplicates = df.drop_duplicates(subset=['АРТИКУЛ'], keep='first')
-        #
-        # # Преобразуем DataFrame обратно в список списков
-        # updated_data = df_no_duplicates.values.tolist()
-        #
-        # # Очищаем лист и записываем обновленные данные
-        # sheet.clear()
-        # sheet.append_rows([['АРТИКУЛ', 'ФОТО']] + updated_data)
-
-
-#################################################################################
-
 
 class GoogleSheetServiceRevenue:
     """Выручка: AD-AN"""
@@ -293,7 +266,20 @@ class GoogleSheetServiceRevenue:
     def __init__(self, spreadsheet: str, sheet: str, creds_json='creds.json'):
         self.creds_json = creds_json
         self.spreadsheet = spreadsheet
-        self.sheet = sheet
+        client = self.client_init_json()
+        for _ in range(10):
+            try:
+                spreadsheet = client.open(self.spreadsheet)
+                self.sheet = spreadsheet.worksheet(sheet)
+                break
+            except (gspread.exceptions.APIError, requests.exceptions.ConnectionError) as e:
+                print(datetime.now())
+                print(e)
+                print("time sleep 60 sec")
+                time.sleep(60)
+
+
+
 
     def client_init_json(self) -> Client:
         """Создание клиента для работы с Google Sheets."""
@@ -305,11 +291,11 @@ class GoogleSheetServiceRevenue:
         Добавляет выручку в таблицу за все 7 дней по совпадениям столбцов артикула и дней из nm_ids_revenue_data
         Задумана отрабатывать каждые 3 минуты, для всех новых артикулов
         """
-
-        client = self.client_init_json()
-        spreadsheet = client.open(self.spreadsheet)
-        sheet = spreadsheet.worksheet(self.sheet)
-        all_values = sheet.get_all_values()
+        #
+        # client = self.client_init_json()
+        # spreadsheet = client.open(self.spreadsheet)
+        # sheet = spreadsheet.worksheet(self.sheet)
+        all_values = self.sheet.get_all_values()
 
         # Находим индекс столбца "Артикул"
         header_row = all_values[0]
@@ -332,7 +318,7 @@ class GoogleSheetServiceRevenue:
                         })
 
         # Отправка обновлений одним запросом
-        sheet.batch_update(updates)
+        self.sheet.batch_update(updates)
 
         print("Значения обновлены в таблице.")
 
@@ -341,11 +327,11 @@ class GoogleSheetServiceRevenue:
         Добавляет выручку за новый день.
         Задумана отрабатывать строго после shift_revenue_columns_to_the_left (добавление нового дня)
         """
-        client = self.client_init_json()
-        spreadsheet = client.open(self.spreadsheet)
-        sheet = spreadsheet.worksheet(self.sheet)
+        # client = self.client_init_json()
+        # spreadsheet = client.open(self.spreadsheet)
+        # sheet = spreadsheet.worksheet(self.sheet)
 
-        all_values = sheet.get_all_values()
+        all_values = self.sheet.get_all_values()
 
         # Находим индекс столбца "Артикул" и колонку формата="03-09-2024"
         header_row = all_values[0]
@@ -358,7 +344,7 @@ class GoogleSheetServiceRevenue:
             article = row[article_col_index]
             if article in nm_ids_revenue_data:
                 value = nm_ids_revenue_data[article].get(last_day, '')
-                cell = sheet.cell(row_index, date_col_index + 1)
+                cell = self.sheet.cell(row_index, date_col_index + 1)
                 updates.append({
                     'range': cell.address,
                     'values': [[value]]
@@ -366,7 +352,7 @@ class GoogleSheetServiceRevenue:
 
         # Отправка обновлений одним запросом
         print(updates)
-        sheet.batch_update(updates, value_input_option="USER_ENTERED")
+        self.sheet.batch_update(updates, value_input_option="USER_ENTERED")
 
         print("Значения обновлены в таблице.")
 
@@ -376,13 +362,13 @@ class GoogleSheetServiceRevenue:
         Функция задумана отрабатывать раз в день.
         Должна отрабатывать по условию если заголовок AM это позавчерашний день
         """
+        #
+        # client = self.client_init_json()
+        # spreadsheet = client.open(self.spreadsheet)
+        # sheet = spreadsheet.worksheet(self.sheet)
 
-        client = self.client_init_json()
-        spreadsheet = client.open(self.spreadsheet)
-        sheet = spreadsheet.worksheet(self.sheet)
-
-        all_values = sheet.get_all_values()
-        all_formulas = sheet.get_all_values(value_render_option='FORMULA')
+        all_values = self.sheet.get_all_values()
+        all_formulas = self.sheet.get_all_values(value_render_option='FORMULA')
 
         # Преобразование в DataFrame
         df_values = pd.DataFrame(all_values[1:], columns=all_values[0])
@@ -414,16 +400,64 @@ class GoogleSheetServiceRevenue:
         updated_formulas = [df_formulas.columns.tolist()] + df_formulas.values.tolist()
 
         # Обновление таблицы одним запросом
-        sheet.update('A1', updated_values, value_input_option='USER_ENTERED')
-        sheet.update('A1', updated_formulas, value_input_option='USER_ENTERED')
+        self.sheet.update('A1', updated_values, value_input_option='USER_ENTERED')
+        self.sheet.update('A1', updated_formulas, value_input_option='USER_ENTERED')
         """Значения заголовков и содержимого смещены влево в рамках индексов от 'AG' до 'AM'."""
 
-    def add_week_revenue_by_article(self, week_revenue_data):
-        client = self.client_init_json()
-        spreadsheet = client.open(self.spreadsheet)
-        sheet = spreadsheet.worksheet(self.sheet)
+    def shift_week_revenue_columns_to_the_left(self, last_week):
+        """
+        Сдвигает содержимое столбцов (AO-AR) с выручкой влево и добавляет новый день в AR.
+        Функция задумана отрабатывать раз в день.
+        Должна отрабатывать по условию если заголовок AR это позавчерашний день
+        """
+        #
+        # client = self.client_init_json()
+        # spreadsheet = client.open(self.spreadsheet)
+        # sheet = spreadsheet.worksheet(self.sheet)
 
-        all_values = sheet.get_all_values()
+        all_values = self.sheet.get_all_values()
+        all_formulas = self.sheet.get_all_values(value_render_option='FORMULA')
+
+        # Преобразование в DataFrame
+        df_values = pd.DataFrame(all_values[1:], columns=all_values[0])
+        df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
+
+        # Сохраняем формулы из столбцов, которые не попадают в диапазон смещения
+        formulas_to_preserve = df_formulas.iloc[:, 44:].values
+        # Смещение заголовков и содержимого столбцов от "AO" до "AR"
+        header_values = df_values.columns[40:44].tolist()  # Индексы столбцов "AO" до "AR"
+        shifted_header_values = header_values[1:]
+        shifted_header_values.append(last_week)
+
+        # Обновление заголовков
+        df_values.columns = df_values.columns[:40].tolist() + shifted_header_values+df_values.columns[44:].tolist()
+        df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
+
+        # Смещение содержимого столбцов от "AO" до "AR"
+        df_values.iloc[:, 40:43] = df_values.iloc[:, 41:44].values
+        df_values.iloc[:, 43] = ""  # Очистка последнего столбца "AR"
+
+        # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
+        df_formulas.iloc[:, 40:43] = df_formulas.iloc[:, 41:44].values
+        df_formulas.iloc[:, 43] = ""  # Очистка последнего столбца "AM"
+        df_formulas.iloc[:, 44:] = formulas_to_preserve
+
+        # # Преобразование обратно в список списков
+        updated_values = [df_values.columns.tolist()] + df_values.values.tolist()
+        updated_formulas = [df_formulas.columns.tolist()] + df_formulas.values.tolist()
+
+        # # Обновление таблицы одним запросом
+        self.sheet.update('A1', updated_values, value_input_option='USER_ENTERED')
+        self.sheet.update('A1', updated_formulas, value_input_option='USER_ENTERED')
+
+        """Значения заголовков и содержимого смещены влево в рамках индексов от 'AP' до 'AR'."""
+
+    def add_week_revenue_by_article(self, week_revenue_data):
+        # client = self.client_init_json()
+        # spreadsheet = client.open(self.spreadsheet)
+        # sheet = spreadsheet.worksheet(self.sheet)
+
+        all_values = self.sheet.get_all_values()
 
         headers = all_values[0]
         df = pd.DataFrame(all_values[1:], columns=headers)
@@ -444,14 +478,14 @@ class GoogleSheetServiceRevenue:
         updated_values = [df.columns.tolist()] + df.values.tolist()
 
         # Отправляем обновленные данные обратно в таблицу
-        sheet.update('A1', updated_values)
+        self.sheet.update('A1', updated_values)
         print("week data added")
 
     def check_last_day_header_from_table(self, header):
-        client = self.client_init_json()
-        spreadsheet = client.open(self.spreadsheet)
-        sheet = spreadsheet.worksheet(self.sheet)
-        headers = sheet.row_values(1)
+        # client = self.client_init_json()
+        # spreadsheet = client.open(self.spreadsheet)
+        # sheet = spreadsheet.worksheet(self.sheet)
+        headers = self.sheet.row_values(1)
         if header not in headers:
             print(f"заголовка {header} нет в таблице")
             return True
@@ -461,11 +495,11 @@ class GoogleSheetServiceRevenue:
             return False
 
     def update_revenue_rows(self, data_json):
-        client = self.client_init_json()
-        spreadsheet = client.open(self.spreadsheet)
-        sheet = spreadsheet.worksheet(self.sheet)
+        # client = self.client_init_json()
+        # spreadsheet = client.open(self.spreadsheet)
+        # sheet = spreadsheet.worksheet(self.sheet)
         # Получаем все записи из таблицы
-        data = sheet.get_all_records(expected_headers=[])
+        data = self.sheet.get_all_records(expected_headers=[])
         df = pd.DataFrame(data)
 
         # Преобразуем данные из словаря в DataFrame
@@ -497,7 +531,7 @@ class GoogleSheetServiceRevenue:
                         column_letter = column_index_to_letter(column_index)
                         updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
 
-        sheet.batch_update(updates)
+        self.sheet.batch_update(updates)
 
 
 class GoogleSheetSopostTable:
@@ -526,3 +560,4 @@ class GoogleSheetSopostTable:
         df = pd.DataFrame(data)
 
         return dict(zip(df["wild"], df["Добавляем"]))
+

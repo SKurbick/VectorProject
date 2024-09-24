@@ -66,58 +66,7 @@ class AnalyticsNMReport:
 
         return result_data
 
-    # def get_last_days_revenue(self, nm_ids: list,
-    #                           begin_date: datetime,
-    #                           end_date: datetime,
-    #                           step: int = 20):
-    #     """По методу есть ограничения на 3 запроса в минуту и в 20 nmID за запрос.
-    #         По умолчанию передаются даты последнего (вчерашнего) дня
-    #     """
-    # url = self.url.format("detail/history")
-    # result_data = {}
-    # for start in range(0, len(nm_ids), step):
-    #     nm_ids_part = nm_ids[start: start + step]
-    #
-    #     json_data = {
-    #         "nmIDs": nm_ids_part,
-    #         "period": {
-    #             "begin": str(begin_date),
-    #             "end": str(end_date)
-    #         },
-    #         "timezone": "Europe/Moscow",
-    #         "aggregationLevel": "day"
-    #     }
-    #     for i in range(10):
-    #         try:
-    #             response = requests.post(url=url, headers=self.headers, json=json_data)
-    #             if response.status_code >= 200 or response.status_code < 300:
-    #                 break
-    #         except Exception as e:
-    #             print("[ERROR]", e)
-    #             print(i, "попытка подключения. Сон на минуту")
-    #             time.sleep(63)
-    #         except requests.exceptions.ConnectionError as ce:
-    #             time.sleep(60)
-    #             print(i, "попытка подключения. Сон на минуту")
-    #             print("[ERROR]", ce)
-    #
-    #         if "data" not in response.json():
-    #             continue
-    #         for data in response.json()["data"]:
-    #
-    #             nm_id_from_data = data["nmID"]
-    #             revenue_by_dates = {}
-    #             for nm_id_history in data["history"]:
-    #                 date_object = datetime.datetime.strptime(nm_id_history["dt"], "%Y-%m-%d")
-    #                 output_date = date_object.strftime("%d-%m-%Y")
-    #
-    #                 revenue_by_dates[output_date] = nm_id_history["ordersSumRub"]
-    #
-    #             result_data[nm_id_from_data] = revenue_by_dates
-    #
-    # return result_data
-
-    def get_last_week_revenue(self, nm_ids, week_count):
+    async def get_last_week_revenue(self, nm_ids, week_count):
         weeks = get_last_weeks_dates(last_week_count=week_count)
         url = self.url.format("detail")
         result_data = {}
@@ -137,28 +86,26 @@ class AnalyticsNMReport:
                     },
                     "page": page
                 }
-                response = requests.post(url=url, headers=self.headers, json=json_data)
-                if response.status_code > 399:
-                    for _ in range(10):
-                        try:
-                            response = requests.post(url=url, headers=self.headers, json=json_data)
-                            if response.status_code < 400:
-                                break
-                            print("Попали в исключение апи ВБ. Ожидание 1 минута")
-                            time.sleep(65)
-                        except Exception as e:
-                            print(e)
+                for _ in range(10):
+                    try:
+                        async with aiohttp.ClientSession() as session:
+                            async with session.post(url=url, headers=self.headers, json=json_data) as response:
+                                response_data = await response.json()
+                                for card in response_data["data"]["cards"]:
+                                    if card["nmID"] not in result_data.keys():
+                                        result_data[card["nmID"]] = {}
+                                    result_data[card["nmID"]].update({
+                                        key_dates: card["statistics"]["selectedPeriod"]["ordersSumRub"]
+                                    })
 
-                for card in response.json()["data"]["cards"]:
-                    if card["nmID"] not in result_data.keys():
-                        result_data[card["nmID"]] = {}
-                    result_data[card["nmID"]].update({
-                        key_dates: card["statistics"]["selectedPeriod"]["ordersSumRub"]
-                    })
+                    except (aiohttp.ClientError, Exception) as e:
+                        print(e)
 
-                if response.json()["data"]["isNextPage"] is False:
+                if response_data["data"]["isNextPage"] is False:
+                    # если нет следующей страницы, цикл должен остановиться
                     page = 1
                     break
+
                 page += 1
 
         return result_data
