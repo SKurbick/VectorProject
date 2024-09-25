@@ -63,7 +63,6 @@ class ListOfCardsContent:
                 if eng_json_data is False:
 
                     if card["nmID"] in nm_ids_list_for_edit:
-
                         # добавляем в словарь данные по карточке по ключу артикула на русском
                         card_result_for_match[card["nmID"]] = {
                             "Артикул": card["nmID"],
@@ -132,7 +131,10 @@ class ListOfCardsContent:
                         "wild": "не найдено",
                         "Фото": "НЕТ",
                     }
+        pprint(card_result_for_match)
         return card_result_for_match
+
+
 
     def size_edit(self, data: list):
 

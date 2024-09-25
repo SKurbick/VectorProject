@@ -254,6 +254,8 @@ class GoogleSheet:
                     if article not in existing_articles:
                         # Если артикул не существует, добавляем новую строку
                         updates.append([article, photo])
+
+                sheet.append_rows(updates)
                 break
             except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
                 print("[ERROR]", e)

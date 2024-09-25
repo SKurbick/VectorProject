@@ -48,10 +48,12 @@ async def check_new_nm_ids():
                 service_gs_table = ServiceGoogleSheet(
                     token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
 
-                result_data_for_update_rows = service_gs_table.add_new_data_from_table(lk_articles=lk_articles,
-                                                                                       add_data_in_db=False)
-                if len(result_data_for_update_rows) > 0:
-                    gs_connection().update_rows(data_json=result_data_for_update_rows, edit_column_clean=None)
+                # result_data_for_update_rows = service_gs_table.add_new_data_from_table(lk_articles=lk_articles,
+                #                                                                        add_data_in_db=False)
+                # if len(result_data_for_update_rows) > 0:
+                #     gs_connection().update_rows(data_json=result_data_for_update_rows, edit_column_clean=None)
+                #     retry = True
+
                 retry = False
 
                 try:
@@ -119,7 +121,7 @@ def schedule_tasks():
     schedule.every(800).seconds.do(lambda: asyncio.create_task(run_in_executor(gs_service.add_actually_data_to_table)))
 
     # """Смотрит в таблицу, оценивает новые nm_ids"""
-    schedule.every(300).seconds.do(lambda: asyncio.create_task(check_new_nm_ids()))
+    schedule.every(10).seconds.do(lambda: asyncio.create_task(check_new_nm_ids()))
 
     """Смотрит в таблицу, оценивает изменения"""
     schedule.every(200).seconds.do(lambda: asyncio.create_task(run_in_executor(check_edits_columns)))

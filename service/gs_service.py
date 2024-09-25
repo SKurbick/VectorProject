@@ -37,34 +37,34 @@ class ServiceGoogleSheet:
 
             nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=articles)
             if len(nm_ids_result) > 0:
-            #     print("есть новые артикулы для добавления выручки за 7 последних дней")
-            #     analytics = AnalyticsNMReport(token=token)
-            #
-            #     tasks = []
-            #     task = asyncio.create_task(
-            #         analytics.get_last_days_revenue(nm_ids=nm_ids_result,
-            #                                         begin_date=datetime.date.today() - datetime.timedelta(
-            #                                             days=7),
-            #                                         end_date=datetime.date.today()))  # было  - datetime.timedelta(days=1)
-            #     tasks.append(task)
-            #
-            #     # Ждем завершения всех задач
-            #     results = await asyncio.gather(*tasks)
-            #     for res in results:
-            #         all_accounts_new_revenue_data.update(res)
-            #
-            #         """добавляет данные по ежедневной выручке в БД"""
-            #         add_orders_data(res)
-            #
-            #     revenue_week_data_by_article = await analytics.get_last_week_revenue(week_count=4, nm_ids=nm_ids_result)
-            #
-            #     for nm_id in revenue_week_data_by_article:
-            #         if nm_id in all_accounts_new_revenue_data:
-            #             all_accounts_new_revenue_data[nm_id].update(revenue_week_data_by_article[nm_id])
+                print("есть новые артикулы для добавления выручки за 7 последних дней")
+                analytics = AnalyticsNMReport(token=token)
 
-                """добавляем артикулы в БД"""
-                # артикулы добавляем после получения выручки
-                add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
+                tasks = []
+                task = asyncio.create_task(
+                    analytics.get_last_days_revenue(nm_ids=nm_ids_result,
+                                                    begin_date=datetime.date.today() - datetime.timedelta(
+                                                        days=7),
+                                                    end_date=datetime.date.today()))
+                tasks.append(task)
+
+                # Ждем завершения всех задач
+                results = await asyncio.gather(*tasks)
+                for res in results:
+                    all_accounts_new_revenue_data.update(res)
+
+                    """добавляет данные по ежедневной выручке в БД"""
+                    add_orders_data(res)
+
+                # revenue_week_data_by_article = await analytics.get_last_week_revenue(week_count=4, nm_ids=nm_ids_result)
+                #
+                # for nm_id in revenue_week_data_by_article:
+                #     if nm_id in all_accounts_new_revenue_data:
+                #         all_accounts_new_revenue_data[nm_id].update(revenue_week_data_by_article[nm_id])
+
+                # """добавляем артикулы в БД"""
+                # # артикулы добавляем после получения выручки
+                # add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
 
         return all_accounts_new_revenue_data
 
@@ -106,7 +106,8 @@ class ServiceGoogleSheet:
                 for i in merge_json_data.values():
                     # собираем и удаляем фото
                     if only_edits_data is False:
-                        nm_ids_photo[int(i["Артикул"])] = i.pop("Фото", "НЕТ")
+
+                        nm_ids_photo[int(i["Артикул"])] = i.pop("Фото")
                         if i["wild"] != "не найдено":
                             subject_names.add(i["Предмет"])  # собираем множество с предметами
                             account_barcodes.append(i["Баркод"])
@@ -138,7 +139,6 @@ class ServiceGoogleSheet:
                 # получение комиссии WB
                 subject_commissions = commission_traffics.get_commission_on_subject(subject_names=subject_names)
 
-                print("barcodes_qty_wb.keys()", barcodes_qty_wb.keys())
                 for card in merge_json_data.values():
                     for sc in subject_commissions.items():
                         if "Предмет" in card and sc[0] == card["Предмет"]:
@@ -258,7 +258,6 @@ class ServiceGoogleSheet:
             # сначала сдвигаем колонки с выручкой
             self.gs_service_revenue_connect.shift_revenue_columns_to_the_left(last_day=last_day)
         lk_articles = self.gs_connect.create_lk_articles_list()
-        print(lk_articles)
         # # собираем выручку по всем артикулам аккаунтов
         all_accounts_new_revenue_data = {}
 
@@ -279,7 +278,6 @@ class ServiceGoogleSheet:
             all_accounts_new_revenue_data.update(res)
             add_orders_data(res)
         print("Выручка добавлена в БД")
-        # print(all_accounts_new_revenue_data)
         # добавляем их таблицу
 
         # проверяем заголовок прошлой недели
@@ -300,8 +298,6 @@ class ServiceGoogleSheet:
         # добавляем выручку в таблицу
         self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
         print(f"выручка в таблице актуализирована по всем артикулам")
-
-        print("Вышли из функции добавления выручки")
 
     @staticmethod
     def check_status():

@@ -18,3 +18,4 @@ barcode_search.py
 aio_database.json
 aio_poligon.py
 revenue_database.json
+clean_revenue.py
