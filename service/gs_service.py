@@ -37,30 +37,30 @@ class ServiceGoogleSheet:
 
             nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=articles)
             if len(nm_ids_result) > 0:
-                print("есть новые артикулы для добавления выручки за 7 последних дней")
-                analytics = AnalyticsNMReport(token=token)
-
-                tasks = []
-                task = asyncio.create_task(
-                    analytics.get_last_days_revenue(nm_ids=nm_ids_result,
-                                                    begin_date=datetime.date.today() - datetime.timedelta(
-                                                        days=7),
-                                                    end_date=datetime.date.today()))  # было  - datetime.timedelta(days=1)
-                tasks.append(task)
-
-                # Ждем завершения всех задач
-                results = await asyncio.gather(*tasks)
-                for res in results:
-                    all_accounts_new_revenue_data.update(res)
-
-                    """добавляет данные по ежедневной выручке в БД"""
-                    add_orders_data(res)
-
-                revenue_week_data_by_article = await analytics.get_last_week_revenue(week_count=4, nm_ids=nm_ids_result)
-
-                for nm_id in revenue_week_data_by_article:
-                    if nm_id in all_accounts_new_revenue_data:
-                        all_accounts_new_revenue_data[nm_id].update(revenue_week_data_by_article[nm_id])
+            #     print("есть новые артикулы для добавления выручки за 7 последних дней")
+            #     analytics = AnalyticsNMReport(token=token)
+            #
+            #     tasks = []
+            #     task = asyncio.create_task(
+            #         analytics.get_last_days_revenue(nm_ids=nm_ids_result,
+            #                                         begin_date=datetime.date.today() - datetime.timedelta(
+            #                                             days=7),
+            #                                         end_date=datetime.date.today()))  # было  - datetime.timedelta(days=1)
+            #     tasks.append(task)
+            #
+            #     # Ждем завершения всех задач
+            #     results = await asyncio.gather(*tasks)
+            #     for res in results:
+            #         all_accounts_new_revenue_data.update(res)
+            #
+            #         """добавляет данные по ежедневной выручке в БД"""
+            #         add_orders_data(res)
+            #
+            #     revenue_week_data_by_article = await analytics.get_last_week_revenue(week_count=4, nm_ids=nm_ids_result)
+            #
+            #     for nm_id in revenue_week_data_by_article:
+            #         if nm_id in all_accounts_new_revenue_data:
+            #             all_accounts_new_revenue_data[nm_id].update(revenue_week_data_by_article[nm_id])
 
                 """добавляем артикулы в БД"""
                 # артикулы добавляем после получения выручки
