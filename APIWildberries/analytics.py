@@ -97,7 +97,7 @@ class AnalyticsNMReport:
                                     result_data[card["nmID"]].update({
                                         key_dates: card["statistics"]["selectedPeriod"]["ordersSumRub"]
                                     })
-
+                                break
                     except (aiohttp.ClientError, Exception) as e:
                         print(e)
 

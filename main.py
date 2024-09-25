@@ -47,12 +47,12 @@ async def check_new_nm_ids():
             if len(lk_articles) > 0:
                 service_gs_table = ServiceGoogleSheet(
                     token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
-
-                result_data_for_update_rows = service_gs_table.add_new_data_from_table(lk_articles=lk_articles,
-                                                                                       add_data_in_db=False)
-                if len(result_data_for_update_rows) > 0:
-                    gs_connection().update_rows(data_json=result_data_for_update_rows, edit_column_clean=None)
-                    retry = False
+                #
+                # result_data_for_update_rows = service_gs_table.add_new_data_from_table(lk_articles=lk_articles,
+                #                                                                        add_data_in_db=False)
+                # if len(result_data_for_update_rows) > 0:
+                #     gs_connection().update_rows(data_json=result_data_for_update_rows, edit_column_clean=None)
+                retry = False
 
                 try:
                     revenue_data_for_update_rows = await service_gs_table.add_revenue_for_new_nm_ids(
