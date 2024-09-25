@@ -62,9 +62,9 @@ class ServiceGoogleSheet:
                 #     if nm_id in all_accounts_new_revenue_data:
                 #         all_accounts_new_revenue_data[nm_id].update(revenue_week_data_by_article[nm_id])
 
-                # """добавляем артикулы в БД"""
-                # # артикулы добавляем после получения выручки
-                # add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
+                """добавляем артикулы в БД"""
+                # артикулы добавляем после получения выручки
+                add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
 
         return all_accounts_new_revenue_data
 

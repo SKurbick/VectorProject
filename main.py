@@ -70,8 +70,6 @@ async def check_new_nm_ids():
             print("Упали в ожидание")
 
     else:
-        print("Упали в ожидание")
-
         print("СЕРВИС ОТКЛЮЧЕН (0)")
 
 
