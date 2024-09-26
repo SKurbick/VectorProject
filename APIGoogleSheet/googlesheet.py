@@ -261,6 +261,105 @@ class GoogleSheet:
                 print("[ERROR]", e)
                 time.sleep(63)
 
+    def add_data_to_count_list(self, data_json):
+        # сначала мы добавляем новые nmId которых нет в листе "Количество заказов"
+        nm_ids_list = list(data_json.keys())
+
+        existing_data = self.sheet.get_all_records()
+        existing_articuls = {row['Артикул'] for row in existing_data}
+
+        # Собираем все отсутствующие артикулы
+        missing_articuls = [articul for articul in nm_ids_list if articul not in existing_articuls]
+
+        # Добавляем все отсутствующие артикулы одним запросом
+        if missing_articuls:
+            self.sheet.append_rows([[articul] for articul in missing_articuls])
+
+        # на всякий пожарный, что бы гугл не ныл на спам запросов
+        time.sleep(10)
+
+        data = self.sheet.get_all_records(expected_headers=[])
+        df = pd.DataFrame(data)
+
+        # Преобразуем данные из словаря в DataFrame
+        json_df = pd.DataFrame.from_dict(data_json, orient='index')
+
+        # Преобразуем все значения в json_df в типы данных, которые могут быть сериализованы в JSON
+        json_df = json_df.astype(object).where(pd.notnull(json_df), None)
+
+        # Обновите данные в основном DataFrame на основе "Артикул"
+        for index, row in json_df.iterrows():
+            matching_rows = df[df["Артикул"] == index].index
+            for idx in matching_rows:
+                for column in row.index:
+                    if column in df.columns and (pd.isna(df.at[idx, column]) or df.at[idx, column] == ""):
+                        df.at[idx, column] = row[column]
+
+        # Обновите Google Таблицу только для измененных строк
+        updates = []
+        headers = df.columns.tolist()
+        for index, row in json_df.iterrows():
+            matching_rows = df[df["Артикул"] == index].index
+            for idx in matching_rows:
+                row_number = idx + 2  # +2 потому что индексация в Google Таблицах начинается с 1, а первая строка - заголовки
+                for column in row.index:
+                    if column in headers:
+                        # +1 потому что индексация в Google Таблицах начинается с 1
+                        column_index = headers.index(column) + 1
+                        column_letter = column_index_to_letter(column_index)
+                        updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
+
+        self.sheet.batch_update(updates)
+
+        print("Проверка и добавление завершены")
+
+    def shift_headers_count_list(self, today):
+        all_values = self.sheet.get_all_values()
+        all_formulas = self.sheet.get_all_values(value_render_option='FORMULA')
+        print("Смещаем столбцы листа - Количество заказов")
+        # Преобразование в DataFrame
+        df_values = pd.DataFrame(all_values[1:], columns=all_values[0])
+        df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
+
+        # Сохраняем формулы из столбцов, которые не попадают в диапазон смещения
+        formulas_to_preserve = df_formulas.iloc[:, 31:].values
+
+        # Смещение заголовков и содержимого столбцов от "AG" до "AM"
+        header_values = df_values.columns[1:31].tolist()  # Индексы столбцов "AG" до "AM"
+        shifted_header_values = header_values[:29]
+        shifted_header_values.insert(0, today)
+        print(shifted_header_values)
+        # # Обновление заголовков
+        df_values.columns = df_values.columns[:1].tolist() + shifted_header_values + df_values.columns[31:].tolist()
+        df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
+        # Смещение содержимого столбцов от "AG" до "AM"
+        df_values.iloc[:, 2:31] = df_values.iloc[:, 1:30].values
+        df_values.iloc[:, 1] = ""  # Очистка последнего столбца "AM"
+
+        # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
+        df_formulas.iloc[:, 2:31] = df_formulas.iloc[:, 1:30].values
+        df_formulas.iloc[:, 1] = ""  # Очистка последнего столбца "AM"
+        df_formulas.iloc[:, 31:] = formulas_to_preserve
+
+        # Преобразование обратно в список списков
+        updated_values = [df_values.columns.tolist()] + df_values.values.tolist()
+        updated_formulas = [df_formulas.columns.tolist()] + df_formulas.values.tolist()
+        #
+        # # Обновление таблицы одним запросом
+        self.sheet.update('A1', updated_values, value_input_option='USER_ENTERED')
+        self.sheet.update('A1', updated_formulas, value_input_option='USER_ENTERED')
+        """Значения заголовков и содержимого смещены влево в рамках индексов от 'AG' до 'AM'."""
+
+    def check_header(self, header):
+        # Если заголовка нет в листе, то выдаст True, для функции которая будет добавлять новый header
+        headers = self.sheet.row_values(1)
+        if header not in headers:
+            print(f"заголовка {header} нет в таблице")
+            return True
+        else:
+            print(f"Заголовок {header} уже есть в таблице")
+            return False
+
 
 class GoogleSheetServiceRevenue:
     """Выручка: AD-AN"""
@@ -279,9 +378,6 @@ class GoogleSheetServiceRevenue:
                 print(e)
                 print("time sleep 60 sec")
                 time.sleep(60)
-
-
-
 
     def client_init_json(self) -> Client:
         """Создание клиента для работы с Google Sheets."""
@@ -364,11 +460,6 @@ class GoogleSheetServiceRevenue:
         Функция задумана отрабатывать раз в день.
         Должна отрабатывать по условию если заголовок AM это позавчерашний день
         """
-        #
-        # client = self.client_init_json()
-        # spreadsheet = client.open(self.spreadsheet)
-        # sheet = spreadsheet.worksheet(self.sheet)
-
         all_values = self.sheet.get_all_values()
         all_formulas = self.sheet.get_all_values(value_render_option='FORMULA')
 
@@ -432,7 +523,7 @@ class GoogleSheetServiceRevenue:
         shifted_header_values.append(last_week)
 
         # Обновление заголовков
-        df_values.columns = df_values.columns[:40].tolist() + shifted_header_values+df_values.columns[44:].tolist()
+        df_values.columns = df_values.columns[:40].tolist() + shifted_header_values + df_values.columns[44:].tolist()
         df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
 
         # Смещение содержимого столбцов от "AO" до "AR"
@@ -455,9 +546,6 @@ class GoogleSheetServiceRevenue:
         """Значения заголовков и содержимого смещены влево в рамках индексов от 'AP' до 'AR'."""
 
     def add_week_revenue_by_article(self, week_revenue_data):
-        # client = self.client_init_json()
-        # spreadsheet = client.open(self.spreadsheet)
-        # sheet = spreadsheet.worksheet(self.sheet)
 
         all_values = self.sheet.get_all_values()
 
@@ -484,9 +572,6 @@ class GoogleSheetServiceRevenue:
         print("week data added")
 
     def check_last_day_header_from_table(self, header):
-        # client = self.client_init_json()
-        # spreadsheet = client.open(self.spreadsheet)
-        # sheet = spreadsheet.worksheet(self.sheet)
         headers = self.sheet.row_values(1)
         if header not in headers:
             print(f"заголовка {header} нет в таблице")
@@ -497,10 +582,6 @@ class GoogleSheetServiceRevenue:
             return False
 
     def update_revenue_rows(self, data_json):
-        # client = self.client_init_json()
-        # spreadsheet = client.open(self.spreadsheet)
-        # sheet = spreadsheet.worksheet(self.sheet)
-        # Получаем все записи из таблицы
         data = self.sheet.get_all_records(expected_headers=[])
         df = pd.DataFrame(data)
 
@@ -515,7 +596,6 @@ class GoogleSheetServiceRevenue:
             matching_rows = df[df["Артикул"] == index].index
             for idx in matching_rows:
                 for column in row.index:
-                    # if pd.isna(df.at[idx, column]) or df.at[idx, column] == "":
                     if column in df.columns and (pd.isna(df.at[idx, column]) or df.at[idx, column] == ""):
                         df.at[idx, column] = row[column]
 
@@ -546,7 +626,7 @@ class GoogleSheetSopostTable:
             spreadsheet = client.open(self.spreadsheet)
             self.sheet = spreadsheet.worksheet(self.sheet)
 
-        except gspread.exceptions.APIError as e:
+        except (gspread.exceptions.APIError, requests.exceptions.JSONDecodeError) as e:
             print(datetime.now())
             print(e)
             time.sleep(60)
@@ -562,4 +642,3 @@ class GoogleSheetSopostTable:
         df = pd.DataFrame(data)
 
         return dict(zip(df["wild"], df["Добавляем"]))
-

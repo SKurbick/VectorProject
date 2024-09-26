@@ -6,7 +6,7 @@ from pprint import pprint
 import aiohttp
 import requests
 
-from utils import get_last_weeks_dates
+from utils import get_last_weeks_dates, add_orders_data_in_database
 
 
 class Analytics:
@@ -23,12 +23,13 @@ class AnalyticsNMReport:
         }
 
     async def get_last_days_revenue(self, nm_ids: list, begin_date: datetime, end_date: datetime, step: int = 20,
-                                    account=None):
+                                    account=None, orders_db_ad = False):
         """По методу есть ограничения на 3 запроса в минуту и в 20 nmID за запрос.
             По умолчанию передаются даты последнего (вчерашнего) дня
         """
         url = self.url.format("detail/history")
         result_data = {}
+        orders_data_for_database = {}
         for start in range(0, len(nm_ids), step):
             nm_ids_part = nm_ids[start: start + step]
 
@@ -51,11 +52,15 @@ class AnalyticsNMReport:
                                 for data in response_result["data"]:
                                     nm_id_from_data = data["nmID"]
                                     revenue_by_dates = {}
+                                    orders_by_dates = {}
                                     for nm_id_history in data["history"]:
                                         date_object = datetime.datetime.strptime(nm_id_history["dt"], "%Y-%m-%d")
                                         output_date = date_object.strftime("%d-%m-%Y")
+                                        output_date_by_orders_db = date_object.strftime("%d.%m")
                                         revenue_by_dates[output_date] = nm_id_history["ordersSumRub"]
+                                        orders_by_dates[output_date_by_orders_db] = nm_id_history["ordersCount"]
                                     result_data[nm_id_from_data] = revenue_by_dates
+                                    orders_data_for_database[nm_id_from_data] = orders_by_dates
                                 break
                             else:
                                 print(f"Ошибка при выполнении запроса: {response.status}")
@@ -64,6 +69,9 @@ class AnalyticsNMReport:
                     print(f"Ошибка при выполнении запроса: {e}")
                     await asyncio.sleep(63)
 
+        if orders_db_ad:
+            # добавляем в БД данные по количеству заказов за определенный день
+            add_orders_data_in_database(orders_data_for_database)
         return result_data
 
     async def get_last_week_revenue(self, nm_ids, week_count):

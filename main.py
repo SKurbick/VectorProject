@@ -51,7 +51,7 @@ async def check_new_nm_ids():
                 if len(result_data_for_update_rows) > 0:
                     gs_connection().update_rows(data_json=result_data_for_update_rows, edit_column_clean=None)
 
-                retry = False
+                    retry = False
 
                 try:
                     revenue_data_for_update_rows = await service_gs_table.add_revenue_for_new_nm_ids(
@@ -110,7 +110,7 @@ async def run_in_executor(func, *args):
 def schedule_tasks():
     gs_service = gs_service_for_schedule_connection()
 
-    "Добавляет выручку и сдвигает столбцы с выручкйо по необходимости. Условие должно работать раз в день каждые 25 мин"
+    "Добавляет выручку и сдвигает столбцы с выручкой по необходимости. Условие должно работать раз в день каждые 25 мин"
     schedule.every(25).minutes.do(lambda: asyncio.create_task(gs_service.add_new_day_revenue_to_table()))
 
     """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
@@ -124,6 +124,9 @@ def schedule_tasks():
 
     # проверяет остатки
     schedule.every(1).hours.do(lambda: asyncio.create_task(run_in_executor(gs_service.check_quantity_flag)))
+
+    # добавляет данные по количеству заказов в лист 'Количество заказов'
+    schedule.every(24).minutes.do(lambda: asyncio.create_task(run_in_executor(gs_service.add_orders_data_in_table)))
 
 
 async def run_scheduler():

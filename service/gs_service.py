@@ -5,6 +5,7 @@ from pprint import pprint
 
 import gspread.exceptions
 
+import settings
 from APIGoogleSheet.googlesheet import GoogleSheetServiceRevenue, GoogleSheet, GoogleSheetSopostTable
 from APIWildberries.analytics import AnalyticsNMReport, AnalyticsWarehouseLimits
 from APIWildberries.content import ListOfCardsContent
@@ -119,9 +120,9 @@ class ServiceGoogleSheet:
                     if nm_id in all_accounts_new_revenue_data:
                         all_accounts_new_revenue_data[nm_id].update(res_week[nm_id])
 
-
         pprint(all_accounts_new_revenue_data)
         return all_accounts_new_revenue_data
+
     def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
                                 add_data_in_db=True, check_nm_ids_in_db=True):
         """Функция была изменена. Теперь она просто выдает данные на добавления в таблицу, а не добавляет таблицу внутри функции"""
@@ -324,7 +325,7 @@ class ServiceGoogleSheet:
                 task = asyncio.create_task(
                     anal_revenue.get_last_days_revenue(begin_date=begin_date,
                                                        end_date=end_date,
-                                                       nm_ids=nm_ids, account=account))
+                                                       nm_ids=nm_ids, account=account, orders_db_ad=True))
                 tasks.append(task)
 
             # Ждем завершения всех задач
@@ -487,3 +488,21 @@ class ServiceGoogleSheet:
                                                         check_nm_ids_in_db=False)
         self.gs_connect.update_rows(data_json=nm_ids_data_json,
                                     edit_column_clean={"qty": True, "price_discount": False, "dimensions": False})
+
+    @staticmethod
+    def add_orders_data_in_table():
+        """ Функция добавления количества заказов по дням в таблицу """
+        from settings import settings
+        from utils import get_order_data_from_database
+        gs_connect = GoogleSheet(sheet="Количество заказов", spreadsheet=settings.SPREADSHEET,
+                                 creds_json=settings.CREEDS_FILE_NAME)
+        orders_count_data = get_order_data_from_database()
+        date_object = datetime.datetime.today()
+        today = date_object.strftime("%d.%m")
+
+        if gs_connect.check_header(header=today):
+            gs_connect.shift_headers_count_list(today)
+
+        # если есть данные в БД - будут добавлены в лист
+        if len(orders_count_data):
+            gs_connect.add_data_to_count_list(data_json=orders_count_data)

@@ -229,3 +229,42 @@ def process_string(s):
     if word_match:
         return s
     return s
+
+
+def json_int_key_hook(json_dict):
+    def convert_keys(d):
+        new_dict = {}
+        for k, v in d.items():
+            if isinstance(v, dict):
+                v = convert_keys(v)
+            if isinstance(k, str) and k.isdigit():
+                k = int(k)
+            new_dict[k] = v
+        return new_dict
+
+    return convert_keys(json_dict)
+
+
+def get_order_data_from_database() -> dict:
+    with open('orders_data.json', 'r+') as file:
+        # Загрузите данные из файла
+        database = json.load(file, object_hook=json_int_key_hook)
+    return database["nm_ids_orders_data"]
+
+
+# art = get_order_data_from_database()
+# print(art)
+
+
+def add_orders_data_in_database(orders_data):
+    with open('orders_data.json', 'r+') as file:
+        # Загрузите данные из файла
+        database = json.load(file)
+        for nm_id, od in orders_data.items():
+            str_nm_id = str(nm_id)
+            if str_nm_id not in database["nm_ids_orders_data"].keys():
+                database["nm_ids_orders_data"].update({str_nm_id: {}})
+            database["nm_ids_orders_data"][str_nm_id].update(od)
+        file.seek(0)
+        json.dump(database, file, indent=4, ensure_ascii=False)
+        file.truncate()
