@@ -27,47 +27,101 @@ class ServiceGoogleSheet:
         self.spreadsheet = spreadsheet
         self.creds_json = creds_json
 
+    # async def add_revenue_for_new_nm_ids(self, lk_articles: dict):
+    #     """ Добавление выручки по новым артикулам за 7 последних дней (сегодняшний не учитывается)"""
+    #     print("Смотрим новые артикулы для добавления выручки")
+    #     all_accounts_new_revenue_data = {}
+    #     for account, articles in lk_articles.items():
+    #         # получаем токен и корректируем регистр для чтения из файла
+    #         token = get_wb_tokens()[account.capitalize()]
+    #
+    #         nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=articles)
+    #         if len(nm_ids_result) > 0:
+    #             print("есть новые артикулы для добавления выручки за 7 последних дней")
+    #             analytics = AnalyticsNMReport(token=token)
+    #
+    #             tasks = []
+    #             task = asyncio.create_task(
+    #                 analytics.get_last_days_revenue(nm_ids=nm_ids_result,
+    #                                                 begin_date=datetime.date.today() - datetime.timedelta(
+    #                                                     days=7),
+    #                                                 end_date=datetime.date.today()))
+    #             tasks.append(task)
+    #
+    #             # Ждем завершения всех задач
+    #             results = await asyncio.gather(*tasks)
+    #             for res in results:
+    #                 all_accounts_new_revenue_data.update(res)
+    #
+    #                 """добавляет данные по ежедневной выручке в БД"""
+    #                 add_orders_data(res)
+    #
+    #             # revenue_week_data_by_article = await analytics.get_last_week_revenue(week_count=4, nm_ids=nm_ids_result)
+    #             #
+    #             # for nm_id in revenue_week_data_by_article:
+    #             #     if nm_id in all_accounts_new_revenue_data:
+    #             #         all_accounts_new_revenue_data[nm_id].update(revenue_week_data_by_article[nm_id])
+    #
+    #             """добавляем артикулы в БД"""
+    #             # артикулы добавляем после получения выручки
+    #             add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
+    #
+    #     return all_accounts_new_revenue_data
     async def add_revenue_for_new_nm_ids(self, lk_articles: dict):
         """ Добавление выручки по новым артикулам за 7 последних дней (сегодняшний не учитывается)"""
         print("Смотрим новые артикулы для добавления выручки")
         all_accounts_new_revenue_data = {}
+        tasks1 = []
+        tasks2 = []
+
         for account, articles in lk_articles.items():
             # получаем токен и корректируем регистр для чтения из файла
             token = get_wb_tokens()[account.capitalize()]
 
             nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=articles)
             if len(nm_ids_result) > 0:
-                print("есть новые артикулы для добавления выручки за 7 последних дней")
+                print(f"account: {account} | собираем выручку по новым артикулам")
                 analytics = AnalyticsNMReport(token=token)
 
-                tasks = []
-                task = asyncio.create_task(
+                task1 = asyncio.create_task(
                     analytics.get_last_days_revenue(nm_ids=nm_ids_result,
-                                                    begin_date=datetime.date.today() - datetime.timedelta(
-                                                        days=7),
+                                                    begin_date=datetime.date.today() - datetime.timedelta(days=7),
                                                     end_date=datetime.date.today()))
-                tasks.append(task)
 
-                # Ждем завершения всех задач
-                results = await asyncio.gather(*tasks)
-                for res in results:
-                    all_accounts_new_revenue_data.update(res)
+                task2 = asyncio.create_task(
+                    analytics.get_last_week_revenue(week_count=4, nm_ids=nm_ids_result)
+                )
 
-                    """добавляет данные по ежедневной выручке в БД"""
-                    add_orders_data(res)
-
-                # revenue_week_data_by_article = await analytics.get_last_week_revenue(week_count=4, nm_ids=nm_ids_result)
-                #
-                # for nm_id in revenue_week_data_by_article:
-                #     if nm_id in all_accounts_new_revenue_data:
-                #         all_accounts_new_revenue_data[nm_id].update(revenue_week_data_by_article[nm_id])
+                tasks1.append(task1)
+                tasks2.append(task2)
 
                 """добавляем артикулы в БД"""
                 # артикулы добавляем после получения выручки
+                # в текущей реализации новые артикулы будут добавлены в БД до выгрузки данных по артикулу в таблицу
                 add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
 
-        return all_accounts_new_revenue_data
+        results_day_revenue = await asyncio.gather(*tasks1, return_exceptions=True)
+        results_week_revenue = await asyncio.gather(*tasks2, return_exceptions=True)
 
+        for res_day in results_day_revenue:
+            if isinstance(res_day, Exception):
+                print(f"Ошибка при получении ежедневной выручки: {res_day}")
+            else:
+                all_accounts_new_revenue_data.update(res_day)
+                """добавляет данные по ежедневной выручке в БД"""
+                add_orders_data(res_day)
+
+        for res_week in results_week_revenue:
+            if isinstance(res_week, Exception):
+                print(f"Ошибка при получении недельной выручки: {res_week}")
+            else:
+                for nm_id in res_week:
+                    if nm_id in all_accounts_new_revenue_data:
+                        all_accounts_new_revenue_data[nm_id].update(res_week[nm_id])
+
+
+        pprint(all_accounts_new_revenue_data)
+        return all_accounts_new_revenue_data
     def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
                                 add_data_in_db=True, check_nm_ids_in_db=True):
         """Функция была изменена. Теперь она просто выдает данные на добавления в таблицу, а не добавляет таблицу внутри функции"""

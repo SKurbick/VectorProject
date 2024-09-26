@@ -141,7 +141,7 @@ class ListOfCardsContent:
 
         response = requests.post(url=url, headers=self.headers, json=data)
         print("size edit result:", response.json())
-        time.sleep(10)
+        time.sleep(2)
         if False is response.json()["error"]:
             return True
 

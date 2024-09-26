@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 from settings import settings
 from APIGoogleSheet.googlesheet import GoogleSheet, GoogleSheetServiceRevenue
@@ -91,6 +92,7 @@ def check_edits_columns():
                 edit_nm_ids_data = service_gs_table.change_cards_and_tables_data(
                     edit_data_from_table=edit_data_from_table)
                 if len(edit_nm_ids_data) > 0:
+                    time.sleep(10)
                     gs_connection().update_rows(data_json=edit_nm_ids_data,
                                                 edit_column_clean={"price_discount": statuses['Цены/Скидки'],
                                                                    "dimensions": statuses['Габариты'],
@@ -118,7 +120,7 @@ def schedule_tasks():
     schedule.every(300).seconds.do(lambda: asyncio.create_task(check_new_nm_ids()))
 
     """Смотрит в таблицу, оценивает изменения"""
-    schedule.every(200).seconds.do(lambda: asyncio.create_task(run_in_executor(check_edits_columns)))
+    schedule.every(250).seconds.do(lambda: asyncio.create_task(run_in_executor(check_edits_columns)))
 
     # проверяет остатки
     schedule.every(1).hours.do(lambda: asyncio.create_task(run_in_executor(gs_service.check_quantity_flag)))

@@ -81,7 +81,7 @@ class ListOfGoodsPricesAndDiscounts:
                     response = requests.post(url=url, headers=self.headers, json={"data": butch_data})
                     print("Артиклы на изменение цены:", butch_data)
                     print("price and discount edit result:", response.json())
-                    time.sleep(10)
+                    time.sleep(2)
                     if False is response.json()["error"]:
                         break
 
