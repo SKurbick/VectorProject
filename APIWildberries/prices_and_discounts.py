@@ -30,7 +30,8 @@ class ListOfGoodsPricesAndDiscounts:
         url = self.url.format("filter")
         nm_ids = [*filter_nm_ids]
         nm_ids_list = {}
-
+        print("попали в функцию get_log_for_nm_ids")
+        print(filter_nm_ids)
         offset = 0
         limit = 1000
         while True:
@@ -67,8 +68,7 @@ class ListOfGoodsPricesAndDiscounts:
                 break
             else:
                 offset += limit
-        print("get_log_for_nm_ids")
-        print("НЕВАЛИДНЫЕ АРТИКУЛЫ")
+        print("НЕВАЛИДНЫЕ АРТИКУЛЫ get_log_for_nm_ids")
         pprint(nm_ids)
         return nm_ids_list
 

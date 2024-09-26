@@ -243,61 +243,62 @@ class ServiceGoogleSheet:
         return updates_nm_ids_data
 
     async def add_new_day_revenue_to_table(self):
+        statuses = ServiceGoogleSheet.check_status()
+        if statuses['ВКЛ - 1 /ВЫКЛ - 0']:
+            begin_date = datetime.date.today()
+            end_date = datetime.date.today()
+            last_day = end_date.strftime("%d-%m-%Y")
+            """Добавление нового дня в заголовки таблицы и выручки по этим дням и сдвиг последних шести дней влево"""
+            # проверяем нет ли вчерашнего дня в заголовках таблицы
+            print(f"Актуализируем выручку по текущему дню: {last_day}")
+            if self.gs_service_revenue_connect.check_last_day_header_from_table(header=last_day):
+                # по умолчанию begin_date - дата сегодняшнего дня. Если будет смещение, то begin_date будет форматирован
+                # на вчерашний что бы актуализировать выручку за вчерашний день так же
+                begin_date = datetime.date.today() - datetime.timedelta(days=1)
+                print(last_day, "заголовка нет в таблице. Будет добавлен включая выручку по дню")
+                # сначала сдвигаем колонки с выручкой
+                self.gs_service_revenue_connect.shift_revenue_columns_to_the_left(last_day=last_day)
+            lk_articles = self.gs_connect.create_lk_articles_list()
+            # # собираем выручку по всем артикулам аккаунтов
+            all_accounts_new_revenue_data = {}
 
-        begin_date = datetime.date.today()
-        end_date = datetime.date.today()
-        last_day = end_date.strftime("%d-%m-%Y")
-        """Добавление нового дня в заголовки таблицы и выручки по этим дням и сдвиг последних шести дней влево"""
-        # проверяем нет ли вчерашнего дня в заголовках таблицы
-        print(f"Актуализируем выручку по текущему дню: {last_day}")
-        if self.gs_service_revenue_connect.check_last_day_header_from_table(header=last_day):
-            # по умолчанию begin_date - дата сегодняшнего дня. Если будет смещение, то begin_date будет форматирован
-            # на вчерашний что бы актуализировать выручку за вчерашний день так же
-            begin_date = datetime.date.today() - datetime.timedelta(days=1)
-            print(last_day, "заголовка нет в таблице. Будет добавлен включая выручку по дню")
-            # сначала сдвигаем колонки с выручкой
-            self.gs_service_revenue_connect.shift_revenue_columns_to_the_left(last_day=last_day)
-        lk_articles = self.gs_connect.create_lk_articles_list()
-        # # собираем выручку по всем артикулам аккаунтов
-        all_accounts_new_revenue_data = {}
+            tasks = []
 
-        tasks = []
-
-        for account, nm_ids in lk_articles.items():
-            token = get_wb_tokens()[account.capitalize()]
-            anal_revenue = AnalyticsNMReport(token=token)
-            task = asyncio.create_task(
-                anal_revenue.get_last_days_revenue(begin_date=begin_date,
-                                                   end_date=end_date,
-                                                   nm_ids=nm_ids, account=account))
-            tasks.append(task)
-
-        # Ждем завершения всех задач
-        results = await asyncio.gather(*tasks)
-        for res in results:
-            all_accounts_new_revenue_data.update(res)
-            add_orders_data(res)
-        print("Выручка добавлена в БД")
-        # добавляем их таблицу
-
-        # проверяем заголовок прошлой недели
-        week_date = list(get_last_weeks_dates().keys())
-        if self.gs_service_revenue_connect.check_last_day_header_from_table(header=week_date[0]):
-            print(f"Заголовка {week_date[0]} нет в таблице, будет добавлен со смещением столбцов")
-            self.gs_service_revenue_connect.shift_week_revenue_columns_to_the_left(last_week=week_date[0])
             for account, nm_ids in lk_articles.items():
                 token = get_wb_tokens()[account.capitalize()]
                 anal_revenue = AnalyticsNMReport(token=token)
-                revenue_week_data_by_article = await anal_revenue.get_last_week_revenue(week_count=1, nm_ids=nm_ids)
+                task = asyncio.create_task(
+                    anal_revenue.get_last_days_revenue(begin_date=begin_date,
+                                                       end_date=end_date,
+                                                       nm_ids=nm_ids, account=account))
+                tasks.append(task)
 
-                for nm_id in revenue_week_data_by_article:
-                    if nm_id in all_accounts_new_revenue_data:
-                        all_accounts_new_revenue_data[nm_id].update(revenue_week_data_by_article[nm_id])
+            # Ждем завершения всех задач
+            results = await asyncio.gather(*tasks)
+            for res in results:
+                all_accounts_new_revenue_data.update(res)
+                add_orders_data(res)
+            print("Выручка добавлена в БД")
+            # добавляем их таблицу
 
-        print("Добавляем данные по выручке в таблицу")
-        # добавляем выручку в таблицу
-        self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
-        print(f"выручка в таблице актуализирована по всем артикулам")
+            # проверяем заголовок прошлой недели
+            week_date = list(get_last_weeks_dates().keys())
+            if self.gs_service_revenue_connect.check_last_day_header_from_table(header=week_date[0]):
+                print(f"Заголовка {week_date[0]} нет в таблице, будет добавлен со смещением столбцов")
+                self.gs_service_revenue_connect.shift_week_revenue_columns_to_the_left(last_week=week_date[0])
+                for account, nm_ids in lk_articles.items():
+                    token = get_wb_tokens()[account.capitalize()]
+                    anal_revenue = AnalyticsNMReport(token=token)
+                    revenue_week_data_by_article = await anal_revenue.get_last_week_revenue(week_count=1, nm_ids=nm_ids)
+
+                    for nm_id in revenue_week_data_by_article:
+                        if nm_id in all_accounts_new_revenue_data:
+                            all_accounts_new_revenue_data[nm_id].update(revenue_week_data_by_article[nm_id])
+
+            print("Добавляем данные по выручке в таблицу")
+            # добавляем выручку в таблицу
+            self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
+            print(f"выручка в таблице актуализирована по всем артикулам")
 
     @staticmethod
     def check_status():
