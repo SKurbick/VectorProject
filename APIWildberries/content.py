@@ -131,7 +131,6 @@ class ListOfCardsContent:
                         "wild": "не найдено",
                         "Фото": "НЕТ",
                     }
-        pprint(card_result_for_match)
         return card_result_for_match
 
 
