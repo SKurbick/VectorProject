@@ -174,7 +174,7 @@ class GoogleSheet:
                     result_qty_edit_data[account]["stocks"].append(
                         {
                             "sku": row["Баркод"],
-                            "amount": int(row["Новый остаток"])
+                            "amount": int(row["Новый остаток"].replace('\xa0', ''))
                         },
                     )
                     # nm_id нам будет нужен для функции обновления данных
