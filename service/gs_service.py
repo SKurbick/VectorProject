@@ -160,7 +160,7 @@ class ServiceGoogleSheet:
 
                 for i in merge_json_data.values():
                     # собираем и удаляем фото
-                    if i["wild"] != "не найдено":
+                    if "wild" in i and i["wild"] != "не найдено":
                         subject_names.add(i["Предмет"])  # собираем множество с предметами
                         account_barcodes.append(i["Баркод"])
                         result_log_value = calculate_sum_for_logistic(
@@ -278,6 +278,7 @@ class ServiceGoogleSheet:
             if account in edit_data_from_table["qty_edit_data"]:
                 if len(edit_data_from_table["qty_edit_data"][account]["stocks"]) > 0 and quantity_edit_status:
                     "изменение остатков на всех складах продавца"
+                    print("изменение остатков на всех складах продавца")
                     for warehouse in warehouses.get_account_warehouse():
                         warehouses_qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse["id"],
                                                                         edit_barcodes_list=
