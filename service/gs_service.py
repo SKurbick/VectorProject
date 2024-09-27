@@ -160,21 +160,21 @@ class ServiceGoogleSheet:
 
                 for i in merge_json_data.values():
                     # собираем и удаляем фото
+                    if i["wild"] != "не найдено":
+                        subject_names.add(i["Предмет"])  # собираем множество с предметами
+                        account_barcodes.append(i["Баркод"])
+                        result_log_value = calculate_sum_for_logistic(
+                            # на лету считаем "Логистика от склада WB до ПВЗ"
+                            for_one_liter=int(current_tariffs_data["boxDeliveryBase"]),
+                            next_liters=int(current_tariffs_data["boxDeliveryLiter"]),
+                            height=int(i['Текущая\nВысота (см)']),
+                            length=int(i['Текущая\nДлина (см)']),
+                            width=int(i['Текущая\nШирина (см)']), )
+                        # добавляем результат вычислений в итоговые данные
+                        i["Логистика от склада WB до ПВЗ"] = result_log_value
                     if only_edits_data is False:
-
                         nm_ids_photo[int(i["Артикул"])] = i.pop("Фото")
-                        if i["wild"] != "не найдено":
-                            subject_names.add(i["Предмет"])  # собираем множество с предметами
-                            account_barcodes.append(i["Баркод"])
-                            result_log_value = calculate_sum_for_logistic(
-                                # на лету считаем "Логистика от склада WB до ПВЗ"
-                                for_one_liter=int(current_tariffs_data["boxDeliveryBase"]),
-                                next_liters=int(current_tariffs_data["boxDeliveryLiter"]),
-                                height=int(i['Текущая\nВысота (см)']),
-                                length=int(i['Текущая\nДлина (см)']),
-                                width=int(i['Текущая\nШирина (см)']), )
-                            # добавляем результат вычислений в итоговые данные
-                            i["Логистика от склада WB до ПВЗ"] = result_log_value
+
                 barcodes_quantity_result = []
                 for warehouse_id in warehouses.get_account_warehouse():
                     bqs_result = barcodes_quantity.get_amount_from_warehouses(
@@ -205,7 +205,6 @@ class ServiceGoogleSheet:
                         if "Баркод" in card and card["Баркод"] in barcodes_qty_wb.keys():
                             card["Текущий остаток\nСклады WB"] = barcodes_qty_wb[card["Баркод"]]
 
-                # pprint(merge_json_data)
                 result_nm_ids_data.update(merge_json_data)
 
                 if add_data_in_db is True:
