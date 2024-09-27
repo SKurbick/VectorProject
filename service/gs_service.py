@@ -490,8 +490,8 @@ class ServiceGoogleSheet:
         self.gs_connect.update_rows(data_json=nm_ids_data_json,
                                     edit_column_clean={"qty": True, "price_discount": False, "dimensions": False})
 
-    @staticmethod
-    def add_orders_data_in_table():
+    # @staticmethod
+    def add_orders_data_in_table(self):
         """ Функция добавления количества заказов по дням в таблицу """
         from settings import settings
         from utils import get_order_data_from_database
@@ -501,9 +501,12 @@ class ServiceGoogleSheet:
         date_object = datetime.datetime.today()
         today = date_object.strftime("%d.%m")
 
+        # если нет текущего дня
         if gs_connect.check_header(header=today):
+            # сместит заголовки дней в листе "Количество заказов"
             gs_connect.shift_headers_count_list(today)
-
+            # сместит заголовки дней в листе "Количество заказов"
+            self.gs_connect.shift_headers_orders_header(today=today)
         # если есть данные в БД - будут добавлены в лист
         if len(orders_count_data):
             gs_connect.add_data_to_count_list(data_json=orders_count_data)
