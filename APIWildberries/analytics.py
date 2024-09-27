@@ -63,10 +63,10 @@ class AnalyticsNMReport:
                                     orders_data_for_database[nm_id_from_data] = orders_by_dates
                                 break
                             else:
-                                print(f"Ошибка при выполнении запроса: {response.status}")
+                                print(f"Превышен лимит запросов: {response.status}")
                                 await asyncio.sleep(63)
                 except aiohttp.ClientError as e:
-                    print(f"Ошибка при выполнении запроса: {e}")
+                    print(f"Превышен лимит запросов: {e}")
                     await asyncio.sleep(63)
 
         if orders_db_ad:
