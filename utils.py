@@ -252,10 +252,6 @@ def get_order_data_from_database() -> dict:
     return database["nm_ids_orders_data"]
 
 
-# art = get_order_data_from_database()
-# print(art)
-
-
 def add_orders_data_in_database(orders_data):
     with open('orders_data.json', 'r+') as file:
         # Загрузите данные из файла

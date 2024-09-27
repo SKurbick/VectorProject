@@ -288,7 +288,7 @@ class ServiceGoogleSheet:
                     # добавляем артикул для обновления данных
                     if account not in updates_nm_ids_data:
                         updates_nm_ids_data[account] = []
-                    updates_nm_ids_data[account].append(*edit_data_from_table["qty_edit_data"][account]["nm_ids"])
+                    updates_nm_ids_data[account].extend(edit_data_from_table["qty_edit_data"][account]["nm_ids"])
 
         # если хоть по одному артикулу данные будут валидны...
         if len(updates_nm_ids_data):

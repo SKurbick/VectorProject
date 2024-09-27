@@ -190,9 +190,6 @@ class GoogleSheet:
 
     def create_lk_articles_list(self):
         """Создает словарь из ключей кабинета и его Артикулов"""
-        # client = self.client_init_json()
-        # spreadsheet = client.open(self.spreadsheet)
-        # sheet = spreadsheet.worksheet(self.sheet)
         data = self.sheet.get_all_records()
         df = pd.DataFrame(data)
         lk_articles_dict = {}
