@@ -23,7 +23,7 @@ class AnalyticsNMReport:
         }
 
     async def get_last_days_revenue(self, nm_ids: list, begin_date: datetime, end_date: datetime, step: int = 20,
-                                    account=None, orders_db_ad = False):
+                                    account=None, orders_db_ad=False):
         """По методу есть ограничения на 3 запроса в минуту и в 20 nmID за запрос.
             По умолчанию передаются даты последнего (вчерашнего) дня
         """

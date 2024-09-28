@@ -347,7 +347,7 @@ class GoogleSheet:
         self.sheet.update('A1', updated_formulas, value_input_option='USER_ENTERED')
         """Значения заголовков и содержимого смещены влево в рамках индексов от 'AG' до 'AM'."""
 
-    def shift_headers_orders_header(self, today):
+    def shift_orders_header(self, today):
         all_values = self.sheet.get_all_values()
         all_formulas = self.sheet.get_all_values(value_render_option='FORMULA')
         print("Смещаем столбцы листа - Количество заказов")
