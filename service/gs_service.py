@@ -455,7 +455,7 @@ class ServiceGoogleSheet:
         """ Функция добавления количества заказов по дням в таблицу """
         from settings import settings
         from utils import get_order_data_from_database
-        gs_connect = GoogleSheet(sheet="черновик кол зак", spreadsheet=settings.SPREADSHEET,
+        gs_connect = GoogleSheet(sheet="Количество заказов", spreadsheet=settings.SPREADSHEET,
                                  creds_json=settings.CREEDS_FILE_NAME)
         orders_count_data = get_order_data_from_database()
         date_object = datetime.datetime.today()
