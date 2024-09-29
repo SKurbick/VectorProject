@@ -319,30 +319,30 @@ class GoogleSheet:
         df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
 
         # Сохраняем формулы из столбцов, которые не попадают в диапазон смещения
-        formulas_to_preserve = df_formulas.iloc[:, 31:].values
+        formulas_to_preserve = df_formulas.iloc[:, 32:].values
 
         # Смещение заголовков и содержимого столбцов
-        header_values = df_values.columns[1:31].tolist()  # Индексы столбцов
+        header_values = df_values.columns[2:32].tolist()  # Индексы столбцов
         shifted_header_values = header_values[:29]
         shifted_header_values.insert(0, today)
         print(shifted_header_values)
-        # # Обновление заголовков
-        df_values.columns = df_values.columns[:1].tolist() + shifted_header_values + df_values.columns[31:].tolist()
+        # # # Обновление заголовков
+        df_values.columns = df_values.columns[:2].tolist() + shifted_header_values + df_values.columns[32:].tolist()
         df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
         # Смещение содержимого столбцов
-        df_values.iloc[:, 2:31] = df_values.iloc[:, 1:30].values
-        df_values.iloc[:, 1] = ""  # Очистка последнего столбца
-
-        # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
-        df_formulas.iloc[:, 2:31] = df_formulas.iloc[:, 1:30].values
-        df_formulas.iloc[:, 1] = ""  # Очистка последнего столбца
-        df_formulas.iloc[:, 31:] = formulas_to_preserve
+        df_values.iloc[:, 3:32] = df_values.iloc[:, 2:31].values
+        df_values.iloc[:, 2] = ""  # Очистка последнего столбца
+        #
+        # # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
+        df_formulas.iloc[:, 3:32] = df_formulas.iloc[:, 2:31].values
+        df_formulas.iloc[:, 2] = ""  # Очистка последнего столбца
+        df_formulas.iloc[:, 32:] = formulas_to_preserve
 
         # Преобразование обратно в список списков
         updated_values = [df_values.columns.tolist()] + df_values.values.tolist()
         updated_formulas = [df_formulas.columns.tolist()] + df_formulas.values.tolist()
-        #
-        # # Обновление таблицы одним запросом
+
+        # Обновление таблицы одним запросом
         self.sheet.update('A1', updated_values, value_input_option='USER_ENTERED')
         self.sheet.update('A1', updated_formulas, value_input_option='USER_ENTERED')
         """Значения заголовков и содержимого смещены влево в рамках индексов от 'AG' до 'AM'."""

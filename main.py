@@ -110,13 +110,13 @@ async def run_in_executor(func, *args):
 def schedule_tasks():
     gs_service = gs_service_for_schedule_connection()
 
-    # "Добавляет выручку и сдвигает столбцы с выручкой по необходимости. Условие должно работать раз в день каждые 25 мин"
+    "Добавляет выручку и сдвигает столбцы с выручкой по необходимости. Условие должно работать раз в день каждые 25 мин"
     schedule.every(25).minutes.do(lambda: asyncio.create_task(gs_service.add_new_day_revenue_to_table()))
-    #
-    # """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
+
+    """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
     schedule.every(800).seconds.do(lambda: asyncio.create_task(run_in_executor(gs_service.add_actually_data_to_table)))
 
-    # """Смотрит в таблицу, оценивает новые nm_ids"""
+    """Смотрит в таблицу, оценивает новые nm_ids"""
     schedule.every(300).seconds.do(lambda: asyncio.create_task(check_new_nm_ids()))
 
     """Смотрит в таблицу, оценивает изменения"""
@@ -126,7 +126,7 @@ def schedule_tasks():
     schedule.every(1).hours.do(lambda: asyncio.create_task(run_in_executor(gs_service.check_quantity_flag)))
 
     # добавляет данные по количеству заказов в лист 'Количество заказов'
-    schedule.every(27).minutes.do(lambda: asyncio.create_task(run_in_executor(gs_service.add_orders_data_in_table)))
+    schedule.every(25).minutes.do(lambda: asyncio.create_task(run_in_executor(gs_service.add_orders_data_in_table)))
 
 
 async def run_scheduler():

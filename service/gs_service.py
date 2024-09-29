@@ -450,13 +450,12 @@ class ServiceGoogleSheet:
         self.gs_connect.update_rows(data_json=nm_ids_data_json,
                                     edit_column_clean={"qty": True, "price_discount": False, "dimensions": False})
 
-    # @staticmethod
     def add_orders_data_in_table(self):
         print("Обновление количества заказов по дням в MAIN")
         """ Функция добавления количества заказов по дням в таблицу """
         from settings import settings
         from utils import get_order_data_from_database
-        gs_connect = GoogleSheet(sheet="Количество заказов", spreadsheet=settings.SPREADSHEET,
+        gs_connect = GoogleSheet(sheet="черновик кол зак", spreadsheet=settings.SPREADSHEET,
                                  creds_json=settings.CREEDS_FILE_NAME)
         orders_count_data = get_order_data_from_database()
         date_object = datetime.datetime.today()
