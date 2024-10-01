@@ -302,19 +302,19 @@ class ServiceGoogleSheet:
             if self.gs_service_revenue_connect.check_last_day_header_from_table(header=week_date[0]):
                 print(f"Заголовка {week_date[0]} нет в таблице, будет добавлен со смещением столбцов")
                 self.gs_service_revenue_connect.shift_week_revenue_columns_to_the_left(last_week=week_date[0])
-            #     for account, nm_ids in lk_articles.items():
-            #         token = get_wb_tokens()[account.capitalize()]
-            #         anal_revenue = AnalyticsNMReport(token=token)
-            #         revenue_week_data_by_article = await anal_revenue.get_last_week_revenue(week_count=1, nm_ids=nm_ids)
-            #
-            #         for nm_id in revenue_week_data_by_article:
-            #             if nm_id in all_accounts_new_revenue_data:
-            #                 all_accounts_new_revenue_data[nm_id].update(revenue_week_data_by_article[nm_id])
-            #
-            # print("Добавляем данные по выручке в таблицу")
-            # # добавляем выручку в таблицу
-            # self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
-            # print(f"выручка в таблице актуализирована по всем артикулам")
+                for account, nm_ids in lk_articles.items():
+                    token = get_wb_tokens()[account.capitalize()]
+                    anal_revenue = AnalyticsNMReport(token=token)
+                    revenue_week_data_by_article = await anal_revenue.get_last_week_revenue(week_count=1, nm_ids=nm_ids)
+
+                    for nm_id in revenue_week_data_by_article:
+                        if nm_id in all_accounts_new_revenue_data:
+                            all_accounts_new_revenue_data[nm_id].update(revenue_week_data_by_article[nm_id])
+
+            print("Добавляем данные по выручке в таблицу")
+            # добавляем выручку в таблицу
+            self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
+            print(f"выручка в таблице актуализирована по всем артикулам")
 
     @staticmethod
     def check_status():
