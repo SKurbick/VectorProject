@@ -315,7 +315,8 @@ class ServiceGoogleSheet:
             # добавляем выручку в таблицу
             self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
             print(f"выручка в таблице актуализирована по всем артикулам")
-
+            # актуализация информация по заказам в листах таблицы
+            self.add_orders_data_in_table()
     @staticmethod
     def check_status():
         for i in range(10):
