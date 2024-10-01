@@ -126,7 +126,7 @@ def schedule_tasks():
     schedule.every(1).hours.do(lambda: asyncio.create_task(run_in_executor(gs_service.check_quantity_flag)))
 
     # добавляет данные по количеству заказов в лист 'Количество заказов'
-    schedule.every(25).minutes.do(lambda: asyncio.create_task(run_in_executor(gs_service.add_orders_data_in_table)))
+    schedule.every(26).minutes.do(lambda: asyncio.create_task(run_in_executor(gs_service.add_orders_data_in_table)))
 
 
 async def run_scheduler():
