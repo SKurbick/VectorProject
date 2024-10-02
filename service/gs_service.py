@@ -259,6 +259,7 @@ class ServiceGoogleSheet:
         return updates_nm_ids_data
 
     async def add_new_day_revenue_to_table(self):
+        start = datetime.datetime.now()
         statuses = ServiceGoogleSheet.check_status()
         if statuses['ВКЛ - 1 /ВЫКЛ - 0']:
             begin_date = datetime.date.today()
@@ -311,12 +312,15 @@ class ServiceGoogleSheet:
                         if nm_id in all_accounts_new_revenue_data:
                             all_accounts_new_revenue_data[nm_id].update(revenue_week_data_by_article[nm_id])
 
-            print("Добавляем данные по выручке в таблицу")
             # добавляем выручку в таблицу
+            print("Собрали выручку по всем кабинетам timer:", datetime.datetime.now() - start)
             self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
-            print(f"выручка в таблице актуализирована по всем артикулам")
+            print(f"Выручка в таблице актуализирована по всем артикулам.")
             # актуализация информация по заказам в листах таблицы
             self.add_orders_data_in_table()
+            start = datetime.datetime.now()
+            print("Функция актуализации timer:", datetime.datetime.now() - start)
+
     @staticmethod
     def check_status():
         for i in range(10):
