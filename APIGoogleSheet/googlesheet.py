@@ -381,9 +381,6 @@ class GoogleSheet:
         self.sheet.update('A1', updated_formulas, value_input_option='USER_ENTERED')
         """Значения заголовков и содержимого смещены влево в рамках индексов от 'AG' до 'AM'."""
 
-
-
-
     def check_header(self, header):
         # Если заголовка нет в листе, то выдаст True, для функции которая будет добавлять новый header
         headers = self.sheet.row_values(1)
@@ -651,21 +648,23 @@ class GoogleSheetServiceRevenue:
 
 
 class GoogleSheetSopostTable:
-    def __init__(self, sheet="Сопост", spreadsheet="Новая таблица UNIT", creds_json="creds_sopost.json"):
-        self.sheet = sheet
-        self.spreadsheet = spreadsheet
+    from settings import settings
+    def __init__(self, sheet="Сопост", spreadsheet=settings.SPREADSHEET, creds_json=settings.CREEDS_FILE_NAME):
+        # self.sheet = sheet
+        # self.spreadsheet = spreadsheet
         self.creds_json = creds_json
         client = self.client_init_json()
-        try:
-            spreadsheet = client.open(self.spreadsheet)
-            self.sheet = spreadsheet.worksheet(self.sheet)
-
-        except (gspread.exceptions.APIError, requests.exceptions.JSONDecodeError) as e:
-            print(datetime.now())
-            print(e)
-            time.sleep(60)
-            spreadsheet = client.open(self.spreadsheet)
-            self.sheet = spreadsheet.worksheet(self.sheet)
+        for _ in range(10):
+            try:
+                spreadsheet = client.open(spreadsheet)
+                self.sheet = spreadsheet.worksheet(sheet)
+                break
+            except (gspread.exceptions.APIError, requests.exceptions.JSONDecodeError) as e:
+                print(datetime.now())
+                print(e)
+                time.sleep(60)
+                spreadsheet = client.open(spreadsheet)
+                self.sheet = spreadsheet.worksheet(sheet)
 
     def client_init_json(self) -> Client:
         """Создание клиента для работы с Google Sheets."""

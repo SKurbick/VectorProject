@@ -124,7 +124,6 @@ def schedule_tasks():
 
     # проверяет остатки
     schedule.every(1).hours.do(lambda: asyncio.create_task(run_in_executor(gs_service.check_quantity_flag)))
-
     # добавляет данные по количеству заказов в лист 'Количество заказов'
     # тестово перенесли в функцию add_new_day_revenue_to_table
     # schedule.every(26).minutes.do(lambda: asyncio.create_task(run_in_executor(gs_service.add_orders_data_in_table)))

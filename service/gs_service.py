@@ -425,6 +425,7 @@ class ServiceGoogleSheet:
         sopost_data = GoogleSheetSopostTable().wild_quantity()
         nm_ids_for_update_data = {}
         if len(low_limit_qty_data) > 0 and status_limit_edit:
+            pprint(low_limit_qty_data)
             print("Есть остатки ниже установленного флага")
             for account, edit_data in low_limit_qty_data.items():
                 update_qty_data = []
@@ -447,13 +448,13 @@ class ServiceGoogleSheet:
 
                 if account not in nm_ids_for_update_data:
                     nm_ids_for_update_data[account] = []
-                nm_ids_for_update_data[account].append(*low_limit_qty_data[account]['nm_ids'])
+                nm_ids_for_update_data[account].extend(low_limit_qty_data[account]['nm_ids'])
 
         nm_ids_data_json = self.add_new_data_from_table(lk_articles=nm_ids_for_update_data,
                                                         only_edits_data=True, add_data_in_db=False,
                                                         check_nm_ids_in_db=False)
         self.gs_connect.update_rows(data_json=nm_ids_data_json,
-                                    edit_column_clean={"qty": True, "price_discount": False, "dimensions": False})
+                                    edit_column_clean={"qty": False, "price_discount": False, "dimensions": False})
 
     def add_orders_data_in_table(self):
         print("Обновление количества заказов по дням в MAIN")
