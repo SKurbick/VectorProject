@@ -237,7 +237,7 @@ class GoogleSheet:
         for _ in range(10):
             try:
                 client = self.client_init_json()
-                spreadsheet = client.open("START Курбан")
+                spreadsheet = client.open("UNIT 2.0 (tested)")
                 sheet = spreadsheet.worksheet("ФОТО")
                 existing_articles = sheet.col_values(1)  # Столбец "A" имеет индекс 1
                 # Преобразуем ключи в словаре в строки

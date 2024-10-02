@@ -319,7 +319,7 @@ class ServiceGoogleSheet:
             # актуализация информация по заказам в листах таблицы
             self.add_orders_data_in_table()
             start = datetime.datetime.now()
-            print("Функция актуализации timer:", datetime.datetime.now() - start)
+            print("Функция актуализации timer:",datetime.datetime.now()-start)
 
     @staticmethod
     def check_status():
@@ -327,7 +327,7 @@ class ServiceGoogleSheet:
             try:
 
                 sheet_status = GoogleSheet(creds_json="creds.json",
-                                           spreadsheet="START Курбан", sheet="ВКЛ/ВЫКЛ Бот")
+                                           spreadsheet="UNIT 2.0 (tested)", sheet="ВКЛ/ВЫКЛ Бот")
                 return sheet_status.check_status_service_sheet()
             except gspread.exceptions.APIError as e:
                 print(f"попытка {i}", e, "следующая попытка через 75 секунд")
