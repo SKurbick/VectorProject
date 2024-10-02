@@ -82,7 +82,8 @@ class ListOfGoodsPricesAndDiscounts:
                     print("Артиклы на изменение цены:", butch_data)
                     print("price and discount edit result:", response.json())
                     time.sleep(2)
-                    if response.status_code in (200, 208):
+                    if (response.status_code in (200, 208) or response.json()['errorText'] in
+                            ("Task already exists", "No goods for process")):
                         break
 
                 except (Exception, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
