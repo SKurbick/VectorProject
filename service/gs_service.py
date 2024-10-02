@@ -319,7 +319,7 @@ class ServiceGoogleSheet:
             # актуализация информация по заказам в листах таблицы
             self.add_orders_data_in_table()
             start = datetime.datetime.now()
-            print("Функция актуализации timer:",datetime.datetime.now()-start)
+            print("Функция актуализации timer:", datetime.datetime.now() - start)
 
     @staticmethod
     def check_status():
@@ -434,7 +434,7 @@ class ServiceGoogleSheet:
                 qty_edit = LeftoversMarketplace(token=token)
 
                 for qty_data in edit_data["qty"]:
-                    if sopost_data[qty_data["wild"]] and str(sopost_data[qty_data["wild"]]) != "0":
+                    if str(sopost_data[qty_data["wild"]]).isdigit() and int(sopost_data[qty_data["wild"]]) != 0:
                         update_qty_data.append(
                             {
                                 "sku": qty_data["sku"],
@@ -442,19 +442,20 @@ class ServiceGoogleSheet:
                             }
                         )
 
-                for warehouse_id in warehouses:
-                    qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse_id["id"],
-                                                         edit_barcodes_list=update_qty_data)
+                if len(update_qty_data):
+                    for warehouse_id in warehouses:
+                        qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse_id["id"],
+                                                             edit_barcodes_list=update_qty_data)
 
-                if account not in nm_ids_for_update_data:
-                    nm_ids_for_update_data[account] = []
-                nm_ids_for_update_data[account].extend(low_limit_qty_data[account]['nm_ids'])
-
-        nm_ids_data_json = self.add_new_data_from_table(lk_articles=nm_ids_for_update_data,
-                                                        only_edits_data=True, add_data_in_db=False,
-                                                        check_nm_ids_in_db=False)
-        self.gs_connect.update_rows(data_json=nm_ids_data_json,
-                                    edit_column_clean={"qty": False, "price_discount": False, "dimensions": False})
+                    if account not in nm_ids_for_update_data:
+                        nm_ids_for_update_data[account] = []
+                    nm_ids_for_update_data[account].extend(low_limit_qty_data[account]['nm_ids'])
+        if len(nm_ids_for_update_data):
+            nm_ids_data_json = self.add_new_data_from_table(lk_articles=nm_ids_for_update_data,
+                                                            only_edits_data=True, add_data_in_db=False,
+                                                            check_nm_ids_in_db=False)
+            self.gs_connect.update_rows(data_json=nm_ids_data_json,
+                                        edit_column_clean={"qty": False, "price_discount": False, "dimensions": False})
 
     def add_orders_data_in_table(self):
         print("Обновление количества заказов по дням в MAIN")
