@@ -254,6 +254,7 @@ class ServiceGoogleSheet:
 
         # если хоть по одному артикулу данные будут валидны...
         if len(updates_nm_ids_data):
+            time.sleep(5)
             print(updates_nm_ids_data)
             return self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
                                                 only_edits_data=True, add_data_in_db=False, check_nm_ids_in_db=False)
