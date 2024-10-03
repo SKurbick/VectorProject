@@ -136,6 +136,7 @@ class ServiceGoogleSheet:
                     if only_edits_data is False:
                         nm_ids_photo[int(i["Артикул"])] = i.pop("Фото")
 
+                # собираем остатки со складов продавца
                 barcodes_quantity_result = []
                 for warehouse_id in warehouses.get_account_warehouse():
                     bqs_result = barcodes_quantity.get_amount_from_warehouses(

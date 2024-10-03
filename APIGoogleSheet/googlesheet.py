@@ -331,11 +331,11 @@ class GoogleSheet:
         df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
         # Смещение содержимого столбцов
         df_values.iloc[:, 4:33] = df_values.iloc[:, 3:32].values
-        df_values.iloc[:, 3] = ""  # Очистка последнего столбца
+        df_values.iloc[:, 3] = ""  # Очистка первого столбца
 
         # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
         df_formulas.iloc[:, 4:33] = df_formulas.iloc[:, 3:32].values
-        df_formulas.iloc[:, 3] = ""  # Очистка последнего столбца
+        df_formulas.iloc[:, 3] = ""  # Очистка первого столбца
         df_formulas.iloc[:, 33:] = formulas_to_preserve
 
         # Преобразование обратно в список списков
@@ -367,9 +367,11 @@ class GoogleSheet:
         df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
         # # Смещение содержимого столбцов от "AG" до "AM"
         df_values.iloc[:, 68:97] = df_values.iloc[:, 67:96].values
-        df_values.iloc[:, 67] = ""  # Очистка последнего столбца
+        df_values.iloc[:, 67] = ""  # Очистка первого столбца
 
         # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
+        df_formulas.iloc[:, 68:97] = df_formulas.iloc[:, 67:96].values
+        df_formulas.iloc[:, 67] = ""  # Очистка первого столбца
         df_formulas.iloc[:, 97:] = formulas_to_preserve
 
         # Преобразование обратно в список списков
