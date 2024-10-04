@@ -475,8 +475,8 @@ class ServiceGoogleSheet:
             print(f"Нет текущего дня {today} в листах. Сервис сместит данные по дням")
             # сместит заголовки дней в листе "Количество заказов"
             gs_connect.shift_headers_count_list(today)
-            # сместит заголовки дней в листе "Количество заказов"
-            self.gs_connect.shift_orders_header(today=today)
+            # сместит заголовки дней в листе "MAIN"
+            # self.gs_connect.shift_orders_header(today=today)
         # если есть данные в БД - будут добавлены в лист
         if len(orders_count_data):
             print("актуализируем данные по заказам в таблице")
