@@ -420,7 +420,7 @@ class ServiceGoogleSheet:
             gs_connect.update_rows(data_json=result_updates_rows)
 
     def check_quantity_flag(self):
-        print("Проверка остатков по лимитам из столбца 'Минимальный остаток'")
+        print(datetime.datetime.now(), "Проверка остатков по лимитам из столбца 'Минимальный остаток'")
         status_limit_edit = ServiceGoogleSheet.check_status()["Добавить если"]
         print("статус проверки: ", status_limit_edit)
         low_limit_qty_data = self.gs_connect.get_data_quantity_limit()

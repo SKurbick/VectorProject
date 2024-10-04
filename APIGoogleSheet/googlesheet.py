@@ -222,7 +222,7 @@ class GoogleSheet:
         for index, row in df.iterrows():
             account = str(row["ЛК"])
             if str(row['Минимальный остаток']).isdigit() and int(row['Минимальный остаток']) != 0:
-                if int(row["Минимальный остаток"]) > int(row["Текущий остаток"]):
+                if int(row["Минимальный остаток"]) >= int(row["Текущий остаток"]):
                     if account not in result_data:
                         result_data[account] = {"qty": [], "nm_ids": []}
                     result_data[account]["qty"].append(
