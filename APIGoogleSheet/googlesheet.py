@@ -203,16 +203,36 @@ class GoogleSheet:
             if pd.isna(article) or article == "":
                 continue
             # если ячейки, выделенные для изменения, будут иметь число, то они не будут отобраны для обновления данных
-            if True in (row['Новая\nДлина (см)'].replace('\xa0', '').isdigit(),
-                        row['Новая\nШирина (см)'].replace('\xa0', '').isdigit(),
-                        row['Новая\nВысота (см)'].replace('\xa0', '').isdigit(),
-                        row['Установить новую цену'].replace('\xa0', '').isdigit(),
-                        row['Установить новую скидку %'].replace('\xa0', '').isdigit(),
-                        row["Новый остаток"].replace('\xa0', '').isdigit()):
-                continue
+            # if True in (row['Новая\nДлина (см)'].replace('\xa0', '').isdigit(),
+            #             row['Новая\nШирина (см)'].replace('\xa0', '').isdigit(),
+            #             row['Новая\nВысота (см)'].replace('\xa0', '').isdigit(),
+            #             row['Установить новую цену'].replace('\xa0', '').isdigit(),
+            #             row['Установить новую скидку %'].replace('\xa0', '').isdigit(),
+            #             row["Новый остаток"].replace('\xa0', '').isdigit()):
+            #     continue
             if lk.upper() not in lk_articles_dict:
                 lk_articles_dict[lk.upper()] = []
             lk_articles_dict[lk.upper()].append(article)
+        return lk_articles_dict
+
+    def create_lk_articles_dict(self):
+        """Создает словарь из ключей кабинета и его Артикулов"""
+        data = self.sheet.get_all_records()
+        df = pd.DataFrame(data)
+        lk_articles_dict = {}
+        for index, row in df.iterrows():
+
+            article = row['Артикул']
+            lk = row['ЛК'].upper()
+            profit = row['Чистая прибыль 1ед.']
+            # Пропускаем строки с пустыми значениями в столбце "ЛК" "Артикул"
+            if pd.isna(lk) or lk == "":
+                continue
+            if pd.isna(article) or article == "":
+                continue
+            if lk.upper() not in lk_articles_dict:
+                lk_articles_dict[lk.upper()] = {}
+            lk_articles_dict[lk.upper()].update({article: profit})
         return lk_articles_dict
 
     def check_status_service_sheet(self):
