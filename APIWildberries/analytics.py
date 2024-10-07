@@ -30,6 +30,7 @@ class AnalyticsNMReport:
         url = self.url.format("detail/history")
         result_data = {}
         orders_data_for_database = {}
+        for_db_all_data = []
         for start in range(0, len(nm_ids), step):
             nm_ids_part = nm_ids[start: start + step]
 
@@ -50,6 +51,7 @@ class AnalyticsNMReport:
                             if response.status == 200:
                                 response_result = await response.json()
                                 for data in response_result["data"]:
+                                    for_db_all_data.append(data)
                                     nm_id_from_data = data["nmID"]
                                     revenue_by_dates = {}
                                     orders_by_dates = {}
