@@ -76,6 +76,60 @@ class AnalyticsNMReport:
             add_orders_data_in_database(orders_data_for_database)
         return result_data
 
+    async def new_get_last_days_revenue(self, nm_ids: list, begin_date: datetime, end_date: datetime, step: int = 20,
+                                        account=None, orders_db_ad=False):
+        """По методу есть ограничения на 3 запроса в минуту и в 20 nmID за запрос.
+            По умолчанию передаются даты последнего (вчерашнего) дня
+        """
+        url = self.url.format("detail/history")
+        result_data = {}
+        orders_data_for_database = {}
+        for_db_all_data = {}
+        for start in range(0, len(nm_ids), step):
+            nm_ids_part = nm_ids[start: start + step]
+
+            json_data = {
+                "nmIDs": nm_ids_part,
+                "period": {
+                    "begin": str(begin_date),
+                    "end": str(end_date)
+                },
+                "timezone": "Europe/Moscow",
+                "aggregationLevel": "day"
+            }
+
+            for i in range(10):
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.post(url=url, headers=self.headers, json=json_data) as response:
+                            if response.status == 200:
+                                response_result = await response.json()
+                                for data in response_result["data"]:
+                                    nm_id_from_data = data["nmID"]
+                                    revenue_by_dates = {}
+                                    orders_by_dates = {}
+                                    for_db_all_data.update({nm_id_from_data: data["history"][0]})
+                                    for nm_id_history in data["history"]:
+                                        date_object = datetime.datetime.strptime(nm_id_history["dt"], "%Y-%m-%d")
+                                        output_date = date_object.strftime("%d-%m-%Y")
+                                        output_date_by_orders_db = date_object.strftime("%d.%m")
+                                        revenue_by_dates[output_date] = nm_id_history["ordersSumRub"]
+                                        orders_by_dates[output_date_by_orders_db] = nm_id_history["ordersCount"]
+                                    result_data[nm_id_from_data] = revenue_by_dates
+                                    orders_data_for_database[nm_id_from_data] = orders_by_dates
+                                break
+                            else:
+                                print(f"Превышен лимит запросов: {response.status}")
+                                await asyncio.sleep(63)
+                except aiohttp.ClientError as e:
+                    print(f"Превышен лимит запросов: {e}")
+                    await asyncio.sleep(63)
+
+        if orders_db_ad:
+            # добавляем в БД данные по количеству заказов за определенный день
+            add_orders_data_in_database(orders_data_for_database)
+        return {"result_data": result_data, "all_data": for_db_all_data}
+
     async def get_last_week_revenue(self, nm_ids, week_count):
         weeks = get_last_weeks_dates(last_week_count=week_count)
         url = self.url.format("detail")

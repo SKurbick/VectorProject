@@ -224,7 +224,7 @@ class GoogleSheet:
 
             article = row['Артикул']
             lk = row['ЛК'].upper()
-            profit = row['Чистая прибыль 1ед.']
+            profit = str(row['Чистая прибыль 1ед.']).replace("\xa0", "")
             # Пропускаем строки с пустыми значениями в столбце "ЛК" "Артикул"
             if pd.isna(lk) or lk == "":
                 continue

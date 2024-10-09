@@ -16,18 +16,18 @@ from settings import get_wb_tokens
 from utils import add_orders_data, calculate_sum_for_logistic, merge_dicts, validate_data, add_nm_ids_in_db, \
     get_last_weeks_dates
 
+from database.postgresql.database import Database
 
 class ServiceGoogleSheet:
-    def __init__(self, token, spreadsheet: str, sheet: str, creds_json='creds.json'):
+    def __init__(self, token, spreadsheet: str, sheet: str, creds_json='creds.json', database=Database):
         self.wb_api_token = token
         self.gs_connect = GoogleSheet(creds_json=creds_json, spreadsheet=spreadsheet, sheet=sheet)
-        self.database = ...
+        self.database = database
         self.gs_service_revenue_connect = GoogleSheetServiceRevenue(creds_json=creds_json, spreadsheet=spreadsheet,
                                                                     sheet=sheet)
         self.sheet = sheet
         self.spreadsheet = spreadsheet
         self.creds_json = creds_json
-
     async def add_revenue_for_new_nm_ids(self, lk_articles: dict):
         """ Добавление выручки по новым артикулам за 7 последних дней (сегодняшний не учитывается)"""
         print("Смотрим новые артикулы для добавления выручки")
@@ -92,6 +92,8 @@ class ServiceGoogleSheet:
         for account, nm_ids in lk_articles.items():
             token = get_wb_tokens()[account.capitalize()]
             nm_ids_result = nm_ids
+
+            #todo проверка новых артикулов в postgresql
             if check_nm_ids_in_db:
                 "поиск всех артикулов которых нет в БД"
                 nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=nm_ids)
