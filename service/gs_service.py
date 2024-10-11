@@ -344,7 +344,7 @@ class ServiceGoogleSheet:
 
             # добавляем выручку в таблицу
             print("Собрали выручку по всем кабинетам timer:", datetime.datetime.now() - start)
-            # self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
+            self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
             print(f"Выручка в таблице актуализирована по всем артикулам.")
 
             # актуализация информация по заказам в листах таблицы и в бд psql

@@ -52,7 +52,6 @@ class AnalyticsNMReport:
                                 response_result = await response.json()
                                 for data in response_result["data"]:
                                     nm_id_from_data = data["nmID"]
-                                    # for_db_all_data.update({nm_id_from_data: data["history"][0]})
 
                                     for history_data in data["history"]:
                                         history_date = history_data['dt']
@@ -82,7 +81,6 @@ class AnalyticsNMReport:
             # добавляем в БД данные по количеству заказов за определенный день
             add_orders_data_in_database(orders_data_for_database)
 
-        # print(result_data)
         # pprint(for_db_all_data)
         return {"result_data": result_data, "all_data": for_db_all_data}
 
