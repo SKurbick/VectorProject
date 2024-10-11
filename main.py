@@ -1,6 +1,6 @@
 import asyncio
 import time
-
+import datetime
 from settings import settings
 from APIGoogleSheet.googlesheet import GoogleSheet, GoogleSheetServiceRevenue
 from service.gs_service import ServiceGoogleSheet
@@ -11,7 +11,7 @@ spreadsheet = settings.SPREADSHEET
 sheet = settings.SHEET
 print(settings.SHEET)
 print(settings.SPREADSHEET)
-print(time.time())
+print(datetime.datetime.today().time())
 
 def gs_connection():
     return GoogleSheet(creds_json=creds_json,
@@ -133,7 +133,6 @@ async def run_scheduler():
     while True:
         schedule.run_pending()
         await asyncio.sleep(1)
-        print("вышел из таймаут")
 
 
 async def main():
