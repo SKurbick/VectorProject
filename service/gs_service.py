@@ -84,7 +84,7 @@ class ServiceGoogleSheet:
                     if nm_id in all_accounts_new_revenue_data:
                         all_accounts_new_revenue_data[nm_id].update(res_week[nm_id])
 
-        pprint(all_accounts_new_revenue_data)
+        print(all_accounts_new_revenue_data)
         return all_accounts_new_revenue_data
 
     def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
@@ -118,15 +118,13 @@ class ServiceGoogleSheet:
                 commission_traffics = CommissionTariffs(token=token)
                 wh_analytics = AnalyticsWarehouseLimits(token=token)
                 # объединяем полученные данные
-                print("card_from_nm_ids_filter")
-                pprint(card_from_nm_ids_filter)
                 merge_json_data = merge_dicts(card_from_nm_ids_filter, goods_nm_ids)
 
                 subject_names = set()  # итог предметов со всех карточек
                 account_barcodes = []
                 current_tariffs_data = commission_traffics.get_tariffs_box_from_marketplace()
 
-                pprint(merge_json_data)
+
                 for i in merge_json_data.values():
                     # собираем и удаляем фото
                     if "wild" in i and i["wild"] != "не найдено":
@@ -270,7 +268,6 @@ class ServiceGoogleSheet:
         # если хоть по одному артикулу данные будут валидны...
         if len(updates_nm_ids_data):
             time.sleep(5)
-            print(updates_nm_ids_data)
             print(updates_nm_ids_data)
             return self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
                                                 only_edits_data=True, add_data_in_db=False, check_nm_ids_in_db=False)
@@ -496,10 +493,10 @@ class ServiceGoogleSheet:
 
         print("Обновление количества заказов по дням в MAIN")
         """ Функция добавления количества заказов по дням в таблицу """
+        db = self.database()
 
         # получаем артикулы отсутствующие в бд psql
         try:
-            db = self.database()
             await db.connect()
             accurate_net_profit_table = AccurateNetProfitTable(db=db)
             for date, psql_data in psql_data_update.items():
