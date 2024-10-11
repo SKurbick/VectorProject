@@ -52,7 +52,6 @@ class ListOfCardsContent:
             try:
                 for i in range(10):
                     response = requests.post(url, headers=self.headers, json=json_obj)
-                    print(i)
                     if response.status_code >= 400:
                         print("[ERROR]", response.status_code, f"попытка {i}")
                         print("ожидание 1 минута")
