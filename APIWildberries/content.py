@@ -28,7 +28,7 @@ class ListOfCardsContent:
 
         }
 
-    def get_list_of_cards(self, nm_ids_list: list, limit: int = 100, eng_json_data: bool = False,
+    def get_list_of_cards(self, nm_ids_list: list, limit: int = 1, eng_json_data: bool = False,
                           only_edits_data=False, add_data_in_db=True, account=None) -> json:
         """Получение всех карточек  по совпадению с nm_ids_list"""
         nm_ids_list_for_edit = [*nm_ids_list]

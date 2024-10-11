@@ -128,6 +128,8 @@ class ServiceGoogleSheet:
                 commission_traffics = CommissionTariffs(token=token)
                 wh_analytics = AnalyticsWarehouseLimits(token=token)
                 # объединяем полученные данные
+                print("card_from_nm_ids_filter")
+                pprint(card_from_nm_ids_filter)
                 merge_json_data = merge_dicts(card_from_nm_ids_filter, goods_nm_ids)
 
                 subject_names = set()  # итог предметов со всех карточек
