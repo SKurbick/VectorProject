@@ -1,0 +1,82 @@
+import datetime
+
+
+class AccurateNetProfitTable:
+    def __init__(self, db):
+        self.db = db
+
+    async def get_data_net_profit(self):
+        net_profit_query = """
+        SELECT DISTINCT article_id
+        FROM accurate_net_profit_data;
+        """
+
+        result_data = await self.db.fetch(net_profit_query)
+        article_id_list = list(result_data.values())
+
+        return article_id_list
+
+    async def add_new_article_net_profit_data(self, time, data, nm_ids_net_profit, new_nm_ids):
+        """Добавления ЧП и заказов по новым артикулам которых нет в таблице"""
+        async with self.db.transaction():
+            print(nm_ids_net_profit)
+            net_profit_data = [
+                (nm_id, nm_ids_net_profit[nm_id], datetime.datetime.strptime(data[nm_id]['dt'], '%Y-%m-%d').date(),
+                 time, data[nm_id]['ordersCount']) for nm_id in new_nm_ids]
+
+            net_profit_query = """
+            INSERT INTO accurate_net_profit_data (article_id, net_profit, date, time, orders)
+            VALUES ($1, $2, $3, $4, $5) ;
+            """
+            await self.db.executemany(net_profit_query, net_profit_data)
+
+    async def update_net_profit_data(self, time, response_data, nm_ids_table_data, date):
+        async with self.db.transaction():
+            select_query = f"""
+                SELECT article_id, SUM(orders) FROM accurate_net_profit_data 
+                WHERE date = '{date}'
+                GROUP BY article_id ;
+                """
+
+            result = await self.db.fetch(query=select_query)
+            db_nm_ids_orders = dict(result)
+
+            subtractions_orders_result = {
+                nm_id: response_data[nm_id]["ordersCount"] - db_nm_ids_orders[nm_id] for nm_id in response_data
+            }
+            print(date)
+            print(subtractions_orders_result)
+            # Запрос для добавления или обновления данных
+            query = """
+            INSERT INTO accurate_net_profit_data (article_id, net_profit, orders, time, date)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (article_id, date, net_profit) DO UPDATE
+            SET orders = accurate_net_profit_data.orders + EXCLUDED.orders,
+                time = EXCLUDED.time;
+            """
+
+            # создаем результирующий список с данными для заполнения в бд
+            data_for_add_db = [(nm_id, nm_ids_table_data[nm_id], subtractions_orders_result[nm_id], time,
+                                datetime.datetime.strptime(date, '%Y-%m-%d').date()) for
+                               nm_id, value in response_data.items()]
+
+            # Разбиваем данные на пакеты
+            batch_size = 1000
+            for i in range(0, len(data_for_add_db), batch_size):
+                batch = data_for_add_db[i:i + batch_size]
+                await self.db.executemany(query, batch)
+
+    async def check_nm_ids(self, account: [str, None], nm_ids: list, date):
+        """Возвращает артикулы которых нет в таблице article"""
+        nm_ids_str = ', '.join(f"({nm_id})" for nm_id in nm_ids)
+        query = f"""
+        SELECT article_id
+        FROM (VALUES {nm_ids_str}) AS input(article_id)
+        EXCEPT
+        SELECT article_id
+        FROM accurate_net_profit_data
+        WHERE date = '{date}';
+        """
+        not_found_nm_ids = await self.db.fetch(query)
+
+        return [result_nm_id["article_id"] for result_nm_id in not_found_nm_ids]

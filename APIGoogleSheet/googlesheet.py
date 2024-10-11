@@ -67,7 +67,7 @@ class GoogleSheet:
         data = self.sheet.get_all_records(expected_headers=[])
         df = pd.DataFrame(data)
         json_df = pd.DataFrame(list(data_json.values()))
-
+        json_df = json_df.drop(["vendor_code", "account"], axis=1)
         # Преобразуем все значения в json_df в типы данных, которые могут быть сериализованы в JSON
         json_df = json_df.astype(object).where(pd.notnull(json_df), None)
         # Обновите данные в основном DataFrame на основе "Артикул"
@@ -97,8 +97,8 @@ class GoogleSheet:
         for index, row in json_df.iterrows():
             matching_rows = df[df["Артикул"] == row["Артикул"]].index
             for idx in matching_rows:
-
-                row_number = idx + 2  # +2 потому что индексация в Google Таблицах начинается с 1, а первая строка - заголовки
+                # +2 потому что индексация в Google Таблицах начинается с 1, а первая строка - заголовки
+                row_number = idx + 2
                 for column in row.index:
                     if column in headers:
                         # +1 потому что индексация в Google Таблицах начинается с 1
@@ -202,13 +202,15 @@ class GoogleSheet:
                 continue
             if pd.isna(article) or article == "":
                 continue
+
+            # todo готов к использованию, раскомментировать после подготовки бд
             # если ячейки, выделенные для изменения, будут иметь число, то они не будут отобраны для обновления данных
-            # if True in (row['Новая\nДлина (см)'].replace('\xa0', '').isdigit(),
-            #             row['Новая\nШирина (см)'].replace('\xa0', '').isdigit(),
-            #             row['Новая\nВысота (см)'].replace('\xa0', '').isdigit(),
-            #             row['Установить новую цену'].replace('\xa0', '').isdigit(),
-            #             row['Установить новую скидку %'].replace('\xa0', '').isdigit(),
-            #             row["Новый остаток"].replace('\xa0', '').isdigit()):
+            # if True in (str(row['Новая\nДлина (см)']).replace('\xa0', '').isdigit(),
+            #             str(row['Новая\nШирина (см)']).replace('\xa0', '').isdigit(),
+            #             str(row['Новая\nВысота (см)']).replace('\xa0', '').isdigit(),
+            #             str(row['Установить новую цену']).replace('\xa0', '').isdigit(),
+            #             str(row['Установить новую скидку %']).replace('\xa0', '').isdigit(),
+            #             str(row["Новый остаток"]).replace('\xa0', '').isdigit()):
             #     continue
             if lk.upper() not in lk_articles_dict:
                 lk_articles_dict[lk.upper()] = []
@@ -516,9 +518,9 @@ class GoogleSheetServiceRevenue:
 
     def shift_revenue_columns_to_the_left(self, last_day):
         """
-        Сдвигает содержимое столбцов (AG-AM) с выручкой влево и добавляет новый день в AM.
+        Сдвигает содержимое столбцов (AJ-AQ) с выручкой влево и добавляет новый день в AQ.
         Функция задумана отрабатывать раз в день.
-        Должна отрабатывать по условию если заголовок AM это позавчерашний день
+        Должна отрабатывать по условию если заголовок AQ это вчерашний день
         """
         all_values = self.sheet.get_all_values()
         all_formulas = self.sheet.get_all_values(value_render_option='FORMULA')
@@ -530,8 +532,8 @@ class GoogleSheetServiceRevenue:
         # Сохраняем формулы из столбцов, которые не попадают в диапазон смещения
         formulas_to_preserve = df_formulas.iloc[:, 43:].values
 
-        # Смещение заголовков и содержимого столбцов от "AG" до "AM"
-        header_values = df_values.columns[35:43].tolist()  # Индексы столбцов "AG" до "AM"
+        # Смещение заголовков и содержимого столбцов
+        header_values = df_values.columns[35:43].tolist()  # Индексы столбцов
         shifted_header_values = header_values[1:]
         shifted_header_values.append(last_day)
 
@@ -539,13 +541,13 @@ class GoogleSheetServiceRevenue:
         df_values.columns = df_values.columns[:35].tolist() + shifted_header_values + df_values.columns[43:].tolist()
         df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
 
-        # Смещение содержимого столбцов от "AG" до "AM"
+        # Смещение содержимого столбцов
         df_values.iloc[:, 35:42] = df_values.iloc[:, 36:43].values
         df_values.iloc[:, 40] = ""  # Очистка последнего столбца "AM"
 
         # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
         df_formulas.iloc[:, 35:42] = df_formulas.iloc[:, 36:43].values
-        df_formulas.iloc[:, 42] = ""  # Очистка последнего столбца "AM"
+        df_formulas.iloc[:, 42] = ""  # Очистка последнего столбца
         df_formulas.iloc[:, 43:] = formulas_to_preserve
 
         # Преобразование обратно в список списков
@@ -555,7 +557,7 @@ class GoogleSheetServiceRevenue:
         # Обновление таблицы одним запросом
         self.sheet.update('A1', updated_values, value_input_option='USER_ENTERED')
         self.sheet.update('A1', updated_formulas, value_input_option='USER_ENTERED')
-        """Значения заголовков и содержимого смещены влево в рамках индексов от 'AG' до 'AM'."""
+
 
     def shift_week_revenue_columns_to_the_left(self, last_week):
         """

@@ -26,7 +26,6 @@ class DBConfig:
     DB_NAME: str = os.getenv('DB_NAME')
     DB_HOST: str = os.getenv('DB_HOST')
     DB_PORT: int = os.getenv('DB_PORT')
-    print("connect", DB_NAME)
 
 
 DATABASE = DBConfig()

@@ -12,11 +12,14 @@ from APIWildberries.content import ListOfCardsContent
 from APIWildberries.marketplace import WarehouseMarketplaceWB, LeftoversMarketplace
 from APIWildberries.prices_and_discounts import ListOfGoodsPricesAndDiscounts
 from APIWildberries.tariffs import CommissionTariffs
+from database.postgresql.repositories.accurate_net_profit_data import AccurateNetProfitTable
+from database.postgresql.repositories.article import ArticleTable
 from settings import get_wb_tokens
 from utils import add_orders_data, calculate_sum_for_logistic, merge_dicts, validate_data, add_nm_ids_in_db, \
     get_last_weeks_dates
 
 from database.postgresql.database import Database
+
 
 class ServiceGoogleSheet:
     def __init__(self, token, spreadsheet: str, sheet: str, creds_json='creds.json', database=Database):
@@ -28,6 +31,7 @@ class ServiceGoogleSheet:
         self.sheet = sheet
         self.spreadsheet = spreadsheet
         self.creds_json = creds_json
+
     async def add_revenue_for_new_nm_ids(self, lk_articles: dict):
         """ Добавление выручки по новым артикулам за 7 последних дней (сегодняшний не учитывается)"""
         print("Смотрим новые артикулы для добавления выручки")
@@ -68,9 +72,9 @@ class ServiceGoogleSheet:
             if isinstance(res_day, Exception):
                 print(f"Ошибка при получении ежедневной выручки: {res_day}")
             else:
-                all_accounts_new_revenue_data.update(res_day)
+                all_accounts_new_revenue_data.update(res_day["result_data"])
                 """добавляет данные по ежедневной выручке в БД"""
-                add_orders_data(res_day)
+                add_orders_data(res_day["result_data"])
 
         for res_week in results_week_revenue:
             if isinstance(res_week, Exception):
@@ -83,23 +87,33 @@ class ServiceGoogleSheet:
         pprint(all_accounts_new_revenue_data)
         return all_accounts_new_revenue_data
 
-    def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
-                                add_data_in_db=True, check_nm_ids_in_db=True):
+    async def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
+                                      add_data_in_db=True, check_nm_ids_in_db=True):
         """Функция была изменена. Теперь она просто выдает данные на добавления в таблицу, а не добавляет таблицу внутри функции"""
 
         nm_ids_photo = {}
         result_nm_ids_data = {}
+        db = self.database()
+        print("connect to db")
+
+        await db.connect()
+        # в бд psql
+        psql_article = ArticleTable(db=db)
         for account, nm_ids in lk_articles.items():
             token = get_wb_tokens()[account.capitalize()]
-            nm_ids_result = nm_ids
-
-            #todo проверка новых артикулов в postgresql
+            nm_ids_result = []
+            # проверка новых артикулов в postgresql
             if check_nm_ids_in_db:
                 "поиск всех артикулов которых нет в БД"
                 nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=nm_ids)
+                # возвращает артикулы которых нет в бд
+                psql_nm_ids_result = await psql_article.check_nm_ids(account=account, nm_ids=nm_ids)
                 if len(nm_ids_result) > 0:
                     print("КАБИНЕТ: ", account)
                     print("новые артикулы в таблице", nm_ids_result)
+                if len(psql_nm_ids_result) > 0:
+                    print("реакция psql:", "КАБИНЕТ: ", account)
+                    print("реакция psql:", "новые артикулы в таблице", psql_nm_ids_result)
 
             if len(nm_ids_result) > 0:
                 """Обновление/добавление данных по артикулам в гугл таблицу с WB api"""
@@ -120,7 +134,6 @@ class ServiceGoogleSheet:
                 account_barcodes = []
                 current_tariffs_data = commission_traffics.get_tariffs_box_from_marketplace()
 
-                pprint(merge_json_data)
                 for i in merge_json_data.values():
                     # собираем и удаляем фото
                     if "wild" in i and i["wild"] != "не найдено":
@@ -176,6 +189,14 @@ class ServiceGoogleSheet:
                     add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
         if len(nm_ids_photo) > 0:
             self.gs_connect.add_photo(nm_ids_photo)
+
+        # добавляем данные в psql
+        if len(result_nm_ids_data) > 0:
+            # ограничение функции: добавляет данные в psql, но только если их не было в бд json
+            await psql_article.update_articles(data=result_nm_ids_data)
+            await db.close()
+        print("result_nm_ids_data")
+        pprint(result_nm_ids_data)
         return result_nm_ids_data
 
     def change_cards_and_tables_data(self, edit_data_from_table):
@@ -264,6 +285,8 @@ class ServiceGoogleSheet:
 
     async def add_new_day_revenue_to_table(self):
         start = datetime.datetime.now()
+        today = datetime.datetime.now().strftime('%Y-%m-%d')
+
         statuses = ServiceGoogleSheet.check_status()
         if statuses['ВКЛ - 1 /ВЫКЛ - 0']:
             begin_date = datetime.date.today()
@@ -273,19 +296,22 @@ class ServiceGoogleSheet:
             # проверяем нет ли вчерашнего дня в заголовках таблицы
             print(f"Актуализируем выручку по текущему дню: {last_day}")
             if self.gs_service_revenue_connect.check_last_day_header_from_table(header=last_day):
-                # по умолчанию begin_date - дата сегодняшнего дня. Если будет смещение, то begin_date будет форматирован
-                # на вчерашний что бы актуализировать выручку за вчерашний день так же
+                # По умолчанию begin_date - дата сегодняшнего дня. Если будет смещение, то begin_date будет форматирован
+                # на вчерашний, чтобы актуализировать выручку за вчерашний день так же
                 begin_date = datetime.date.today() - datetime.timedelta(days=1)
-                print(last_day, "заголовка нет в таблице. Будет добавлен включая выручку по дню")
+                print(last_day, "заголовка нет в таблице. Будет добавлен включая выручка по дню")
                 # сначала сдвигаем колонки с выручкой
                 self.gs_service_revenue_connect.shift_revenue_columns_to_the_left(last_day=last_day)
-            lk_articles = self.gs_connect.create_lk_articles_list()
+            lk_articles = self.gs_connect.create_lk_articles_dict()
             # # собираем выручку по всем артикулам аккаунтов
             all_accounts_new_revenue_data = {}
 
             tasks = []
-
-            for account, nm_ids in lk_articles.items():
+            nm_ids_table_data = {}
+            current_time = datetime.datetime.now().time()  # время для ЧП
+            for account, nm_ids_data in lk_articles.items():
+                nm_ids = list(nm_ids_data.keys())
+                nm_ids_table_data.update(nm_ids_data)
                 token = get_wb_tokens()[account.capitalize()]
                 anal_revenue = AnalyticsNMReport(token=token)
                 task = asyncio.create_task(
@@ -296,9 +322,18 @@ class ServiceGoogleSheet:
 
             # Ждем завершения всех задач
             results = await asyncio.gather(*tasks)
+            # Коллекция для обновления кол. заказов и выручки в бд
+            psql_data_update = {}
             for res in results:
-                all_accounts_new_revenue_data.update(res)
-                add_orders_data(res)
+                all_accounts_new_revenue_data.update(res["result_data"])
+
+                account_data_for_days = res["all_data"]
+                for day, account_data in account_data_for_days.items():
+                    if day not in psql_data_update:
+                        psql_data_update[day] = {}
+                    psql_data_update[day].update(account_data)
+
+                add_orders_data(res["result_data"])
             print("Выручка добавлена в БД")
             # добавляем их таблицу
 
@@ -307,7 +342,8 @@ class ServiceGoogleSheet:
             if self.gs_service_revenue_connect.check_last_day_header_from_table(header=week_date[0]):
                 print(f"Заголовка {week_date[0]} нет в таблице, будет добавлен со смещением столбцов")
                 self.gs_service_revenue_connect.shift_week_revenue_columns_to_the_left(last_week=week_date[0])
-                for account, nm_ids in lk_articles.items():
+                for account, nm_ids_data in lk_articles.items():
+                    nm_ids = list(nm_ids_data.keys())
                     token = get_wb_tokens()[account.capitalize()]
                     anal_revenue = AnalyticsNMReport(token=token)
                     revenue_week_data_by_article = await anal_revenue.get_last_week_revenue(week_count=1, nm_ids=nm_ids)
@@ -318,10 +354,12 @@ class ServiceGoogleSheet:
 
             # добавляем выручку в таблицу
             print("Собрали выручку по всем кабинетам timer:", datetime.datetime.now() - start)
-            self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
+            # self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
             print(f"Выручка в таблице актуализирована по всем артикулам.")
-            # актуализация информация по заказам в листах таблицы
-            self.add_orders_data_in_table()
+            # актуализация информация по заказам в листах таблицы и в бд psql
+
+            await self.add_orders_data_in_table(psql_data_update=psql_data_update, nm_ids_table_data=nm_ids_table_data,
+                                                net_profit_time=current_time)
             start = datetime.datetime.now()
             print("Функция актуализации timer:", datetime.datetime.now() - start)
 
@@ -461,9 +499,30 @@ class ServiceGoogleSheet:
             self.gs_connect.update_rows(data_json=nm_ids_data_json,
                                         edit_column_clean={"qty": False, "price_discount": False, "dimensions": False})
 
-    def add_orders_data_in_table(self):
+    async def add_orders_data_in_table(self, psql_data_update, nm_ids_table_data, net_profit_time):
+
         print("Обновление количества заказов по дням в MAIN")
         """ Функция добавления количества заказов по дням в таблицу """
+        db = self.database()
+        await db.connect()
+        accurate_net_profit_table = AccurateNetProfitTable(db=db)
+        # получаем артикулы отсутствующие в бд psql
+
+        for date, psql_data in psql_data_update.items():
+            nm_ids_list = list(psql_data.keys())
+            psql_new_nm_ids = await accurate_net_profit_table.check_nm_ids(nm_ids=nm_ids_list, account=None, date=date)
+            "Добавляем данные в бд psql"
+            if psql_new_nm_ids:  # добавляем новые артикулы в бд psql
+                # если новых артикулов нет в таблице net_profit, то будут добавлены
+                await accurate_net_profit_table.add_new_article_net_profit_data(time=net_profit_time, data=psql_data,
+                                                                                nm_ids_net_profit=nm_ids_table_data,
+                                                                                new_nm_ids=psql_new_nm_ids)
+
+            # актуализируем информацию по полученному с таблицы чп по артикулам
+            await accurate_net_profit_table.update_net_profit_data(time=net_profit_time, response_data=psql_data,
+                                                                   nm_ids_table_data=nm_ids_table_data, date=date)
+
+            print("актуализированы данные в бд таблицы current_net_profit_data")
         from settings import settings
         from utils import get_order_data_from_database
         gs_connect = GoogleSheet(sheet="Количество заказов", spreadsheet=settings.SPREADSHEET,
@@ -483,3 +542,7 @@ class ServiceGoogleSheet:
         if len(orders_count_data):
             print("актуализируем данные по заказам в таблице")
             gs_connect.add_data_to_count_list(data_json=orders_count_data)
+
+        # закрытие соединения с бд
+        print("Данные в бд PSQL обновлены")
+        await db.close()
