@@ -232,6 +232,8 @@ class GoogleSheet:
                 continue
             if pd.isna(article) or article == "":
                 continue
+            if profit.isdigit() is False:
+                continue
             if lk.upper() not in lk_articles_dict:
                 lk_articles_dict[lk.upper()] = {}
             lk_articles_dict[lk.upper()].update({article: profit})
