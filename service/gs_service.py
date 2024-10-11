@@ -134,6 +134,7 @@ class ServiceGoogleSheet:
                 account_barcodes = []
                 current_tariffs_data = commission_traffics.get_tariffs_box_from_marketplace()
 
+                pprint(merge_json_data)
                 for i in merge_json_data.values():
                     # собираем и удаляем фото
                     if "wild" in i and i["wild"] != "не найдено":
