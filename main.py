@@ -11,7 +11,8 @@ spreadsheet = settings.SPREADSHEET
 sheet = settings.SHEET
 print(settings.SHEET)
 print(settings.SPREADSHEET)
-print(datetime.datetime.today().time())
+print("time:", datetime.datetime.today().time().strftime("%H:%M:%S"))
+
 
 def gs_connection():
     return GoogleSheet(creds_json=creds_json,

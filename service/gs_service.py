@@ -87,18 +87,18 @@ class ServiceGoogleSheet:
         pprint(all_accounts_new_revenue_data)
         return all_accounts_new_revenue_data
 
-    async def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
+    def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
                                       add_data_in_db=True, check_nm_ids_in_db=True):
         """Функция была изменена. Теперь она просто выдает данные на добавления в таблицу, а не добавляет таблицу внутри функции"""
 
         nm_ids_photo = {}
         result_nm_ids_data = {}
-        db = self.database()
-        print("connect to db")
+        # db = self.database()
+        # print("connect to db")
 
-        await db.connect()
+        # await db.connect()
         # в бд psql
-        psql_article = ArticleTable(db=db)
+        # psql_article = ArticleTable(db=db)
         for account, nm_ids in lk_articles.items():
             token = get_wb_tokens()[account.capitalize()]
             nm_ids_result = []
@@ -107,13 +107,13 @@ class ServiceGoogleSheet:
                 "поиск всех артикулов которых нет в БД"
                 nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=nm_ids)
                 # возвращает артикулы которых нет в бд
-                psql_nm_ids_result = await psql_article.check_nm_ids(account=account, nm_ids=nm_ids)
+                # psql_nm_ids_result = await psql_article.check_nm_ids(account=account, nm_ids=nm_ids)
                 if len(nm_ids_result) > 0:
                     print("КАБИНЕТ: ", account)
                     print("новые артикулы в таблице", nm_ids_result)
-                if len(psql_nm_ids_result) > 0:
-                    print("реакция psql:", "КАБИНЕТ: ", account)
-                    print("реакция psql:", "новые артикулы в таблице", psql_nm_ids_result)
+                # if len(psql_nm_ids_result) > 0:
+                #     print("реакция psql:", "КАБИНЕТ: ", account)
+                #     print("реакция psql:", "новые артикулы в таблице", psql_nm_ids_result)
 
             if len(nm_ids_result) > 0:
                 """Обновление/добавление данных по артикулам в гугл таблицу с WB api"""
@@ -191,10 +191,10 @@ class ServiceGoogleSheet:
             self.gs_connect.add_photo(nm_ids_photo)
 
         # добавляем данные в psql
-        if len(result_nm_ids_data) > 0:
-            # ограничение функции: добавляет данные в psql, но только если их не было в бд json
-            await psql_article.update_articles(data=result_nm_ids_data)
-            await db.close()
+        # if len(result_nm_ids_data) > 0:
+        #     # ограничение функции: добавляет данные в psql, но только если их не было в бд json
+        #     await psql_article.update_articles(data=result_nm_ids_data)
+        #     await db.close()
         print("result_nm_ids_data")
         pprint(result_nm_ids_data)
         return result_nm_ids_data
