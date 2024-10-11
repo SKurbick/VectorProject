@@ -11,7 +11,7 @@ spreadsheet = settings.SPREADSHEET
 sheet = settings.SHEET
 print(settings.SHEET)
 print(settings.SPREADSHEET)
-
+print(time.time())
 
 def gs_connection():
     return GoogleSheet(creds_json=creds_json,
@@ -131,9 +131,8 @@ def schedule_tasks():
 
 async def run_scheduler():
     while True:
-        await asyncio.sleep(5)
         schedule.run_pending()
-        await asyncio.sleep(10000)
+        await asyncio.sleep(1)
         print("вышел из таймаут")
 
 
