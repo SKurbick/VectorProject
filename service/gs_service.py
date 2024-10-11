@@ -93,27 +93,17 @@ class ServiceGoogleSheet:
 
         nm_ids_photo = {}
         result_nm_ids_data = {}
-        # db = self.database()
-        # print("connect to db")
-
-        # await db.connect()
-        # в бд psql
-        # psql_article = ArticleTable(db=db)
         for account, nm_ids in lk_articles.items():
             token = get_wb_tokens()[account.capitalize()]
-            nm_ids_result = []
+            nm_ids_result = nm_ids
             # проверка новых артикулов в postgresql
             if check_nm_ids_in_db:
                 "поиск всех артикулов которых нет в БД"
                 nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=nm_ids)
-                # возвращает артикулы которых нет в бд
-                # psql_nm_ids_result = await psql_article.check_nm_ids(account=account, nm_ids=nm_ids)
+
                 if len(nm_ids_result) > 0:
                     print("КАБИНЕТ: ", account)
                     print("новые артикулы в таблице", nm_ids_result)
-                # if len(psql_nm_ids_result) > 0:
-                #     print("реакция psql:", "КАБИНЕТ: ", account)
-                #     print("реакция psql:", "новые артикулы в таблице", psql_nm_ids_result)
 
             if len(nm_ids_result) > 0:
                 """Обновление/добавление данных по артикулам в гугл таблицу с WB api"""
@@ -198,8 +188,7 @@ class ServiceGoogleSheet:
         #     # ограничение функции: добавляет данные в psql, но только если их не было в бд json
         #     await psql_article.update_articles(data=result_nm_ids_data)
         #     await db.close()
-        print("result_nm_ids_data")
-        pprint(result_nm_ids_data)
+
         return result_nm_ids_data
 
     def change_cards_and_tables_data(self, edit_data_from_table):
@@ -281,6 +270,7 @@ class ServiceGoogleSheet:
         # если хоть по одному артикулу данные будут валидны...
         if len(updates_nm_ids_data):
             time.sleep(5)
+            print(updates_nm_ids_data)
             print(updates_nm_ids_data)
             return self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
                                                 only_edits_data=True, add_data_in_db=False, check_nm_ids_in_db=False)
