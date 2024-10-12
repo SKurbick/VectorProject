@@ -87,16 +87,19 @@ class ServiceGoogleSheet:
         print(all_accounts_new_revenue_data)
         return all_accounts_new_revenue_data
 
-    def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
+    async def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
                                       add_data_in_db=True, check_nm_ids_in_db=True):
         """Функция была изменена. Теперь она просто выдает данные на добавления в таблицу, а не добавляет таблицу внутри функции"""
 
         nm_ids_photo = {}
         result_nm_ids_data = {}
+        db = self.database()
+        psql_article = ArticleTable(db=db)
+        filter_nm_ids_data = []
         for account, nm_ids in lk_articles.items():
             token = get_wb_tokens()[account.capitalize()]
             nm_ids_result = nm_ids
-            # проверка новых артикулов в postgresql
+
             if check_nm_ids_in_db:
                 "поиск всех артикулов которых нет в БД"
                 nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=nm_ids)
@@ -104,6 +107,9 @@ class ServiceGoogleSheet:
                 if len(nm_ids_result) > 0:
                     print("КАБИНЕТ: ", account)
                     print("новые артикулы в таблице", nm_ids_result)
+
+            # собираем артиклы с таблицы для добавления psql
+            filter_nm_ids_data.extend(nm_ids_result)
 
             if len(nm_ids_result) > 0:
                 """Обновление/добавление данных по артикулам в гугл таблицу с WB api"""
@@ -117,13 +123,13 @@ class ServiceGoogleSheet:
                 goods_nm_ids = wb_api_price_and_discount.get_log_for_nm_ids(filter_nm_ids=nm_ids_result)
                 commission_traffics = CommissionTariffs(token=token)
                 wh_analytics = AnalyticsWarehouseLimits(token=token)
+
                 # объединяем полученные данные
                 merge_json_data = merge_dicts(card_from_nm_ids_filter, goods_nm_ids)
 
                 subject_names = set()  # итог предметов со всех карточек
                 account_barcodes = []
                 current_tariffs_data = commission_traffics.get_tariffs_box_from_marketplace()
-
 
                 for i in merge_json_data.values():
                     # собираем и удаляем фото
@@ -181,15 +187,21 @@ class ServiceGoogleSheet:
         if len(nm_ids_photo) > 0:
             self.gs_connect.add_photo(nm_ids_photo)
 
-        # добавляем данные в psql
-        # if len(result_nm_ids_data) > 0:
-        #     # ограничение функции: добавляет данные в psql, но только если их не было в бд json
-        #     await psql_article.update_articles(data=result_nm_ids_data)
-        #     await db.close()
+        # добавляем данные артикулов в psql в таблицу article
+        if len(result_nm_ids_data) > 0:
+            try:
+                # ограничение функции: добавляет данные в psql, но только если их не было в бд json
+                filter_nm_ids = await psql_article.check_nm_ids(account="None", nm_ids=filter_nm_ids_data)
+                await psql_article.update_articles(data=result_nm_ids_data, filter_nm_ids=filter_nm_ids)
+                print("данные по артикулам добавлены в таблицу article psql")
+            except Exception as e:
+                print(e)
+            finally:
+                await db.close()
 
         return result_nm_ids_data
 
-    def change_cards_and_tables_data(self, edit_data_from_table):
+    async def change_cards_and_tables_data(self, edit_data_from_table):
         sheet_statuses = ServiceGoogleSheet.check_status()
         net_profit_status = sheet_statuses['Отрицательная \nЧП']
         price_discount_edit_status = sheet_statuses['Цены/Скидки']
@@ -269,8 +281,11 @@ class ServiceGoogleSheet:
         if len(updates_nm_ids_data):
             time.sleep(5)
             print(updates_nm_ids_data)
-            return self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
-                                                only_edits_data=True, add_data_in_db=False, check_nm_ids_in_db=False)
+            result = await self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
+                                                        only_edits_data=True, add_data_in_db=False,
+                                                        check_nm_ids_in_db=False)
+            return result
+
         return updates_nm_ids_data
 
     async def add_new_day_revenue_to_table(self):
@@ -293,7 +308,7 @@ class ServiceGoogleSheet:
                 # сначала сдвигаем колонки с выручкой
                 self.gs_service_revenue_connect.shift_revenue_columns_to_the_left(last_day=last_day)
             lk_articles = self.gs_connect.create_lk_articles_dict()
-            # # собираем выручку по всем артикулам аккаунтов
+            # собираем выручку по всем артикулам аккаунтов
             all_accounts_new_revenue_data = {}
 
             tasks = []
@@ -367,7 +382,7 @@ class ServiceGoogleSheet:
 
         return False
 
-    def add_actually_data_to_table(self):
+    async def add_actually_data_to_table(self):
         if ServiceGoogleSheet.check_status()['ВКЛ - 1 /ВЫКЛ - 0']:
             print("[INFO]", datetime.datetime.now(), "актуализируем данные в таблице")
             """
@@ -449,7 +464,7 @@ class ServiceGoogleSheet:
                 """обновляем данные по артикулам"""
             gs_connect.update_rows(data_json=result_updates_rows)
 
-    def check_quantity_flag(self):
+    async def check_quantity_flag(self):
         print(datetime.datetime.now(), "Проверка остатков по лимитам из столбца 'Минимальный остаток'")
         status_limit_edit = ServiceGoogleSheet.check_status()["Добавить если"]
         print("статус проверки: ", status_limit_edit)
@@ -483,9 +498,9 @@ class ServiceGoogleSheet:
                         nm_ids_for_update_data[account] = []
                     nm_ids_for_update_data[account].extend(low_limit_qty_data[account]['nm_ids'])
         if len(nm_ids_for_update_data):
-            nm_ids_data_json = self.add_new_data_from_table(lk_articles=nm_ids_for_update_data,
-                                                            only_edits_data=True, add_data_in_db=False,
-                                                            check_nm_ids_in_db=False)
+            nm_ids_data_json = await self.add_new_data_from_table(lk_articles=nm_ids_for_update_data,
+                                                                  only_edits_data=True, add_data_in_db=False,
+                                                                  check_nm_ids_in_db=False)
             self.gs_connect.update_rows(data_json=nm_ids_data_json,
                                         edit_column_clean={"qty": False, "price_discount": False, "dimensions": False})
 
@@ -501,11 +516,13 @@ class ServiceGoogleSheet:
             accurate_net_profit_table = AccurateNetProfitTable(db=db)
             for date, psql_data in psql_data_update.items():
                 nm_ids_list = list(psql_data.keys())
-                psql_new_nm_ids = await accurate_net_profit_table.check_nm_ids(nm_ids=nm_ids_list, account=None, date=date)
+                psql_new_nm_ids = await accurate_net_profit_table.check_nm_ids(nm_ids=nm_ids_list, account=None,
+                                                                               date=date)
                 "Добавляем данные в бд psql"
                 if psql_new_nm_ids:  # добавляем новые артикулы в бд psql
                     # если новых артикулов нет в таблице net_profit, то будут добавлены
-                    await accurate_net_profit_table.add_new_article_net_profit_data(time=net_profit_time, data=psql_data,
+                    await accurate_net_profit_table.add_new_article_net_profit_data(time=net_profit_time,
+                                                                                    data=psql_data,
                                                                                     nm_ids_net_profit=nm_ids_table_data,
                                                                                     new_nm_ids=psql_new_nm_ids)
 
@@ -513,6 +530,7 @@ class ServiceGoogleSheet:
                 await accurate_net_profit_table.update_net_profit_data(time=net_profit_time, response_data=psql_data,
                                                                        nm_ids_table_data=nm_ids_table_data, date=date)
             print("актуализированы данные в бд таблицы current_net_profit_data")
+            print("Данные в бд PSQL обновлены")
 
         except Exception as e:
             print(e)
@@ -538,5 +556,4 @@ class ServiceGoogleSheet:
             gs_connect.add_data_to_count_list(data_json=orders_count_data)
 
         # закрытие соединения с бд
-        print("Данные в бд PSQL обновлены")
         await db.close()

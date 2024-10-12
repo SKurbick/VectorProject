@@ -20,12 +20,12 @@ class ArticleTable:
 
         return [result_nm_id["nm_id"] for result_nm_id in not_found_nm_ids]
 
-    async def update_articles(self, data):
+    async def update_articles(self, data, filter_nm_ids):
         """Добавляет артикулы c данными из списка data"""
         async with self.db.transaction():
             # Подготовка данных для пакетной вставки в vendor_mapping
-            article_data = [(nm_id, fields['account'], fields['vendor_code'], fields['wild'])
-                            for nm_id, fields in data.items()]
+            article_data = [(nm_id, data[nm_id]['account'], data[nm_id]['vendor_code'], data[nm_id]['wild'])
+                            for nm_id, in filter_nm_ids]
 
             print(article_data)
             # Пакетная вставка в vendor_mapping
