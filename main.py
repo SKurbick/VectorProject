@@ -76,7 +76,7 @@ async def check_new_nm_ids():
         print("СЕРВИС ОТКЛЮЧЕН (0)")
 
 
-def check_edits_columns():
+async def check_edits_columns():
     statuses = ServiceGoogleSheet.check_status()
     if statuses['ВКЛ - 1 /ВЫКЛ - 0']:
         print("СЕРВИС АКТИВЕН. Смотрим в таблицу. Оцениваем ячейки по изменениям товара")
@@ -91,7 +91,7 @@ def check_edits_columns():
                 service_gs_table = ServiceGoogleSheet(
                     token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
 
-                edit_nm_ids_data = service_gs_table.change_cards_and_tables_data(
+                edit_nm_ids_data = await service_gs_table.change_cards_and_tables_data(
                     edit_data_from_table=edit_data_from_table)
                 if len(edit_nm_ids_data) > 0:
                     gs_connection().update_rows(data_json=edit_nm_ids_data,
