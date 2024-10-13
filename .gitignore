@@ -24,3 +24,4 @@ useful_data.py
 database/poligon.py
 database_poligon.py
 tariffs_fbo.py
+add_article_in_db.py
