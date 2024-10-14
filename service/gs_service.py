@@ -359,6 +359,7 @@ class ServiceGoogleSheet:
 
             # добавляем выручку в таблицу
             print("Собрали выручку по всем кабинетам timer:", datetime.datetime.now() - start)
+            print("all_accounts_new_revenue_data", all_accounts_new_revenue_data)
             self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
             print(f"Выручка в таблице актуализирована по всем артикулам.")
 
@@ -506,10 +507,30 @@ class ServiceGoogleSheet:
 
     async def add_orders_data_in_table(self, psql_data_update, nm_ids_table_data, net_profit_time):
 
+        from settings import settings
+        from utils import get_order_data_from_database
+        gs_connect = GoogleSheet(sheet="Количество заказов", spreadsheet=settings.SPREADSHEET,
+                                 creds_json=settings.CREEDS_FILE_NAME)
+        orders_count_data = get_order_data_from_database()
+        date_object = datetime.datetime.today()
+        today = date_object.strftime("%d.%m")
+
+        # если нет текущего дня
+        if gs_connect.check_header(header=today):
+            print(f"Нет текущего дня {today} в листах. Сервис сместит данные по дням")
+            # сместит заголовки дней в листе "Количество заказов"
+            gs_connect.shift_headers_count_list(today)
+            # сместит заголовки дней в листе "MAIN"
+            self.gs_connect.shift_orders_header(today=today)
+        # если есть данные в БД - будут добавлены в лист
+        print(f"Новый день {today} в листы MAIN и Количество заказов добавлен")
+        if len(orders_count_data):
+            print("актуализируем данные по заказам в таблице")
+            gs_connect.add_data_to_count_list(data_json=orders_count_data)
+
         print("Обновление количества заказов по дням в MAIN")
         """ Функция добавления количества заказов по дням в таблицу """
         db = self.database()
-
         # получаем артикулы отсутствующие в бд psql
         try:
             await db.connect()
@@ -529,31 +550,25 @@ class ServiceGoogleSheet:
                 # актуализируем информацию по полученному с таблицы чп по артикулам
                 await accurate_net_profit_table.update_net_profit_data(time=net_profit_time, response_data=psql_data,
                                                                        nm_ids_table_data=nm_ids_table_data, date=date)
-            print("актуализированы данные в бд таблицы current_net_profit_data")
-            print("Данные в бд PSQL обновлены")
+                print("актуализированы данные в бд таблицы current_net_profit_data")
+
+                print("[INFO] Актуализируем чистую прибыль в листе MAIN")
+                result_som_net_profit_data = await accurate_net_profit_table.get_net_profit_by_date(date=date)
+
+                formatted_result = {}
+                for record in result_som_net_profit_data:
+                    article_id = record['article_id']
+                    sum_value = record['sum_snp']
+                    date_obj = datetime.datetime.strptime(date, "%Y-%m-%d")
+
+                    formatted_date_str = date_obj.strftime("%d.%m")
+                    formatted_result[article_id] = {formatted_date_str: int(sum_value)}
+
+                print("[INFO] Обновляем данные по выручке в листе MAIN")
+                self.gs_service_revenue_connect.update_revenue_rows(data_json=formatted_result)
 
         except Exception as e:
             print(e)
-
-        from settings import settings
-        from utils import get_order_data_from_database
-        gs_connect = GoogleSheet(sheet="Количество заказов", spreadsheet=settings.SPREADSHEET,
-                                 creds_json=settings.CREEDS_FILE_NAME)
-        orders_count_data = get_order_data_from_database()
-        date_object = datetime.datetime.today()
-        today = date_object.strftime("%d.%m")
-
-        # если нет текущего дня
-        if gs_connect.check_header(header=today):
-            print(f"Нет текущего дня {today} в листах. Сервис сместит данные по дням")
-            # сместит заголовки дней в листе "Количество заказов"
-            gs_connect.shift_headers_count_list(today)
-            # сместит заголовки дней в листе "MAIN"
-            # self.gs_connect.shift_orders_header(today=today)
-        # если есть данные в БД - будут добавлены в лист
-        if len(orders_count_data):
-            print("актуализируем данные по заказам в таблице")
-            gs_connect.add_data_to_count_list(data_json=orders_count_data)
-
-        # закрытие соединения с бд
-        await db.close()
+        finally:
+            # закрытие соединения с бд
+            await db.close()

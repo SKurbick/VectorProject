@@ -1,4 +1,5 @@
 import datetime
+from pprint import pprint
 
 
 class AccurateNetProfitTable:
@@ -80,3 +81,18 @@ class AccurateNetProfitTable:
         not_found_nm_ids = await self.db.fetch(query)
 
         return [result_nm_id["article_id"] for result_nm_id in not_found_nm_ids]
+
+    async def get_net_profit_by_date(self, date):
+        date_obj = datetime.datetime.strptime(date, "%Y-%m-%d")
+
+        select_query = f"""
+        SELECT article_id, sum(sum_net_profit) as sum_snp FROM accurate_net_profit_data
+        WHERE date = $1
+        GROUP BY article_id
+        ORDER BY sum_snp desc;
+        """
+
+        result = await self.db.fetch(select_query, date_obj)
+        return result
+
+

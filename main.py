@@ -116,7 +116,6 @@ def schedule_tasks():
 
     """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
     schedule.every(800).seconds.do(lambda: asyncio.create_task(gs_service.add_actually_data_to_table()))
-    # schedule.every(1).seconds.do(lambda: asyncio.create_task(run_in_executor(gs_service.add_actually_data_to_table)))
 
     """Смотрит в таблицу, оценивает новые nm_ids"""
     schedule.every(300).seconds.do(lambda: asyncio.create_task(check_new_nm_ids()))
@@ -126,9 +125,6 @@ def schedule_tasks():
 
     # проверяет остатки
     schedule.every(20).minutes.do(lambda: asyncio.create_task(gs_service.check_quantity_flag()))
-    # добавляет данные по количеству заказов в лист 'Количество заказов'
-    # тестово перенесли в функцию add_new_day_revenue_to_table
-    # schedule.every(26).minutes.do(lambda: asyncio.create_task(run_in_executor(gs_service.add_orders_data_in_table)))
 
 
 async def run_scheduler():

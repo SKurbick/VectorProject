@@ -381,7 +381,7 @@ class GoogleSheet:
     def shift_orders_header(self, today):
         all_values = self.sheet.get_all_values()
         all_formulas = self.sheet.get_all_values(value_render_option='FORMULA')
-        print("Смещаем столбцы листа - Количество заказов")
+        print("смещает столбцы листа MAIN (столбцы = ЧП по дням)")
         # Преобразование в DataFrame
         df_values = pd.DataFrame(all_values[1:], columns=all_values[0])
         df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
@@ -489,9 +489,6 @@ class GoogleSheetServiceRevenue:
         Добавляет выручку за новый день.
         Задумана отрабатывать строго после shift_revenue_columns_to_the_left (добавление нового дня)
         """
-        # client = self.client_init_json()
-        # spreadsheet = client.open(self.spreadsheet)
-        # sheet = spreadsheet.worksheet(self.sheet)
 
         all_values = self.sheet.get_all_values()
 
@@ -560,17 +557,12 @@ class GoogleSheetServiceRevenue:
         self.sheet.update('A1', updated_values, value_input_option='USER_ENTERED')
         self.sheet.update('A1', updated_formulas, value_input_option='USER_ENTERED')
 
-
     def shift_week_revenue_columns_to_the_left(self, last_week):
         """
         Сдвигает содержимое столбцов (AO-AR) с выручкой влево и добавляет новый день в AR.
         Функция задумана отрабатывать раз в день.
         Должна отрабатывать по условию если заголовок AR это позавчерашний день
         """
-        #
-        # client = self.client_init_json()
-        # spreadsheet = client.open(self.spreadsheet)
-        # sheet = spreadsheet.worksheet(self.sheet)
 
         all_values = self.sheet.get_all_values()
         all_formulas = self.sheet.get_all_values(value_render_option='FORMULA')
