@@ -38,23 +38,23 @@ class ArticleTable:
             """
             # await self.db.executemany(vendor_mapping_query, article_data)
 
-        for i, (nm_id, account, vendor_code, wild) in enumerate(article_data):
-            if vendor_code == "не найдено":
-                new_vendor_code = vendor_code
-                counter = 0
-                while True:
-                    # Проверяем, существует ли уже такой vendor_code
-                    check_query = """
-                    SELECT 1 FROM article WHERE account = $1 AND vendor_code = $2;
-                    """
-                    result = await self.db.fetch(check_query, account, new_vendor_code)
-                    if not result:
-                        # Если такого vendor_code нет, используем его
-                        break
-                    counter += 1
-                    new_vendor_code = f"{vendor_code}{counter}"
+            for i, (nm_id, account, vendor_code, wild) in enumerate(article_data):
+                if vendor_code == "не найдено":
+                    new_vendor_code = vendor_code
+                    counter = 0
+                    while True:
+                        # Проверяем, существует ли уже такой vendor_code
+                        check_query = """
+                        SELECT 1 FROM article WHERE account = $1 AND vendor_code = $2;
+                        """
+                        result = await self.db.fetch(check_query, account, new_vendor_code)
+                        if not result:
+                            # Если такого vendor_code нет, используем его
+                            break
+                        counter += 1
+                        new_vendor_code = f"{vendor_code}{counter}"
 
-                # Обновляем vendor_code в данных
-                article_data[i] = (nm_id, account, new_vendor_code, wild)
+                    # Обновляем vendor_code в данных
+                    article_data[i] = (nm_id, account, new_vendor_code, wild)
 
-        await self.db.executemany(vendor_mapping_query, article_data)
+            await self.db.executemany(vendor_mapping_query, article_data)
