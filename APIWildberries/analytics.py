@@ -73,7 +73,7 @@ class AnalyticsNMReport:
                             else:
                                 print(f"account:{account}|Превышен лимит запросов: {response.status}")
                                 await asyncio.sleep(63)
-                except aiohttp.ClientError as e:
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                     print(f"Превышен лимит запросов: {e}")
                     await asyncio.sleep(63)
 
