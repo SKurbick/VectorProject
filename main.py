@@ -59,15 +59,17 @@ async def check_new_nm_ids():
                     revenue_data_for_update_rows = await service_gs_table.add_revenue_for_new_nm_ids(
                         lk_articles=lk_articles)
 
+                    if len(revenue_data_for_update_rows) > 0:
+                        print("Добавляем выручку в таблицу")
+                        """Добавление информации по выручкам за последние 7 дней"""
+                        gs_service_revenue_connection().update_revenue_rows(
+                            data_json=revenue_data_for_update_rows)
+
                 except Exception as e:
                     print(f"Ошибка при выполнении асинхронной функции: {e}")
                     return
 
-                if len(revenue_data_for_update_rows) > 0:
-                    print("Добавляем выручку в таблицу")
-                    """Добавление информации по выручкам за последние 7 дней"""
-                    gs_service_revenue_connection().update_revenue_rows(
-                        data_json=revenue_data_for_update_rows)
+                finally:
                     retry = True
 
             print("Упали в ожидание")
@@ -111,7 +113,7 @@ async def run_in_executor(func, *args):
 def schedule_tasks():
     gs_service = gs_service_for_schedule_connection()
 
-    "Добавляет выручку и сдвигает столбцы с выручкой по необходимости. Условие должно работать раз в день каждые 25 мин"
+    "Добавляет выручку и сдвигает столбцы с выручкой по необходимости. Условие должно работать  каждые 25 мин"
     schedule.every(25).minutes.do(lambda: asyncio.create_task(gs_service.add_new_day_revenue_to_table()))
 
     """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
