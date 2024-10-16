@@ -273,13 +273,14 @@ class GoogleSheet:
                         result_data[account]["nm_ids"].append(int(article))
 
                 "собираем артикулы\баркоды формируем запрос на изменение остатков и коррекции ячейки 'Минимальный остаток'"
-                # собираем данные для закрытия ФБС
-                # if (status_fbo == 'да' or str(min_qty).isdigit() is True) and str(average_day_orders).isdigit():
-                #     print(type(article) is int)
-                #     print(type(barcode))
-
-                # собираем данные для открытия ФБС
-
+                # if str(current_qty_wb).isdigit():  # проверяет что ячейка является числом
+                #
+                #     if (status_fbo == 'да' and str(min_qty).isdigit() is True) and str(average_day_orders).isdigit():
+                #
+                #
+                #     # собираем данные для закрытия ФБС
+                #     # собираем данные для открытия ФБС
+                #     if
 
 
 
