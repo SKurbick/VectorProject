@@ -93,8 +93,6 @@ class ServiceGoogleSheet:
 
         nm_ids_photo = {}
         result_nm_ids_data = {}
-        db = self.database()
-        psql_article = ArticleTable(db=db)
         filter_nm_ids_data = []
         for account, nm_ids in lk_articles.items():
             token = get_wb_tokens()[account.capitalize()]
@@ -189,17 +187,19 @@ class ServiceGoogleSheet:
 
         # добавляем данные артикулов в psql в таблицу article
         if len(result_nm_ids_data) > 0:
+            db = self.database()
+            psql_article = ArticleTable(db=db)
+
             try:
-                # ограничение функции: добавляет данные в psql, но только если их не было в бд json
-                filter_nm_ids = await psql_article.check_nm_ids(account="None", nm_ids=filter_nm_ids_data)
-                if filter_nm_ids:
-                    print("filter_nm_ids", filter_nm_ids)
-                    await psql_article.update_articles(data=result_nm_ids_data, filter_nm_ids=filter_nm_ids)
-                print("данные по артикулам добавлены в таблицу article psql")
+                async with db as connection:
+                    # ограничение функции: добавляет данные в psql, но только если их не было в бд json
+                    filter_nm_ids = await psql_article.check_nm_ids(account="None", nm_ids=filter_nm_ids_data)
+                    if filter_nm_ids:
+                        print("filter_nm_ids", filter_nm_ids)
+                        await psql_article.update_articles(data=result_nm_ids_data, filter_nm_ids=filter_nm_ids)
+                    print("данные по артикулам добавлены в таблицу article psql")
             except Exception as e:
                 print(e)
-            finally:
-                await db.close()
 
         return result_nm_ids_data
 
@@ -472,6 +472,7 @@ class ServiceGoogleSheet:
         status_limit_edit = ServiceGoogleSheet.check_status()["Добавить если"]
         print("статус проверки: ", status_limit_edit)
         low_limit_qty_data = self.gs_connect.get_data_quantity_limit()
+        # pprint(low_limit_qty_data)
         sopost_data = GoogleSheetSopostTable().wild_quantity()
         nm_ids_for_update_data = {}
         if len(low_limit_qty_data) > 0 and status_limit_edit:
@@ -506,6 +507,7 @@ class ServiceGoogleSheet:
                                                                   check_nm_ids_in_db=False)
             self.gs_connect.update_rows(data_json=nm_ids_data_json,
                                         edit_column_clean={"qty": False, "price_discount": False, "dimensions": False})
+        #
 
     async def add_orders_data_in_table(self, psql_data_update, nm_ids_table_data, net_profit_time):
 
@@ -535,43 +537,41 @@ class ServiceGoogleSheet:
         db = self.database()
         # получаем артикулы отсутствующие в бд psql
         try:
-            await db.connect()
-            accurate_net_profit_table = AccurateNetProfitTable(db=db)
-            for date, psql_data in psql_data_update.items():
-                nm_ids_list = list(psql_data.keys())
-                psql_new_nm_ids = await accurate_net_profit_table.check_nm_ids(nm_ids=nm_ids_list, account=None,
-                                                                               date=date)
-                "Добавляем данные в бд psql"
-                if psql_new_nm_ids:  # добавляем новые артикулы в бд psql
-                    # если новых артикулов нет в таблице net_profit, то будут добавлены
-                    await accurate_net_profit_table.add_new_article_net_profit_data(time=net_profit_time,
-                                                                                    data=psql_data,
-                                                                                    nm_ids_net_profit=nm_ids_table_data,
-                                                                                    new_nm_ids=psql_new_nm_ids)
+            async with db as connection:
+                accurate_net_profit_table = AccurateNetProfitTable(db=db)
+                for date, psql_data in psql_data_update.items():
+                    nm_ids_list = list(psql_data.keys())
+                    psql_new_nm_ids = await accurate_net_profit_table.check_nm_ids(nm_ids=nm_ids_list, account=None,
+                                                                                   date=date)
+                    "Добавляем данные в бд psql"
+                    if psql_new_nm_ids:  # добавляем новые артикулы в бд psql
+                        # если новых артикулов нет в таблице net_profit, то будут добавлены
+                        await accurate_net_profit_table.add_new_article_net_profit_data(time=net_profit_time,
+                                                                                        data=psql_data,
+                                                                                        nm_ids_net_profit=nm_ids_table_data,
+                                                                                        new_nm_ids=psql_new_nm_ids)
 
-                # актуализируем информацию по полученному с таблицы чп по артикулам
-                await accurate_net_profit_table.update_net_profit_data(time=net_profit_time, response_data=psql_data,
-                                                                       nm_ids_table_data=nm_ids_table_data, date=date)
-                print("актуализированы данные в бд таблицы current_net_profit_data")
+                    # актуализируем информацию по полученному с таблицы чп по артикулам
+                    await accurate_net_profit_table.update_net_profit_data(time=net_profit_time,
+                                                                           response_data=psql_data,
+                                                                           nm_ids_table_data=nm_ids_table_data,
+                                                                           date=date)
+                    print("актуализированы данные в бд таблицы current_net_profit_data")
 
-                print("[INFO] Актуализируем чистую прибыль в листе MAIN")
-                result_som_net_profit_data = await accurate_net_profit_table.get_net_profit_by_date(date=date)
+                    print("[INFO] Актуализируем чистую прибыль в листе MAIN")
+                    result_som_net_profit_data = await accurate_net_profit_table.get_net_profit_by_date(date=date)
 
-                formatted_result = {}
-                for record in result_som_net_profit_data:
-                    article_id = record['article_id']
-                    sum_value = record['sum_snp']
-                    date_obj = datetime.datetime.strptime(date, "%Y-%m-%d")
+                    formatted_result = {}
+                    for record in result_som_net_profit_data:
+                        article_id = record['article_id']
+                        sum_value = record['sum_snp']
+                        date_obj = datetime.datetime.strptime(date, "%Y-%m-%d")
 
-                    formatted_date_str = date_obj.strftime("%d.%m")
-                    formatted_result[article_id] = {formatted_date_str: int(sum_value)}
+                        formatted_date_str = date_obj.strftime("%d.%m")
+                        formatted_result[article_id] = {formatted_date_str: int(sum_value)}
 
-                print("[INFO] Обновляем данные по выручке в листе MAIN")
-                self.gs_service_revenue_connect.update_revenue_rows(data_json=formatted_result)
-
+                    print("[INFO] Обновляем данные по выручке в листе MAIN")
+                    self.gs_service_revenue_connect.update_revenue_rows(data_json=formatted_result)
         except:
             print("сработало исключение во время актуализации данных в бд psql:")
             raise
-        finally:
-            # закрытие соединения с бд
-            await db.close()

@@ -26,6 +26,13 @@ class Database:
         if self._connection:
             await self._connection.close()
 
+    async def __aenter__(self):
+        await self.connect()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
     async def fetch(self, query, *args):
         return await self._connection.fetch(query, *args)
 

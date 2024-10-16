@@ -245,22 +245,35 @@ class GoogleSheet:
         return sheet_status
 
     def get_data_quantity_limit(self):
+        import math
         """Проверяем остатки и лимит по остаткам"""
         data = self.sheet.get_all_records()
         df = pd.DataFrame(data)
 
         result_data = {}
+        check_fbs_fbo_data = {}
         for index, row in df.iterrows():
+            article = row["Артикул"]
             account = str(row["ЛК"])
-            if str(row['Минимальный остаток']).isdigit() and int(row['Минимальный остаток']) != 0:
-                if int(row["Минимальный остаток"]) >= int(row["Текущий остаток"]):
-                    if account not in result_data:
-                        result_data[account] = {"qty": [], "nm_ids": []}
-                    result_data[account]["qty"].append(
-                        {"wild": row["wild"],
-                         "sku": str(row["Баркод"])}
-                    )
-                    result_data[account]["nm_ids"].append(int(row["Артикул"]))
+            status_fbo = str(row["Признак ФБО"])
+            min_qty = row["Минимальный остаток"]
+            current_qty = row["Текущий остаток"]
+            barcode = row["Баркод"]
+            current_qty_wb = row["Текущий остаток\nСклады WB"]
+            average_day_orders = row["Среднее в день"]
+            if str(article).isdigit():
+                if str(min_qty).isdigit() and int(min_qty) != 0:
+                    if int(min_qty) >= int(current_qty):
+                        if account not in result_data:
+                            result_data[account] = {"qty": [], "nm_ids": []}
+                        result_data[account]["qty"].append(
+                            {"wild": row["wild"],
+                             "sku": str(barcode)}
+                        )
+                        result_data[account]["nm_ids"].append(int(article))
+                # if (status_fbo == 'да' or str(min_qty).isdigit() is True) and str(average_day_orders).isdigit() :
+                #     print(type(article) is int)
+                #     print(type(barcode))
 
         return result_data
 
