@@ -570,7 +570,7 @@ class ServiceGoogleSheet:
                 self.gs_service_revenue_connect.update_revenue_rows(data_json=formatted_result)
 
         except Exception as e:
-            print(e)
+            print("сработало исключение во время актуализации данных в бд psql:",e)
         finally:
             # закрытие соединения с бд
             await db.close()

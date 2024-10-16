@@ -47,7 +47,7 @@ class AnalyticsNMReport:
             for i in range(10):
                 try:
                     async with aiohttp.ClientSession() as session:
-                        async with session.post(url=url, headers=self.headers, json=json_data, timeout=70) as response:
+                        async with session.post(url=url, headers=self.headers, json=json_data, timeout=250) as response:
                             if response.status == 200:
                                 response_result = await response.json()
                                 for data in response_result["data"]:
@@ -76,7 +76,7 @@ class AnalyticsNMReport:
                                 await asyncio.sleep(63)
 
                 except aiohttp.ClientError as e:
-                    print(f"Превышен лимит запросов: {e}", "повторение", i)
+                    print(f"aiohttp.ClientError: {e}", "повторение", i)
                     await asyncio.sleep(63)
 
                 except asyncio.TimeoutError:
