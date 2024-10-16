@@ -193,7 +193,7 @@ class ServiceGoogleSheet:
                 # ограничение функции: добавляет данные в psql, но только если их не было в бд json
                 filter_nm_ids = await psql_article.check_nm_ids(account="None", nm_ids=filter_nm_ids_data)
                 if filter_nm_ids:
-                    print("filter_nm_ids",filter_nm_ids)
+                    print("filter_nm_ids", filter_nm_ids)
                     await psql_article.update_articles(data=result_nm_ids_data, filter_nm_ids=filter_nm_ids)
                 print("данные по артикулам добавлены в таблицу article psql")
             except Exception as e:
