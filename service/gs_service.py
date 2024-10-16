@@ -187,10 +187,11 @@ class ServiceGoogleSheet:
         # добавляем данные артикулов в psql в таблицу article
         if len(result_nm_ids_data) > 0:
             db = self.database()
-            psql_article = ArticleTable(db=db)
 
             try:
                 async with db as connection:
+                    psql_article = ArticleTable(db=db)
+
                     # ограничение функции: добавляет данные в psql, но только если их не было в бд json
                     filter_nm_ids = await psql_article.check_nm_ids(account="None", nm_ids=filter_nm_ids_data)
                     if filter_nm_ids:
@@ -525,7 +526,6 @@ class ServiceGoogleSheet:
             # сместит заголовки дней в листе "MAIN"
             self.gs_connect.shift_orders_header(today=today)
         # если есть данные в БД - будут добавлены в лист
-        print(f"Новый день {today} в листы MAIN и Количество заказов добавлен")
         if len(orders_count_data):
             print("актуализируем данные по заказам в таблице")
             gs_connect.add_data_to_count_list(data_json=orders_count_data)
