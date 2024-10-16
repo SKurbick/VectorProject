@@ -47,7 +47,7 @@ class AnalyticsNMReport:
             for i in range(10):
                 try:
                     async with aiohttp.ClientSession() as session:
-                        async with session.post(url=url, headers=self.headers, json=json_data, timeout=20) as response:
+                        async with session.post(url=url, headers=self.headers, json=json_data, timeout=70) as response:
                             if response.status == 200:
                                 response_result = await response.json()
                                 for data in response_result["data"]:
