@@ -271,9 +271,17 @@ class GoogleSheet:
                              "sku": str(barcode)}
                         )
                         result_data[account]["nm_ids"].append(int(article))
-                # if (status_fbo == 'да' or str(min_qty).isdigit() is True) and str(average_day_orders).isdigit() :
+
+                "собираем артикулы\баркоды формируем запрос на изменение остатков и коррекции ячейки 'Минимальный остаток'"
+                # собираем данные для закрытия ФБС
+                # if (status_fbo == 'да' or str(min_qty).isdigit() is True) and str(average_day_orders).isdigit():
                 #     print(type(article) is int)
                 #     print(type(barcode))
+
+                # собираем данные для открытия ФБС
+
+
+
 
         return result_data
 

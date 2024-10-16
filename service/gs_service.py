@@ -84,7 +84,6 @@ class ServiceGoogleSheet:
                     if nm_id in all_accounts_new_revenue_data:
                         all_accounts_new_revenue_data[nm_id].update(res_week[nm_id])
 
-        print(all_accounts_new_revenue_data)
         return all_accounts_new_revenue_data
 
     async def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
@@ -282,7 +281,6 @@ class ServiceGoogleSheet:
         # если хоть по одному артикулу данные будут валидны...
         if len(updates_nm_ids_data):
             time.sleep(5)
-            print(updates_nm_ids_data)
             result = await self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
                                                         only_edits_data=True, add_data_in_db=False,
                                                         check_nm_ids_in_db=False)
@@ -556,9 +554,9 @@ class ServiceGoogleSheet:
                                                                            response_data=psql_data,
                                                                            nm_ids_table_data=nm_ids_table_data,
                                                                            date=date)
-                    print("актуализированы данные в бд таблицы current_net_profit_data")
+                    print("актуализированы данные в бд таблицы accurate_net_profit_data")
 
-                    print("[INFO] Актуализируем чистую прибыль в листе MAIN")
+                    print("[INFO] Получаем данные с бд с таблицы accurate_net_profit")
                     result_som_net_profit_data = await accurate_net_profit_table.get_net_profit_by_date(date=date)
 
                     formatted_result = {}
@@ -570,8 +568,9 @@ class ServiceGoogleSheet:
                         formatted_date_str = date_obj.strftime("%d.%m")
                         formatted_result[article_id] = {formatted_date_str: int(sum_value)}
 
-                    print("[INFO] Обновляем данные по выручке в листе MAIN")
+                    print("[INFO] Обновляем данные по сумме ЧП в листе MAIN")
                     self.gs_service_revenue_connect.update_revenue_rows(data_json=formatted_result)
+                    print("данные по ЧП актуализированы")
         except:
             print("сработало исключение во время актуализации данных в бд psql:")
             raise
