@@ -26,13 +26,6 @@ class Database:
         if self._connection:
             await self._connection.close()
 
-    async def __aenter__(self):
-        await self.connect()
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
-
     async def fetch(self, query, *args):
         return await self._connection.fetch(query, *args)
 
@@ -51,3 +44,63 @@ class Database:
             raise RuntimeError(f"Не удалось создать транзакцию {self._database}")
         async with self._connection.transaction():
             yield
+
+
+class Database1:
+    def __init__(self, user=DATABASE.DB_USER, password=DATABASE.DB_PASSWORD, database=DATABASE.DB_NAME,
+                 host=DATABASE.DB_HOST, port=DATABASE.DB_PORT):
+        self._user = user
+        self._password = password
+        self._database = database
+        self._host = host
+        self._port = port
+        self._pool = None
+
+    async def connect(self):
+        self._pool = await asyncpg.create_pool(
+            user=self._user,
+            password=self._password,
+            database=self._database,
+            host=self._host,
+            port=self._port,
+        )
+
+    async def close(self):
+        if self._pool:
+            await self._pool.close()
+
+    async def __aenter__(self):
+        await self.connect()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
+    @asynccontextmanager
+    async def acquire(self):
+        if not self._pool:
+            raise RuntimeError("Database pool is not initialized")
+        async with self._pool.acquire() as connection:
+            yield connection
+
+    async def fetch(self, query, *args):
+        async with self.acquire() as connection:
+            return await connection.fetch(query, *args)
+
+    async def fetchrow(self, query, *args):
+        async with self.acquire() as connection:
+            return await connection.fetchrow(query, *args)
+
+    async def execute(self, query, *args):
+        async with self.acquire() as connection:
+            return await connection.execute(query, *args)
+
+    async def executemany(self, query, args):
+        async with self.acquire() as connection:
+            return await connection.executemany(query, args)
+
+    @asynccontextmanager
+    async def transaction(self):
+        async with self.acquire() as connection:
+            async with connection.transaction():
+                yield

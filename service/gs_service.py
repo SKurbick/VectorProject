@@ -327,17 +327,21 @@ class ServiceGoogleSheet:
                 tasks.append(task)
 
             # Ждем завершения всех задач
-            results = await asyncio.gather(*tasks)
+            results = await asyncio.gather(*tasks,return_exceptions=True)
             # Коллекция для обновления кол. заказов и выручки в бд
             psql_data_update = {}
             for res in results:
-                all_accounts_new_revenue_data.update(res["result_data"])
+                if isinstance(res, Exception):
+                    print(f"Ошибка при получении недельной выручки: {res}")
 
-                account_data_for_days = res["all_data"]
-                for day, account_data in account_data_for_days.items():
-                    if day not in psql_data_update:
-                        psql_data_update[day] = {}
-                    psql_data_update[day].update(account_data)
+                else:
+                    all_accounts_new_revenue_data.update(res["result_data"])
+
+                    account_data_for_days = res["all_data"]
+                    for day, account_data in account_data_for_days.items():
+                        if day not in psql_data_update:
+                            psql_data_update[day] = {}
+                        psql_data_update[day].update(account_data)
 
                 add_orders_data(res["result_data"])
             print("Выручка добавлена в БД")

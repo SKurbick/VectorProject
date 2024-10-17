@@ -145,6 +145,7 @@ class AnalyticsWarehouseLimits:
         }
 
     def create_report(self):
+        print("create_report")
         """Создает и возвращает taskId для остатков по баркодам"""
         result = None
         url = self.url
@@ -156,6 +157,7 @@ class AnalyticsWarehouseLimits:
                 response = requests.get(url=url, headers=self.headers, params=params)
                 if response.status_code == 200:
                     result = response.json()["data"]["taskId"]
+                    print("taskId:",result)
                     break
 
                 print("create_report", response.status_code, "sleep 63 sec")
