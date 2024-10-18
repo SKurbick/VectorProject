@@ -283,6 +283,7 @@ class ServiceGoogleSheet:
 
         # если хоть по одному артикулу данные будут валидны...
         if len(updates_nm_ids_data):
+            print("updates_nm_ids_data",updates_nm_ids_data)
             time.sleep(5)
             result = await self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
                                                         only_edits_data=True, add_data_in_db=False,
