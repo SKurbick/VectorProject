@@ -120,7 +120,7 @@ class ServiceGoogleSheet:
                 goods_nm_ids = wb_api_price_and_discount.get_log_for_nm_ids(filter_nm_ids=nm_ids_result)
                 commission_traffics = CommissionTariffs(token=token)
                 wh_analytics = AnalyticsWarehouseLimits(token=token)
-
+                print(f"{account}","card_from_nm_ids_filter",card_from_nm_ids_filter)
                 # объединяем полученные данные
                 merge_json_data = merge_dicts(card_from_nm_ids_filter, goods_nm_ids)
 
@@ -411,6 +411,8 @@ class ServiceGoogleSheet:
                 card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=articles, limit=100,
                                                                            only_edits_data=True, add_data_in_db=False)
                 goods_nm_ids = wb_api_price_and_discount.get_log_for_nm_ids(filter_nm_ids=articles)
+                print(f"{account}","card_from_nm_ids_filter",card_from_nm_ids_filter)
+
                 # объединяем полученные данные
                 merge_json_data = merge_dicts(goods_nm_ids, card_from_nm_ids_filter)
                 subject_names = set()  # итог всех полученных с карточек предметов
