@@ -410,7 +410,7 @@ class ServiceGoogleSheet:
                 commission_traffics = CommissionTariffs(token=token)
                 wh_analytics = AnalyticsWarehouseLimits(token=token)
                 card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=articles, limit=100,
-                                                                           only_edits_data=True, add_data_in_db=False)
+                                                                           only_edits_data=True, add_data_in_db=False, account=account)
                 goods_nm_ids = wb_api_price_and_discount.get_log_for_nm_ids(filter_nm_ids=articles)
                 print(f"{account}","card_from_nm_ids_filter",card_from_nm_ids_filter)
 
