@@ -7,7 +7,7 @@ from gspread.utils import rowcol_to_a1
 import gspread
 import requests
 from gspread import Client, service_account
-from utils import get_nm_ids_in_db, column_index_to_letter, get_data_for_nm_ids
+from utils import get_nm_ids_in_db, column_index_to_letter, get_data_for_nm_ids, subtract_percentage
 import pandas as pd
 
 
@@ -67,7 +67,10 @@ class GoogleSheet:
         data = self.sheet.get_all_records(expected_headers=[])
         df = pd.DataFrame(data)
         json_df = pd.DataFrame(list(data_json.values()))
-        json_df = json_df.drop(["vendor_code", "account"], axis=1)
+        try:
+            json_df = json_df.drop(["vendor_code", "account"], axis=1)
+        except KeyError as e:
+            print("[func:update_rows] KeyError 'vendor_code', 'account'")
         # Преобразуем все значения в json_df в типы данных, которые могут быть сериализованы в JSON
         json_df = json_df.astype(object).where(pd.notnull(json_df), None)
         # Обновите данные в основном DataFrame на основе "Артикул"
@@ -240,50 +243,125 @@ class GoogleSheet:
         return lk_articles_dict
 
     def check_status_service_sheet(self):
-        data = self.sheet.get_all_records()
-        sheet_status = data[0]
-        return sheet_status
+        all_data = self.sheet.get_all_values()
 
-    def get_data_quantity_limit(self):
-        import math
+        # Функция для преобразования строк в числа, если это возможно
+        def try_parse_int(value):
+            try:
+                return int(value)
+            except ValueError:
+                return value
+
+        # Получение первых заголовков и их значений
+        first_header_row = 0  # Индекс строки с первыми заголовками (нумерация с 0)
+        first_header_values = all_data[first_header_row]
+        first_data_values = all_data[first_header_row + 1]  # Первая строка после первой строки с заголовками
+
+        # Преобразование значений первой строки в числа, если это возможно
+        first_data_values = [try_parse_int(value) for value in first_data_values]
+
+        # Получение вторых заголовков и их значений
+        second_header_row = 3  # Индекс строки с вторыми заголовками (нумерация с 0)
+        second_header_values = all_data[second_header_row]
+        second_data_values = all_data[second_header_row + 1]  # Первая строка после четвертой строки с заголовками
+
+        # Преобразование значений второй строки в числа, если это возможно
+        second_data_values = [try_parse_int(value) for value in second_data_values]
+
+        # Создание словаря с результатами
+        result = dict(zip(first_header_values, first_data_values))
+        result.update(dict(zip(second_header_values, second_data_values)))
+        """
+            {'': '',
+         'ВКЛ - 1 /ВЫКЛ - 0': 1,
+         'Габариты': 0,
+         'Добавить если': 1,
+         'Название': 'MAIN',
+         'Настройки\nО\\З ФБС': '',
+         'ОТКРЫТИЕ/ЗАКРЫТИЕ ФБС': 0,
+         'Остаток': 1,
+         'Отрицательная \nЧП': 0,
+         'Отчетность ': '',
+         'Цены/Скидки': 1,
+         'минимальный\nостаток': 10,
+         'повышение\n остатков': 100,
+         'среднее арифм. \nот заказов (%)': 10}"""
+        return result
+
+    def get_data_quantity_limit(self, status_min_qty, add_qty, status_average_orders_percent):
         """Проверяем остатки и лимит по остаткам"""
         data = self.sheet.get_all_records()
         df = pd.DataFrame(data)
-
         result_data = {}
-        check_fbs_fbo_data = {}
+        edit_fbc_qty_data = {}
+        edit_min_qty = {}
         for index, row in df.iterrows():
             article = row["Артикул"]
             account = str(row["ЛК"])
-            status_fbo = str(row["Признак ФБО"])
             min_qty = row["Минимальный остаток"]
             current_qty = row["Текущий остаток"]
-            barcode = row["Баркод"]
             current_qty_wb = row["Текущий остаток\nСклады WB"]
+            status_fbo = row["Признак ФБО"]
             average_day_orders = row["Среднее в день"]
+            barcode = row["Баркод"]
+            wild = row["wild"]
             if str(article).isdigit():
                 if str(min_qty).isdigit() and int(min_qty) != 0:
                     if int(min_qty) >= int(current_qty):
                         if account not in result_data:
                             result_data[account] = {"qty": [], "nm_ids": []}
                         result_data[account]["qty"].append(
-                            {"wild": row["wild"],
+                            {"wild": wild,
                              "sku": str(barcode)}
                         )
                         result_data[account]["nm_ids"].append(int(article))
 
-                # "собираем артикулы\баркоды формируем запрос на изменение остатков и коррекции ячейки 'Минимальный остаток'"
-                # if str(current_qty_wb).isdigit():  # условия проверки валидности ключевых ячеек
-                #
-                #     if status_fbo == 'да' and str(min_qty).isdigit() is True and str(average_day_orders).isdigit():
-                #
-                #
-                #     # собираем данные для закрытия ФБС
-                #     # собираем данные для открытия ФБС
-                #     if
-
-
-
+        #     "собираем артикулы/баркоды формируем запрос на изменение остатков и коррекции ячейки 'Минимальный остаток'"
+        #     # условия проверки валидности ключевых ячеек
+        #     if str(current_qty_wb).isdigit() and status_fbo == 'Да' and str(min_qty).isdigit() is True and str(
+        #             average_day_orders).isdigit() and str(current_qty).isdigit():
+        #         print("первый IF")
+        #         # данные для закрытия ФБС
+        #         # если 10% от средних зак. < остатка ВБ складов и тек. остаток > 0 - ТО тек. остаток на 0 и мин. остаток на 0
+        #         if subtract_percentage(int(average_day_orders), status_average_orders_percent) < int(
+        #                 current_qty_wb) and int(current_qty) > 0:
+        #             print("закрытия ФБС", article)
+        #             # добавляем nm_id для актуализации информации
+        #             if account not in result_data:
+        #                 result_data[account] = {"qty": [], "nm_ids": []}
+        #             result_data[account]["nm_ids"].append(int(article))
+        #
+        #             # мин. остаток будет выставлен на 0 и остаток понижен до 0
+        #             if account not in edit_fbc_qty_data:
+        #                 edit_fbc_qty_data[account] = []
+        #             edit_fbc_qty_data[account].append({
+        #                 "sku": barcode,
+        #                 "amount": 0
+        #             })
+        #             edit_min_qty[article] = 0
+        #
+        #         # данные для открытия ФБС
+        #         # если 10% от средних зак. >= остатка ВБ складов и мин остаток = 0 - ТО мин остаток должен стать 10 и повысить остаток на фбс на 100
+        #         if subtract_percentage(int(average_day_orders), status_average_orders_percent) >= int(
+        #                 current_qty_wb) and int(min_qty) == 0:
+        #             print("открытие ФБС", article)
+        #             # добавляем nm_id для актуализации информации
+        #             if account not in result_data:
+        #                 result_data[account] = {"qty": [], "nm_ids": []}
+        #             result_data[account]["nm_ids"].append(int(article))
+        #
+        #             # мин. остаток будет выставлен на 10 и остаток повышен до 100
+        #             if account not in edit_fbc_qty_data:
+        #                 edit_fbc_qty_data[account] = []
+        #             edit_min_qty[article] = status_min_qty
+        #             edit_fbc_qty_data[account].append({
+        #                 "sku": barcode,
+        #                 "amount": add_qty
+        #             })
+        #
+        # pprint(edit_fbc_qty_data)
+        # pprint(result_data)
+        # pprint(edit_min_qty)
         return result_data
 
     def add_photo(self, data_dict):

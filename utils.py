@@ -4,6 +4,7 @@ import time
 from collections import ChainMap
 from pprint import pprint
 import re
+import math
 
 
 def merge_dicts(d1, d2):
@@ -264,3 +265,7 @@ def add_orders_data_in_database(orders_data):
         file.seek(0)
         json.dump(database, file, indent=4, ensure_ascii=False)
         file.truncate()
+
+
+def subtract_percentage(number, percentage):
+    return math.ceil(number * percentage / 100)

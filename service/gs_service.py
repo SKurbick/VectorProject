@@ -18,11 +18,11 @@ from settings import get_wb_tokens
 from utils import add_orders_data, calculate_sum_for_logistic, merge_dicts, validate_data, add_nm_ids_in_db, \
     get_last_weeks_dates
 
-from database.postgresql.database import Database
+from database.postgresql.database import Database, Database1
 
 
 class ServiceGoogleSheet:
-    def __init__(self, token, spreadsheet: str, sheet: str, creds_json='creds.json', database=Database):
+    def __init__(self, token, spreadsheet: str, sheet: str, creds_json='creds.json', database=Database1):
         self.wb_api_token = token
         self.gs_connect = GoogleSheet(creds_json=creds_json, spreadsheet=spreadsheet, sheet=sheet)
         self.database = database
@@ -186,11 +186,13 @@ class ServiceGoogleSheet:
 
         # добавляем данные артикулов в psql в таблицу article
         if len(result_nm_ids_data) > 0:
-            db = self.database()
+            # db = self.database()
 
             try:
-                async with db as connection:
-                    psql_article = ArticleTable(db=db)
+                # async with db as connection:
+                async with self.database().acquire() as connection:
+                    # psql_article = ArticleTable(db=db)
+                    psql_article = ArticleTable(db=connection)
 
                     # ограничение функции: добавляет данные в psql, но только если их не было в бд json
                     filter_nm_ids = await psql_article.check_nm_ids(account="None", nm_ids=filter_nm_ids_data)
@@ -327,7 +329,7 @@ class ServiceGoogleSheet:
                 tasks.append(task)
 
             # Ждем завершения всех задач
-            results = await asyncio.gather(*tasks,return_exceptions=True)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
             # Коллекция для обновления кол. заказов и выручки в бд
             psql_data_update = {}
             for res in results:
@@ -472,10 +474,16 @@ class ServiceGoogleSheet:
 
     async def check_quantity_flag(self):
         print(datetime.datetime.now(), "Проверка остатков по лимитам из столбца 'Минимальный остаток'")
-        status_limit_edit = ServiceGoogleSheet.check_status()["Добавить если"]
+        status = ServiceGoogleSheet.check_status()
+        status_limit_edit = status["Добавить если"]
+        status_open_close_fbs = status["ОТКРЫТИЕ/ЗАКРЫТИЕ ФБС"]
+        status_min_qty = status['минимальный\nостаток']
+        add_qty = status['повышение\n остатков']
+        status_average_orders_percent = status['среднее арифм. \nот заказов (%)']
         print("статус проверки: ", status_limit_edit)
-        low_limit_qty_data = self.gs_connect.get_data_quantity_limit()
-        # pprint(low_limit_qty_data)
+        low_limit_qty_data = self.gs_connect.get_data_quantity_limit(status_min_qty=status_min_qty, add_qty=add_qty,
+                                                                     status_average_orders_percent=status_average_orders_percent)
+        pprint(low_limit_qty_data)
         sopost_data = GoogleSheetSopostTable().wild_quantity()
         nm_ids_for_update_data = {}
         if len(low_limit_qty_data) > 0 and status_limit_edit:
@@ -536,11 +544,13 @@ class ServiceGoogleSheet:
 
         print("Обновление количества заказов по дням в MAIN")
         """ Функция добавления количества заказов по дням в таблицу """
-        db = self.database()
+        # db = self.database()
         # получаем артикулы отсутствующие в бд psql
         try:
-            async with db as connection:
-                accurate_net_profit_table = AccurateNetProfitTable(db=db)
+            # async with db as connection:
+            #     accurate_net_profit_table = AccurateNetProfitTable(db=db)
+            async with self.database().acquire() as connection:
+                accurate_net_profit_table = AccurateNetProfitTable(db=connection)
                 for date, psql_data in psql_data_update.items():
                     nm_ids_list = list(psql_data.keys())
                     psql_new_nm_ids = await accurate_net_profit_table.check_nm_ids(nm_ids=nm_ids_list, account=None,
