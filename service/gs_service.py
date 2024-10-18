@@ -120,7 +120,7 @@ class ServiceGoogleSheet:
                 goods_nm_ids = wb_api_price_and_discount.get_log_for_nm_ids(filter_nm_ids=nm_ids_result)
                 commission_traffics = CommissionTariffs(token=token)
                 wh_analytics = AnalyticsWarehouseLimits(token=token)
-                print(f"{account}","card_from_nm_ids_filter",card_from_nm_ids_filter)
+                # print(f"{account}","card_from_nm_ids_filter",card_from_nm_ids_filter)
                 # объединяем полученные данные
                 merge_json_data = merge_dicts(card_from_nm_ids_filter, goods_nm_ids)
 
@@ -283,7 +283,7 @@ class ServiceGoogleSheet:
 
         # если хоть по одному артикулу данные будут валидны...
         if len(updates_nm_ids_data):
-            print("updates_nm_ids_data",updates_nm_ids_data)
+            # print("updates_nm_ids_data",updates_nm_ids_data)
             time.sleep(5)
             result = await self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
                                                         only_edits_data=True, add_data_in_db=False,
@@ -367,7 +367,7 @@ class ServiceGoogleSheet:
 
             # добавляем выручку в таблицу
             print("Собрали выручку по всем кабинетам timer:", datetime.datetime.now() - start)
-            print("all_accounts_new_revenue_data", all_accounts_new_revenue_data)
+            # print("all_accounts_new_revenue_data", all_accounts_new_revenue_data)
             self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
             print(f"Выручка в таблице актуализирована по всем артикулам.")
 
@@ -412,7 +412,7 @@ class ServiceGoogleSheet:
                 card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=articles, limit=100,
                                                                            only_edits_data=True, add_data_in_db=False, account=account)
                 goods_nm_ids = wb_api_price_and_discount.get_log_for_nm_ids(filter_nm_ids=articles)
-                print(f"{account}","card_from_nm_ids_filter",card_from_nm_ids_filter)
+                # print(f"{account}","card_from_nm_ids_filter",card_from_nm_ids_filter)
 
                 # объединяем полученные данные
                 merge_json_data = merge_dicts(goods_nm_ids, card_from_nm_ids_filter)
@@ -552,8 +552,8 @@ class ServiceGoogleSheet:
         try:
             async with db as connection:
                 accurate_net_profit_table = AccurateNetProfitTable(db=db)
-            # async with self.database().acquire() as connection:
-            #     accurate_net_profit_table = AccurateNetProfitTable(db=connection)
+                # async with self.database().acquire() as connection:
+                #     accurate_net_profit_table = AccurateNetProfitTable(db=connection)
                 for date, psql_data in psql_data_update.items():
                     nm_ids_list = list(psql_data.keys())
                     psql_new_nm_ids = await accurate_net_profit_table.check_nm_ids(nm_ids=nm_ids_list, account=None,

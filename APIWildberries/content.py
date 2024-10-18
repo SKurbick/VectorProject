@@ -139,7 +139,7 @@ class ListOfCardsContent:
                         "account": account,
                         "Фото": "НЕТ",
                     }
-        print(card_result_for_match)
+        # print(card_result_for_match)
         return card_result_for_match
 
     def size_edit(self, data: list):

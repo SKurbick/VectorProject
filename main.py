@@ -1,5 +1,4 @@
 import asyncio
-import time
 import datetime
 from settings import settings
 from APIGoogleSheet.googlesheet import GoogleSheet, GoogleSheetServiceRevenue
