@@ -22,6 +22,13 @@ class Database:
             port=self._port
         )
 
+    async def __aenter__(self):
+        await self.connect()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
     async def close(self):
         if self._connection:
             await self._connection.close()
