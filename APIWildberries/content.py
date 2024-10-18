@@ -123,7 +123,9 @@ class ListOfCardsContent:
         print("get_list_of_cards")
         # pprint(card_result_for_match)
         if len(nm_ids_list_for_edit) > 0:
+            print("if len(nm_ids_list_for_edit) > 0:")
             if only_edits_data is False:
+                print("if only_edits_data is False:")
                 for nm_id in nm_ids_list_for_edit:
                     card_result_for_match[nm_id] = {
                         "Артикул": nm_id,
@@ -137,6 +139,7 @@ class ListOfCardsContent:
                         "account": account,
                         "Фото": "НЕТ",
                     }
+        print(card_result_for_match)
         return card_result_for_match
 
     def size_edit(self, data: list):

@@ -70,7 +70,7 @@ class GoogleSheet:
         try:
             json_df = json_df.drop(["vendor_code", "account"], axis=1)
         except KeyError as e:
-            print("[func:update_rows] KeyError 'vendor_code', 'account'")
+            print(f"[func:update_rows] {e} 'vendor_code', 'account'")
         # Преобразуем все значения в json_df в типы данных, которые могут быть сериализованы в JSON
         json_df = json_df.astype(object).where(pd.notnull(json_df), None)
         # Обновите данные в основном DataFrame на основе "Артикул"
