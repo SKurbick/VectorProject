@@ -187,11 +187,10 @@ class ServiceGoogleSheet:
         # добавляем данные артикулов в psql в таблицу article
         if len(result_nm_ids_data) > 0:
             db = self.database()
-
             try:
                 async with db as connection:
                 # async with self.database().acquire() as connection:
-                    psql_article = ArticleTable(db=db)
+                    psql_article = ArticleTable(db=connection)
                     # psql_article = ArticleTable(db=connection)
 
                     # ограничение функции: добавляет данные в psql, но только если их не было в бд json
@@ -551,7 +550,7 @@ class ServiceGoogleSheet:
         # получаем артикулы отсутствующие в бд psql
         try:
             async with db as connection:
-                accurate_net_profit_table = AccurateNetProfitTable(db=db)
+                accurate_net_profit_table = AccurateNetProfitTable(db=connection)
                 # async with self.database().acquire() as connection:
                 #     accurate_net_profit_table = AccurateNetProfitTable(db=connection)
                 for date, psql_data in psql_data_update.items():
