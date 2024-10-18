@@ -22,7 +22,7 @@ from database.postgresql.database import Database, Database1
 
 
 class ServiceGoogleSheet:
-    def __init__(self, token, spreadsheet: str, sheet: str, creds_json='creds.json', database=Database1):
+    def __init__(self, token, spreadsheet: str, sheet: str, creds_json='creds.json', database=Database):
         self.wb_api_token = token
         self.gs_connect = GoogleSheet(creds_json=creds_json, spreadsheet=spreadsheet, sheet=sheet)
         self.database = database
@@ -186,13 +186,13 @@ class ServiceGoogleSheet:
 
         # добавляем данные артикулов в psql в таблицу article
         if len(result_nm_ids_data) > 0:
-            # db = self.database()
+            db = self.database()
 
             try:
-                # async with db as connection:
-                async with self.database().acquire() as connection:
-                    # psql_article = ArticleTable(db=db)
-                    psql_article = ArticleTable(db=connection)
+                async with db as connection:
+                # async with self.database().acquire() as connection:
+                    psql_article = ArticleTable(db=db)
+                    # psql_article = ArticleTable(db=connection)
 
                     # ограничение функции: добавляет данные в psql, но только если их не было в бд json
                     filter_nm_ids = await psql_article.check_nm_ids(account="None", nm_ids=filter_nm_ids_data)
@@ -547,13 +547,13 @@ class ServiceGoogleSheet:
 
         print("Обновление количества заказов по дням в MAIN")
         """ Функция добавления количества заказов по дням в таблицу """
-        # db = self.database()
+        db = self.database()
         # получаем артикулы отсутствующие в бд psql
         try:
-            # async with db as connection:
-            #     accurate_net_profit_table = AccurateNetProfitTable(db=db)
-            async with self.database().acquire() as connection:
-                accurate_net_profit_table = AccurateNetProfitTable(db=connection)
+            async with db as connection:
+                accurate_net_profit_table = AccurateNetProfitTable(db=db)
+            # async with self.database().acquire() as connection:
+            #     accurate_net_profit_table = AccurateNetProfitTable(db=connection)
                 for date, psql_data in psql_data_update.items():
                     nm_ids_list = list(psql_data.keys())
                     psql_new_nm_ids = await accurate_net_profit_table.check_nm_ids(nm_ids=nm_ids_list, account=None,
