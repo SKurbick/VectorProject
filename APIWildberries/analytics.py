@@ -188,5 +188,7 @@ class AnalyticsWarehouseLimits:
             except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
                 print(e)
                 time.sleep(63)
-
+            except requests.exceptions.JSONDecodeError as e:
+                print(e,"Нет json ответа в запросе остатков")
+                break
         return result
