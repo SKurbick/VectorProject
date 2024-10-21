@@ -22,7 +22,7 @@ from database.postgresql.database import Database, Database1
 
 
 class ServiceGoogleSheet:
-    def __init__(self, token, spreadsheet: str, sheet: str, creds_json='creds.json', database=Database):
+    def __init__(self, token, spreadsheet: str, sheet: str, creds_json='creds.json', database=Database1):
         self.wb_api_token = token
         self.gs_connect = GoogleSheet(creds_json=creds_json, spreadsheet=spreadsheet, sheet=sheet)
         self.database = database
@@ -188,7 +188,7 @@ class ServiceGoogleSheet:
         if len(result_nm_ids_data) > 0:
             db = self.database()
             try:
-                async with db as connection:
+                async with db.acquire() as connection:
                 # async with self.database().acquire() as connection:
                     psql_article = ArticleTable(db=connection)
                     # psql_article = ArticleTable(db=connection)
@@ -549,7 +549,7 @@ class ServiceGoogleSheet:
         db = self.database()
         # получаем артикулы отсутствующие в бд psql
         try:
-            async with db as connection:
+            async with db.acquire() as connection:
                 accurate_net_profit_table = AccurateNetProfitTable(db=connection)
                 # async with self.database().acquire() as connection:
                 #     accurate_net_profit_table = AccurateNetProfitTable(db=connection)
