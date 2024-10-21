@@ -362,6 +362,7 @@ class GoogleSheet:
         # pprint(edit_fbc_qty_data)
         # pprint(result_data)
         # pprint(edit_min_qty)
+        # return {"result_data": result_data, "edit_min_qty": edit_min_qty, "edit_fbc_qty_data": edit_fbc_qty_data}
         return result_data
 
     def add_photo(self, data_dict):

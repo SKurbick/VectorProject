@@ -22,7 +22,7 @@ from database.postgresql.database import Database, Database1
 
 
 class ServiceGoogleSheet:
-    def __init__(self, token, spreadsheet: str, sheet: str, creds_json='creds.json', database=Database):
+    def __init__(self, token, spreadsheet: str, sheet: str, creds_json='creds.json', database=Database1):
         self.wb_api_token = token
         self.gs_connect = GoogleSheet(creds_json=creds_json, spreadsheet=spreadsheet, sheet=sheet)
         self.database = database
@@ -521,7 +521,64 @@ class ServiceGoogleSheet:
                                                                   check_nm_ids_in_db=False)
             self.gs_connect.update_rows(data_json=nm_ids_data_json,
                                         edit_column_clean={"qty": False, "price_discount": False, "dimensions": False})
+
+
+
+    async def check_quantity_flag_test(self):
+        print(datetime.datetime.now(), "Проверка остатков по лимитам из столбца 'Минимальный остаток'")
+        status = ServiceGoogleSheet.check_status()
+        status_limit_edit = status["Добавить если"]
+        status_open_close_fbs = status["ОТКРЫТИЕ/ЗАКРЫТИЕ ФБС"]
+        status_min_qty = status['минимальный\nостаток']
+        add_qty = status['повышение\n остатков']
+        status_average_orders_percent = status['среднее арифм. \nот заказов (%)']
+        print("статус проверки: ", status_limit_edit)
+        low_limit_qty_data = self.gs_connect.get_data_quantity_limit(status_min_qty=status_min_qty, add_qty=add_qty,
+                                                                     status_average_orders_percent=status_average_orders_percent)
+        # {"result_data": result_data, "edit_min_qty": edit_min_qty, "edit_fbc_qty_data": edit_fbc_qty_data}
+
+
+        pprint(low_limit_qty_data)
+        sopost_data = GoogleSheetSopostTable().wild_quantity()
+        nm_ids_for_update_data = {}
+        if (len(low_limit_qty_data["result_data"]) > 0 and status_limit_edit) or len(low_limit_qty_data["edit_fbc_qty_data"] and status_open_close_fbs):
+            pprint(low_limit_qty_data)
+            print("Есть остатки ниже установленного флага")
+            for account, edit_data in low_limit_qty_data["result_data"].items():
+                update_qty_data = []
+                token = get_wb_tokens()[account.capitalize()]
+                warehouses = WarehouseMarketplaceWB(token=token).get_account_warehouse()
+                qty_edit = LeftoversMarketplace(token=token)
+
+                for qty_data in edit_data["qty"]:
+                    if str(sopost_data[qty_data["wild"]]).isdigit() and int(sopost_data[qty_data["wild"]]) != 0:
+                        update_qty_data.append(
+                            {
+                                "sku": qty_data["sku"],
+                                "amount": int(sopost_data[qty_data["wild"]])
+                            }
+                        )
+
+
+                if len(update_qty_data):
+                    for warehouse_id in warehouses:
+                        qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse_id["id"],
+                                                             edit_barcodes_list=update_qty_data)
+
+                    if account not in nm_ids_for_update_data:
+                        nm_ids_for_update_data[account] = []
+                    nm_ids_for_update_data[account].extend(low_limit_qty_data[account]['nm_ids'])
+        if len(nm_ids_for_update_data):
+            nm_ids_data_json = await self.add_new_data_from_table(lk_articles=nm_ids_for_update_data,
+                                                                  only_edits_data=True, add_data_in_db=False,
+                                                                  check_nm_ids_in_db=False)
+            self.gs_connect.update_rows(data_json=nm_ids_data_json,
+                                        edit_column_clean={"qty": False, "price_discount": False, "dimensions": False})
         #
+
+
+
+
 
     async def add_orders_data_in_table(self, psql_data_update, nm_ids_table_data, net_profit_time):
 
