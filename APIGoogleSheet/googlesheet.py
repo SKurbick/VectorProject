@@ -339,7 +339,7 @@ class GoogleSheet:
                         if account not in edit_fbc_qty_data:
                             edit_fbc_qty_data[account] = []
                         edit_fbc_qty_data[account].append({
-                            "sku": barcode,
+                            "sku": str(barcode),
                             "amount": 0
                         })
                         edit_min_qty[article] = {"Минимальный остаток": 0}
@@ -358,7 +358,7 @@ class GoogleSheet:
                             edit_fbc_qty_data[account] = []
                         edit_min_qty[article] = {"Минимальный остаток": status_min_qty}
                         edit_fbc_qty_data[account].append({
-                            "sku": barcode,
+                            "sku": str(barcode),
                             "amount": add_qty
                         })
 

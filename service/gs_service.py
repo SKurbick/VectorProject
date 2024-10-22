@@ -534,7 +534,8 @@ class ServiceGoogleSheet:
                                                                           check_nm_ids_in_db=False)
                     if len(low_limit_qty_data["edit_min_qty"]) > 0:
                         print(low_limit_qty_data["edit_min_qty"])
-                        result = merge_dicts(nm_ids_data_json, low_limit_qty_data["edit_min_qty"])
+                        nm_ids_data_json = merge_dicts(nm_ids_data_json, low_limit_qty_data["edit_min_qty"])
+
                     self.gs_connect.update_rows(data_json=nm_ids_data_json,
                                                 edit_column_clean={"qty": False, "price_discount": False, "dimensions": False})
 
