@@ -189,7 +189,7 @@ class ServiceGoogleSheet:
             db = self.database()
             try:
                 async with db as connection:
-                # async with self.database().acquire() as connection:
+                    # async with self.database().acquire() as connection:
                     psql_article = ArticleTable(db=connection)
                     # psql_article = ArticleTable(db=connection)
 
@@ -483,102 +483,60 @@ class ServiceGoogleSheet:
         status_min_qty = status['минимальный\nостаток']
         add_qty = status['повышение\n остатков']
         status_average_orders_percent = status['среднее арифм. \nот заказов (%)']
-        print("статус проверки: ", status_limit_edit)
-        low_limit_qty_data = self.gs_connect.get_data_quantity_limit(status_min_qty=status_min_qty, add_qty=add_qty,
-                                                                     status_average_orders_percent=status_average_orders_percent)
-        pprint(low_limit_qty_data)
-        sopost_data = GoogleSheetSopostTable().wild_quantity()
-        nm_ids_for_update_data = {}
-        if len(low_limit_qty_data) > 0 and status_limit_edit:
-            pprint(low_limit_qty_data)
-            print("Есть остатки ниже установленного флага")
-            for account, edit_data in low_limit_qty_data.items():
-                update_qty_data = []
-                token = get_wb_tokens()[account.capitalize()]
-                warehouses = WarehouseMarketplaceWB(token=token).get_account_warehouse()
-                qty_edit = LeftoversMarketplace(token=token)
+        status_off_on_service = bool(int(status["ВКЛ - 1 /ВЫКЛ - 0"]))
+        bot_status = {"status_min_qty": bool(int(status_min_qty)), "status_open_close_fbs": bool(int(status_open_close_fbs))}
+        print(bot_status)
+        # если сервис включен
+        if status_off_on_service:
+            # если включены флаги на изменение остатков
+            if bot_status["status_min_qty"] or bot_status["status_open_close_fbs"]:
+                low_limit_qty_data = self.gs_connect.get_data_quantity_limit(status_min_qty=status_min_qty, add_qty=add_qty,
+                                                                             status_average_orders_percent=status_average_orders_percent, bot_status=bot_status)
 
-                for qty_data in edit_data["qty"]:
-                    if str(sopost_data[qty_data["wild"]]).isdigit() and int(sopost_data[qty_data["wild"]]) != 0:
-                        update_qty_data.append(
-                            {
-                                "sku": qty_data["sku"],
-                                "amount": int(sopost_data[qty_data["wild"]])
-                            }
-                        )
+                sopost_data = GoogleSheetSopostTable().wild_quantity()
+                nm_ids_for_update_data = {}
+                if len(low_limit_qty_data["result_data"]) > 0 or len(low_limit_qty_data["edit_fbc_qty_data"]) > 0:
+                    print("Есть остатки ниже установленного флага")
+                    for account, edit_data in low_limit_qty_data["result_data"].items():
+                        update_qty_data = []
+                        token = get_wb_tokens()[account.capitalize()]
+                        warehouses = WarehouseMarketplaceWB(token=token).get_account_warehouse()
+                        qty_edit = LeftoversMarketplace(token=token)
 
-                if len(update_qty_data):
-                    for warehouse_id in warehouses:
-                        qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse_id["id"],
-                                                             edit_barcodes_list=update_qty_data)
+                        if len(edit_data["qty"]) > 0:
+                            for qty_data in edit_data["qty"]:
+                                if str(sopost_data[qty_data["wild"]]).isdigit() and int(sopost_data[qty_data["wild"]]) != 0:
+                                    update_qty_data.append(
+                                        {
+                                            "sku": qty_data["sku"],
+                                            "amount": int(sopost_data[qty_data["wild"]])
+                                        }
+                                    )
 
-                    if account not in nm_ids_for_update_data:
-                        nm_ids_for_update_data[account] = []
-                    nm_ids_for_update_data[account].extend(low_limit_qty_data[account]['nm_ids'])
-        if len(nm_ids_for_update_data):
-            nm_ids_data_json = await self.add_new_data_from_table(lk_articles=nm_ids_for_update_data,
-                                                                  only_edits_data=True, add_data_in_db=False,
-                                                                  check_nm_ids_in_db=False)
-            self.gs_connect.update_rows(data_json=nm_ids_data_json,
-                                        edit_column_clean={"qty": False, "price_discount": False, "dimensions": False})
+                        # добавляет баркоды с новыми остатками для запроса на изменение остатков
+                        if account in low_limit_qty_data["edit_fbc_qty_data"] and len(low_limit_qty_data["edit_fbc_qty_data"][account]) > 0:
+                            update_qty_data.extend(low_limit_qty_data["edit_fbc_qty_data"][account])
 
+                        if len(update_qty_data):
+                            for warehouse_id in warehouses:
+                                qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse_id["id"],
+                                                                     edit_barcodes_list=update_qty_data)
 
-
-    async def check_quantity_flag_test(self):
-        print(datetime.datetime.now(), "Проверка остатков по лимитам из столбца 'Минимальный остаток'")
-        status = ServiceGoogleSheet.check_status()
-        status_limit_edit = status["Добавить если"]
-        status_open_close_fbs = status["ОТКРЫТИЕ/ЗАКРЫТИЕ ФБС"]
-        status_min_qty = status['минимальный\nостаток']
-        add_qty = status['повышение\n остатков']
-        status_average_orders_percent = status['среднее арифм. \nот заказов (%)']
-        print("статус проверки: ", status_limit_edit)
-        low_limit_qty_data = self.gs_connect.get_data_quantity_limit(status_min_qty=status_min_qty, add_qty=add_qty,
-                                                                     status_average_orders_percent=status_average_orders_percent)
-        # {"result_data": result_data, "edit_min_qty": edit_min_qty, "edit_fbc_qty_data": edit_fbc_qty_data}
-
-
-        pprint(low_limit_qty_data)
-        sopost_data = GoogleSheetSopostTable().wild_quantity()
-        nm_ids_for_update_data = {}
-        if (len(low_limit_qty_data["result_data"]) > 0 and status_limit_edit) or len(low_limit_qty_data["edit_fbc_qty_data"] and status_open_close_fbs):
-            pprint(low_limit_qty_data)
-            print("Есть остатки ниже установленного флага")
-            for account, edit_data in low_limit_qty_data["result_data"].items():
-                update_qty_data = []
-                token = get_wb_tokens()[account.capitalize()]
-                warehouses = WarehouseMarketplaceWB(token=token).get_account_warehouse()
-                qty_edit = LeftoversMarketplace(token=token)
-
-                for qty_data in edit_data["qty"]:
-                    if str(sopost_data[qty_data["wild"]]).isdigit() and int(sopost_data[qty_data["wild"]]) != 0:
-                        update_qty_data.append(
-                            {
-                                "sku": qty_data["sku"],
-                                "amount": int(sopost_data[qty_data["wild"]])
-                            }
-                        )
-
-
-                if len(update_qty_data):
-                    for warehouse_id in warehouses:
-                        qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse_id["id"],
-                                                             edit_barcodes_list=update_qty_data)
-
-                    if account not in nm_ids_for_update_data:
-                        nm_ids_for_update_data[account] = []
-                    nm_ids_for_update_data[account].extend(low_limit_qty_data[account]['nm_ids'])
-        if len(nm_ids_for_update_data):
-            nm_ids_data_json = await self.add_new_data_from_table(lk_articles=nm_ids_for_update_data,
-                                                                  only_edits_data=True, add_data_in_db=False,
-                                                                  check_nm_ids_in_db=False)
-            self.gs_connect.update_rows(data_json=nm_ids_data_json,
-                                        edit_column_clean={"qty": False, "price_discount": False, "dimensions": False})
-        #
-
-
-
-
+                            if account not in nm_ids_for_update_data:
+                                nm_ids_for_update_data[account] = []
+                            print("nm_ids_for_update_data")
+                            pprint(nm_ids_for_update_data)
+                            nm_ids_for_update_data[account].extend(low_limit_qty_data["result_data"][account]['nm_ids'])
+                if len(nm_ids_for_update_data) > 0:
+                    print(nm_ids_for_update_data)
+                    nm_ids_data_json = await self.add_new_data_from_table(lk_articles=nm_ids_for_update_data,
+                                                                          only_edits_data=True, add_data_in_db=False,
+                                                                          check_nm_ids_in_db=False)
+                    if len(low_limit_qty_data["edit_min_qty"]) > 0:
+                        print(low_limit_qty_data["edit_min_qty"])
+                        result = merge_dicts(nm_ids_data_json, low_limit_qty_data["edit_min_qty"])
+                    self.gs_connect.update_rows(data_json=nm_ids_data_json,
+                                                edit_column_clean={"qty": False, "price_discount": False, "dimensions": False})
 
     async def add_orders_data_in_table(self, psql_data_update, nm_ids_table_data, net_profit_time):
 

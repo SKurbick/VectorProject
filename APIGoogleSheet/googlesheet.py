@@ -153,6 +153,9 @@ class GoogleSheet:
             # Пропуск если данных по артикулу нет в бд (нужен для подтягивания валидно вилда)
             if str(article) not in db_nm_ids_data.keys() or "vendorCode" not in db_nm_ids_data[str(article)]:
                 continue
+            # пропуск если невалидное значение ЧП
+            if str(row['Чистая прибыль 1ед.'].replace('\xa0', '')).isdigit() is not True:
+                continue
             # Создание словаря для текущего артикула
             article_dict = {
                 # подтягиваем wild с БД
@@ -288,7 +291,7 @@ class GoogleSheet:
          'среднее арифм. \nот заказов (%)': 10}"""
         return result
 
-    def get_data_quantity_limit(self, status_min_qty, add_qty, status_average_orders_percent):
+    def get_data_quantity_limit(self, status_min_qty, add_qty, status_average_orders_percent, bot_status):
         """Проверяем остатки и лимит по остаткам"""
         data = self.sheet.get_all_records()
         df = pd.DataFrame(data)
@@ -305,65 +308,61 @@ class GoogleSheet:
             average_day_orders = row["Среднее в день"]
             barcode = row["Баркод"]
             wild = row["wild"]
-            if str(article).isdigit():
-                if str(min_qty).isdigit() and int(min_qty) != 0:
-                    if int(min_qty) >= int(current_qty):
+
+            if bot_status["status_min_qty"]:
+                if str(article).isdigit():
+                    if str(min_qty).isdigit() and int(min_qty) != 0:
+                        if int(min_qty) >= int(current_qty):
+                            if account not in result_data:
+                                result_data[account] = {"qty": [], "nm_ids": []}
+                            result_data[account]["qty"].append(
+                                {"wild": wild,
+                                 "sku": str(barcode)}
+                            )
+                            result_data[account]["nm_ids"].append(int(article))
+
+            if bot_status["status_open_close_fbs"]:
+                "собираем артикулы/баркоды формируем запрос на изменение остатков и коррекции ячейки 'Минимальный остаток'"
+                # условия проверки валидности ключевых ячеек
+                if str(current_qty_wb).isdigit() and status_fbo == 'Да' and str(min_qty).isdigit() is True and str(
+                        average_day_orders).isdigit() and str(current_qty).isdigit():
+                    # данные для закрытия ФБС
+                    # если 10% от средних зак. < остатка ВБ складов и тек. остаток > 0 - ТО тек. остаток на 0 и мин. остаток на 0
+                    if subtract_percentage(int(average_day_orders), status_average_orders_percent) < int(
+                            current_qty_wb) and int(current_qty) > 0:
+                        # добавляем nm_id для актуализации информации
                         if account not in result_data:
                             result_data[account] = {"qty": [], "nm_ids": []}
-                        result_data[account]["qty"].append(
-                            {"wild": wild,
-                             "sku": str(barcode)}
-                        )
                         result_data[account]["nm_ids"].append(int(article))
 
-        #     "собираем артикулы/баркоды формируем запрос на изменение остатков и коррекции ячейки 'Минимальный остаток'"
-        #     # условия проверки валидности ключевых ячеек
-        #     if str(current_qty_wb).isdigit() and status_fbo == 'Да' and str(min_qty).isdigit() is True and str(
-        #             average_day_orders).isdigit() and str(current_qty).isdigit():
-        #         print("первый IF")
-        #         # данные для закрытия ФБС
-        #         # если 10% от средних зак. < остатка ВБ складов и тек. остаток > 0 - ТО тек. остаток на 0 и мин. остаток на 0
-        #         if subtract_percentage(int(average_day_orders), status_average_orders_percent) < int(
-        #                 current_qty_wb) and int(current_qty) > 0:
-        #             print("закрытия ФБС", article)
-        #             # добавляем nm_id для актуализации информации
-        #             if account not in result_data:
-        #                 result_data[account] = {"qty": [], "nm_ids": []}
-        #             result_data[account]["nm_ids"].append(int(article))
-        #
-        #             # мин. остаток будет выставлен на 0 и остаток понижен до 0
-        #             if account not in edit_fbc_qty_data:
-        #                 edit_fbc_qty_data[account] = []
-        #             edit_fbc_qty_data[account].append({
-        #                 "sku": barcode,
-        #                 "amount": 0
-        #             })
-        #             edit_min_qty[article] = 0
-        #
-        #         # данные для открытия ФБС
-        #         # если 10% от средних зак. >= остатка ВБ складов и мин остаток = 0 - ТО мин остаток должен стать 10 и повысить остаток на фбс на 100
-        #         if subtract_percentage(int(average_day_orders), status_average_orders_percent) >= int(
-        #                 current_qty_wb) and int(min_qty) == 0:
-        #             print("открытие ФБС", article)
-        #             # добавляем nm_id для актуализации информации
-        #             if account not in result_data:
-        #                 result_data[account] = {"qty": [], "nm_ids": []}
-        #             result_data[account]["nm_ids"].append(int(article))
-        #
-        #             # мин. остаток будет выставлен на 10 и остаток повышен до 100
-        #             if account not in edit_fbc_qty_data:
-        #                 edit_fbc_qty_data[account] = []
-        #             edit_min_qty[article] = status_min_qty
-        #             edit_fbc_qty_data[account].append({
-        #                 "sku": barcode,
-        #                 "amount": add_qty
-        #             })
-        #
-        # pprint(edit_fbc_qty_data)
-        # pprint(result_data)
-        # pprint(edit_min_qty)
-        # return {"result_data": result_data, "edit_min_qty": edit_min_qty, "edit_fbc_qty_data": edit_fbc_qty_data}
-        return result_data
+                        # мин. остаток будет выставлен на 0 и остаток понижен до 0
+                        if account not in edit_fbc_qty_data:
+                            edit_fbc_qty_data[account] = []
+                        edit_fbc_qty_data[account].append({
+                            "sku": barcode,
+                            "amount": 0
+                        })
+                        edit_min_qty[article] = {"Минимальный остаток": 0}
+
+                    # данные для открытия ФБС
+                    # если 10% от средних зак. >= остатка ВБ складов и мин остаток = 0 - ТО мин остаток должен стать 10 и повысить остаток на фбс на 100
+                    if subtract_percentage(int(average_day_orders), status_average_orders_percent) >= int(
+                            current_qty_wb) and int(min_qty) == 0:
+                        # добавляем nm_id для актуализации информации
+                        if account not in result_data:
+                            result_data[account] = {"qty": [], "nm_ids": []}
+                        result_data[account]["nm_ids"].append(int(article))
+
+                        # мин. остаток будет выставлен на 10 и остаток повышен до 100
+                        if account not in edit_fbc_qty_data:
+                            edit_fbc_qty_data[account] = []
+                        edit_min_qty[article] = {"Минимальный остаток": status_min_qty}
+                        edit_fbc_qty_data[account].append({
+                            "sku": barcode,
+                            "amount": add_qty
+                        })
+
+        return {"result_data": result_data, "edit_min_qty": edit_min_qty, "edit_fbc_qty_data": edit_fbc_qty_data}
 
     def add_photo(self, data_dict):
         for _ in range(10):
