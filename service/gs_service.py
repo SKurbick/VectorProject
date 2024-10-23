@@ -22,10 +22,10 @@ from database.postgresql.database import Database, Database1
 
 
 class ServiceGoogleSheet:
-    def __init__(self, token, spreadsheet: str, sheet: str, creds_json='creds.json', database=Database1):
+    def __init__(self, token, spreadsheet: str, sheet: str, creds_json='creds.json'):
         self.wb_api_token = token
         self.gs_connect = GoogleSheet(creds_json=creds_json, spreadsheet=spreadsheet, sheet=sheet)
-        self.database = database
+        # self.database = database
         self.gs_service_revenue_connect = GoogleSheetServiceRevenue(creds_json=creds_json, spreadsheet=spreadsheet,
                                                                     sheet=sheet)
         self.sheet = sheet
@@ -185,22 +185,22 @@ class ServiceGoogleSheet:
             self.gs_connect.add_photo(nm_ids_photo)
 
         # добавляем данные артикулов в psql в таблицу article
-        if len(result_nm_ids_data) > 0:
-            db = self.database()
-            try:
-                async with db as connection:
-                    # async with self.database().acquire() as connection:
-                    psql_article = ArticleTable(db=connection)
-                    # psql_article = ArticleTable(db=connection)
-
-                    # ограничение функции: добавляет данные в psql, но только если их не было в бд json
-                    filter_nm_ids = await psql_article.check_nm_ids(account="None", nm_ids=filter_nm_ids_data)
-                    if filter_nm_ids:
-                        print("filter_nm_ids", filter_nm_ids)
-                        await psql_article.update_articles(data=result_nm_ids_data, filter_nm_ids=filter_nm_ids)
-                    print("данные по артикулам добавлены в таблицу article psql")
-            except Exception as e:
-                print(e)
+        # if len(result_nm_ids_data) > 0:
+        #     # db = self.database()
+        #     try:
+        #         async with Database1() as connection:
+        #             # async with self.database().acquire() as connection:
+        #             psql_article = ArticleTable(db=connection)
+        #             # psql_article = ArticleTable(db=connection)
+        #
+        #             # ограничение функции: добавляет данные в psql, но только если их не было в бд json
+        #             filter_nm_ids = await psql_article.check_nm_ids(account="None", nm_ids=filter_nm_ids_data)
+        #             if filter_nm_ids:
+        #                 print("filter_nm_ids", filter_nm_ids)
+        #                 await psql_article.update_articles(data=result_nm_ids_data, filter_nm_ids=filter_nm_ids)
+        #             print("данные по артикулам добавлены в таблицу article psql")
+        #     except Exception as e:
+        #         print(e)
 
         return result_nm_ids_data
 
@@ -563,10 +563,10 @@ class ServiceGoogleSheet:
 
         print("Обновление количества заказов по дням в MAIN")
         """ Функция добавления количества заказов по дням в таблицу """
-        db = self.database()
+        # db = self.database()
         # получаем артикулы отсутствующие в бд psql
         try:
-            async with db as connection:
+            async with Database1() as connection:
                 accurate_net_profit_table = AccurateNetProfitTable(db=connection)
                 # async with self.database().acquire() as connection:
                 #     accurate_net_profit_table = AccurateNetProfitTable(db=connection)

@@ -1,7 +1,8 @@
-requests
-gspread
-pandas
-schedule
-python-dotenv
-aiohttp
-asyncpg
+requests~=2.32.3
+gspread~=6.1.2
+pandas~=2.2.2
+schedule~=1.2.2
+python-dotenv~=1.0.1
+aiohttp~=3.10.5
+asyncpg~=0.29.0
+structlog~=24.4.0
