@@ -274,21 +274,6 @@ class GoogleSheet:
         # Создание словаря с результатами
         result = dict(zip(first_header_values, first_data_values))
         result.update(dict(zip(second_header_values, second_data_values)))
-        """
-            {'': '',
-         'ВКЛ - 1 /ВЫКЛ - 0': 1,
-         'Габариты': 0,
-         'Добавить если': 1,
-         'Название': 'MAIN',
-         'Настройки\nО\\З ФБС': '',
-         'ОТКРЫТИЕ/ЗАКРЫТИЕ ФБС': 0,
-         'Остаток': 1,
-         'Отрицательная \nЧП': 0,
-         'Отчетность ': '',
-         'Цены/Скидки': 1,
-         'минимальный\nостаток': 10,
-         'повышение\n остатков': 100,
-         'среднее арифм. \nот заказов (%)': 10}"""
         return result
 
     def get_data_quantity_limit(self, status_min_qty, add_qty, status_average_orders_percent, bot_status):
@@ -302,8 +287,10 @@ class GoogleSheet:
             article = row["Артикул"]
             account = str(row["ЛК"])
             min_qty = row["Минимальный остаток"]
-            current_qty = row["Текущий остаток"]
-            current_qty_wb = row["Текущий остаток\nСклады WB"]
+            # current_qty = row["Текущий остаток"]
+            # current_qty_wb = row["Текущий остаток\nСклады WB"]
+            current_qty = row["ФБС"]
+            current_qty_wb = row["ФБО"]
             status_fbo = row["Признак ФБО"]
             average_day_orders = row["Среднее в день"]
             barcode = row["Баркод"]

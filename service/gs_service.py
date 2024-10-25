@@ -171,10 +171,13 @@ class ServiceGoogleSheet:
                             card["Комиссия WB"] = sc[1]
                     for bq_result in barcodes_quantity_result:
                         if "Баркод" in card and bq_result["Баркод"] == card["Баркод"]:
-                            card["Текущий остаток"] = bq_result["остаток"]
+                            # card["Текущий остаток"] = bq_result["остаток"]
+                            card["ФБС"] = bq_result["остаток"]
+
                     if len(barcodes_qty_wb) > 0:
                         if "Баркод" in card and card["Баркод"] in barcodes_qty_wb.keys():
-                            card["Текущий остаток\nСклады WB"] = barcodes_qty_wb[card["Баркод"]]
+                            # card["Текущий остаток\nСклады WB"] = barcodes_qty_wb[card["Баркод"]]
+                            card["ФБО"] = barcodes_qty_wb[card["Баркод"]]
 
                 result_nm_ids_data.update(merge_json_data)
 
@@ -466,10 +469,13 @@ class ServiceGoogleSheet:
                             card["Комиссия WB"] = sc[1]
                     for bq_result in barcodes_quantity_result:
                         if "Баркод" in card and bq_result["Баркод"] == card["Баркод"]:
-                            card["Текущий остаток"] = bq_result["остаток"]
+                            # card["Текущий остаток"] = bq_result["остаток"]
+                            card["ФБС"] = bq_result["остаток"]
+
                     if len(barcodes_qty_wb) > 0:
                         if "Баркод" in card and card["Баркод"] in barcodes_qty_wb.keys():
-                            card["Текущий остаток\nСклады WB"] = barcodes_qty_wb[card["Баркод"]]
+                            # card["Текущий остаток\nСклады WB"] = barcodes_qty_wb[card["Баркод"]]
+                            card["ФБО"] = barcodes_qty_wb[card["Баркод"]]
 
                 result_updates_rows.update(merge_json_data)
                 """обновляем данные по артикулам"""
