@@ -169,8 +169,8 @@ class AnalyticsWarehouseLimits:
 
         return result
 
-    def check_data_by_task_id(self, task_id):
-        time.sleep(10)
+    async def check_data_by_task_id(self, task_id):
+        await asyncio.sleep(10)
 
         url = f"https://seller-analytics-api.wildberries.ru/api/v1/warehouse_remains/tasks/{task_id}/download"
         result = {}
@@ -184,10 +184,10 @@ class AnalyticsWarehouseLimits:
                     break
                 print(response.status_code)
                 print(response.json())
-                time.sleep(63)
+                await asyncio.sleep(63)
             except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
                 print(e)
-                time.sleep(63)
+                await asyncio.sleep(63)
             except requests.exceptions.JSONDecodeError as e:
                 print(e,"Нет json ответа в запросе остатков")
                 break

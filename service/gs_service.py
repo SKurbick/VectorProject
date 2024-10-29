@@ -156,7 +156,7 @@ class ServiceGoogleSheet:
                 # собираем остатки со складов WB
                 barcodes_qty_wb = {}
                 task_id = wh_analytics.create_report()
-                wb_warehouse_qty = wh_analytics.check_data_by_task_id(task_id=task_id)
+                wb_warehouse_qty = await wh_analytics.check_data_by_task_id(task_id=task_id)
                 if task_id is not None and len(wb_warehouse_qty) > 0:
                     for wh_data in wb_warehouse_qty:
                         if wh_data["barcode"] in account_barcodes:
@@ -412,7 +412,8 @@ class ServiceGoogleSheet:
                 commission_traffics = CommissionTariffs(token=token)
                 wh_analytics = AnalyticsWarehouseLimits(token=token)
                 card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=articles, limit=100,
-                                                                           only_edits_data=True, add_data_in_db=False, account=account)
+                                                                           only_edits_data=True, add_data_in_db=False,
+                                                                           account=account)
                 goods_nm_ids = wb_api_price_and_discount.get_log_for_nm_ids(filter_nm_ids=articles)
                 # print(f"{account}","card_from_nm_ids_filter",card_from_nm_ids_filter)
 
@@ -452,7 +453,7 @@ class ServiceGoogleSheet:
                 # собираем остатки со складов WB
                 barcodes_qty_wb = {}
                 task_id = wh_analytics.create_report()
-                wb_warehouse_qty = wh_analytics.check_data_by_task_id(task_id=task_id)
+                wb_warehouse_qty = await wh_analytics.check_data_by_task_id(task_id=task_id)
                 if task_id is not None and len(wb_warehouse_qty) > 0:
                     if wb_warehouse_qty:
                         for wh_data in wb_warehouse_qty:
@@ -490,14 +491,17 @@ class ServiceGoogleSheet:
         add_qty = status['повышение\n остатков']
         status_average_orders_percent = status['среднее арифм. \nот заказов (%)']
         status_off_on_service = bool(int(status["ВКЛ - 1 /ВЫКЛ - 0"]))
-        bot_status = {"status_min_qty": bool(int(status_min_qty)), "status_open_close_fbs": bool(int(status_open_close_fbs))}
+        bot_status = {"status_min_qty": bool(int(status_min_qty)),
+                      "status_open_close_fbs": bool(int(status_open_close_fbs))}
         print(bot_status)
         # если сервис включен
         if status_off_on_service:
             # если включены флаги на изменение остатков
             if bot_status["status_min_qty"] or bot_status["status_open_close_fbs"]:
-                low_limit_qty_data = self.gs_connect.get_data_quantity_limit(status_min_qty=status_min_qty, add_qty=add_qty,
-                                                                             status_average_orders_percent=status_average_orders_percent, bot_status=bot_status)
+                low_limit_qty_data = self.gs_connect.get_data_quantity_limit(status_min_qty=status_min_qty,
+                                                                             add_qty=add_qty,
+                                                                             status_average_orders_percent=status_average_orders_percent,
+                                                                             bot_status=bot_status)
 
                 sopost_data = GoogleSheetSopostTable().wild_quantity()
                 nm_ids_for_update_data = {}
@@ -511,7 +515,8 @@ class ServiceGoogleSheet:
 
                         if len(edit_data["qty"]) > 0:
                             for qty_data in edit_data["qty"]:
-                                if str(sopost_data[qty_data["wild"]]).isdigit() and int(sopost_data[qty_data["wild"]]) != 0:
+                                if str(sopost_data[qty_data["wild"]]).isdigit() and int(
+                                        sopost_data[qty_data["wild"]]) != 0:
                                     update_qty_data.append(
                                         {
                                             "sku": qty_data["sku"],
@@ -520,7 +525,8 @@ class ServiceGoogleSheet:
                                     )
 
                         # добавляет баркоды с новыми остатками для запроса на изменение остатков
-                        if account in low_limit_qty_data["edit_fbc_qty_data"] and len(low_limit_qty_data["edit_fbc_qty_data"][account]) > 0:
+                        if account in low_limit_qty_data["edit_fbc_qty_data"] and len(
+                                low_limit_qty_data["edit_fbc_qty_data"][account]) > 0:
                             update_qty_data.extend(low_limit_qty_data["edit_fbc_qty_data"][account])
 
                         if len(update_qty_data):
@@ -543,7 +549,8 @@ class ServiceGoogleSheet:
                         nm_ids_data_json = merge_dicts(nm_ids_data_json, low_limit_qty_data["edit_min_qty"])
 
                     self.gs_connect.update_rows(data_json=nm_ids_data_json,
-                                                edit_column_clean={"qty": False, "price_discount": False, "dimensions": False})
+                                                edit_column_clean={"qty": False, "price_discount": False,
+                                                                   "dimensions": False})
 
     async def add_orders_data_in_table(self, psql_data_update, nm_ids_table_data, net_profit_time):
 
@@ -570,11 +577,13 @@ class ServiceGoogleSheet:
         print("Обновлено количество заказов по дням в MAIN")
         """ Функция добавления количества заказов по дням в таблицу """
         try:
-            await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=net_profit_time, nm_ids_table_data=nm_ids_table_data)
+            await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=net_profit_time,
+                                           nm_ids_table_data=nm_ids_table_data)
         except asyncio.TimeoutError as e:
             print("поймали исключение при add_data_in_db_psql:", e)
             print("повторная попытка")
-            await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=net_profit_time, nm_ids_table_data=nm_ids_table_data)
+            await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=net_profit_time,
+                                           nm_ids_table_data=nm_ids_table_data)
 
         # db = self.database()
         # получаем артикулы отсутствующие в бд psql
