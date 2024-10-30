@@ -154,13 +154,13 @@ class ServiceGoogleSheet:
                     barcodes_quantity_result.extend(bqs_result)
 
                 # собираем остатки со складов WB
-                barcodes_qty_wb = {}
-                task_id = wh_analytics.create_report()
-                wb_warehouse_qty = await wh_analytics.check_data_by_task_id(task_id=task_id)
-                if task_id is not None and len(wb_warehouse_qty) > 0:
-                    for wh_data in wb_warehouse_qty:
-                        if wh_data["barcode"] in account_barcodes:
-                            barcodes_qty_wb[wh_data["barcode"]] = wh_data["quantityWarehousesFull"]
+                # barcodes_qty_wb = {}
+                # task_id = wh_analytics.create_report()
+                # wb_warehouse_qty = await wh_analytics.check_data_by_task_id(task_id=task_id)
+                # if task_id is not None and len(wb_warehouse_qty) > 0:
+                #     for wh_data in wb_warehouse_qty:
+                #         if wh_data["barcode"] in account_barcodes:
+                #             barcodes_qty_wb[wh_data["barcode"]] = wh_data["quantityWarehousesFull"]
 
                 # получение комиссии WB
                 subject_commissions = commission_traffics.get_commission_on_subject(subject_names=subject_names)
@@ -174,10 +174,10 @@ class ServiceGoogleSheet:
                             # card["Текущий остаток"] = bq_result["остаток"]
                             card["ФБС"] = bq_result["остаток"]
 
-                    if len(barcodes_qty_wb) > 0:
-                        if "Баркод" in card and card["Баркод"] in barcodes_qty_wb.keys():
-                            # card["Текущий остаток\nСклады WB"] = barcodes_qty_wb[card["Баркод"]]
-                            card["ФБО"] = barcodes_qty_wb[card["Баркод"]]
+                    # if len(barcodes_qty_wb) > 0:
+                    #     if "Баркод" in card and card["Баркод"] in barcodes_qty_wb.keys():
+                    #         # card["Текущий остаток\nСклады WB"] = barcodes_qty_wb[card["Баркод"]]
+                    #         card["ФБО"] = barcodes_qty_wb[card["Баркод"]]
 
                 result_nm_ids_data.update(merge_json_data)
 
