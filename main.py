@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 from settings import settings
-from APIGoogleSheet.googlesheet import GoogleSheet, GoogleSheetServiceRevenue
+from APIGoogleSheet.googlesheet import GoogleSheet, GoogleSheetServiceRevenue, PCGoogleSheet
 from service.gs_service import ServiceGoogleSheet
 import schedule
 
@@ -109,6 +109,8 @@ async def run_in_executor(func, *args):
     return await loop.run_in_executor(None, func, *args)
 
 
+
+
 def schedule_tasks():
     gs_service = gs_service_for_schedule_connection()
 
@@ -126,6 +128,8 @@ def schedule_tasks():
 
     # проверяет остатки
     schedule.every(20).minutes.do(lambda: asyncio.create_task(gs_service.check_quantity_flag()))
+
+    # schedule.every(1).seconds.do(lambda: asyncio.create_task(gs_service.update_purchase_calculation_data()))
 
 
 async def run_scheduler():

@@ -1,15 +1,14 @@
 import datetime
-from pprint import pprint
 
 
-class AccurateNetProfitTable:
+class AccurateNetProfitPCTable:
     def __init__(self, db):
         self.db = db
 
     async def get_data_net_profit(self):
         net_profit_query = """
         SELECT DISTINCT article_id
-        FROM accurate_net_profit_data;
+        FROM accurate_npd_purchase_calculation;
         """
 
         result_data = await self.db.fetch(net_profit_query)
@@ -25,7 +24,7 @@ class AccurateNetProfitTable:
                  time, data[nm_id]['ordersCount']) for nm_id in new_nm_ids]
 
             net_profit_query = """
-            INSERT INTO accurate_net_profit_data (article_id, net_profit, date, time, orders)
+            INSERT INTO accurate_npd_purchase_calculation (article_id, net_profit, date, time, orders)
             VALUES ($1, $2, $3, $4, $5) ;
             """
             await self.db.executemany(net_profit_query, net_profit_data)
@@ -33,7 +32,7 @@ class AccurateNetProfitTable:
     async def update_net_profit_data(self, time, response_data, nm_ids_table_data, date):
         async with self.db.transaction():
             select_query = f"""
-                SELECT article_id, SUM(orders) FROM accurate_net_profit_data 
+                SELECT article_id, SUM(orders) FROM accurate_npd_purchase_calculation 
                 WHERE date = '{date}'
                 GROUP BY article_id ;
                 """
@@ -47,10 +46,10 @@ class AccurateNetProfitTable:
 
             # Запрос для добавления или обновления данных
             query = """
-            INSERT INTO accurate_net_profit_data (article_id, net_profit, orders, time, date)
+            INSERT INTO accurate_npd_purchase_calculation (article_id, net_profit, orders, time, date)
             VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (article_id, date, net_profit) DO UPDATE
-            SET orders = accurate_net_profit_data.orders + EXCLUDED.orders,
+            SET orders = accurate_npd_purchase_calculation.orders + EXCLUDED.orders,
                 time = EXCLUDED.time;
             """
 
@@ -73,7 +72,7 @@ class AccurateNetProfitTable:
         FROM (VALUES {nm_ids_str}) AS input(article_id)
         EXCEPT
         SELECT article_id
-        FROM accurate_net_profit_data
+        FROM accurate_npd_purchase_calculation
         WHERE date = '{date}';
         """
         not_found_nm_ids = await self.db.fetch(query)
@@ -84,7 +83,7 @@ class AccurateNetProfitTable:
         date_obj = datetime.datetime.strptime(date, "%Y-%m-%d")
 
         select_query = f"""
-        SELECT article_id, sum(sum_net_profit) as sum_snp FROM accurate_net_profit_data
+        SELECT article_id, sum(sum_net_profit) as sum_snp FROM accurate_npd_purchase_calculation
         WHERE date = $1
         GROUP BY article_id
         ORDER BY sum_snp desc;
@@ -93,11 +92,11 @@ class AccurateNetProfitTable:
         result = await self.db.fetch(select_query, date_obj)
         return result
 
-    async def get_net_profit_by_latest_dates(self, days: int = 30):
+    async def get_net_profit_by_latest_dates(self, days: int=30):
         select_query = f"""
         WITH latest_dates AS (
             SELECT DISTINCT date
-            FROM accurate_net_profit_data
+            FROM accurate_npd_purchase_calculation
             ORDER BY date DESC
             LIMIT $1
         )
@@ -105,9 +104,10 @@ class AccurateNetProfitTable:
             article_id,
             to_char(date, 'DD.MM') AS date,
             SUM(sum_net_profit) AS snp
-        FROM accurate_net_profit_data
+        FROM accurate_npd_purchase_calculation
         WHERE date IN (SELECT date FROM latest_dates)
         GROUP BY article_id, date;
         """
         result = await self.db.fetch(select_query, days)
+
         return result

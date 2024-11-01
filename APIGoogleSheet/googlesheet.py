@@ -209,15 +209,14 @@ class GoogleSheet:
             if pd.isna(article) or article == "":
                 continue
 
-            # todo готов к использованию, раскомментировать после подготовки бд
             # если ячейки, выделенные для изменения, будут иметь число, то они не будут отобраны для обновления данных
-            # if True in (str(row['Новая\nДлина (см)']).replace('\xa0', '').isdigit(),
-            #             str(row['Новая\nШирина (см)']).replace('\xa0', '').isdigit(),
-            #             str(row['Новая\nВысота (см)']).replace('\xa0', '').isdigit(),
-            #             str(row['Установить новую цену']).replace('\xa0', '').isdigit(),
-            #             str(row['Установить новую скидку %']).replace('\xa0', '').isdigit(),
-            #             str(row["Новый остаток"]).replace('\xa0', '').isdigit()):
-            #     continue
+            if True in (str(row['Новая\nДлина (см)']).replace('\xa0', '').isdigit(),
+                        str(row['Новая\nШирина (см)']).replace('\xa0', '').isdigit(),
+                        str(row['Новая\nВысота (см)']).replace('\xa0', '').isdigit(),
+                        str(row['Установить новую цену']).replace('\xa0', '').isdigit(),
+                        str(row['Установить новую скидку %']).replace('\xa0', '').isdigit(),
+                        str(row["Новый остаток"]).replace('\xa0', '').isdigit()):
+                continue
             if lk.upper() not in lk_articles_dict:
                 lk_articles_dict[lk.upper()] = []
             lk_articles_dict[lk.upper()].append(article)
@@ -287,8 +286,6 @@ class GoogleSheet:
             article = row["Артикул"]
             account = str(row["ЛК"])
             min_qty = row["Минимальный остаток"]
-            # current_qty = row["Текущий остаток"]
-            # current_qty_wb = row["Текущий остаток\nСклады WB"]
             current_qty = row["ФБС"]
             current_qty_wb = row["ФБО"]
             status_fbo = row["Признак ФБО"]
@@ -499,7 +496,7 @@ class GoogleSheet:
         # Обновление таблицы одним запросом
         self.sheet.update('A1', updated_values, value_input_option='USER_ENTERED')
         self.sheet.update('A1', updated_formulas, value_input_option='USER_ENTERED')
-        """Значения заголовков и содержимого смещены влево в рамках индексов от 'AG' до 'AM'."""
+        """Значения заголовков и содержимого смещены влево в рамках индексов"""
 
     def check_header(self, header):
         # Если заголовка нет в листе, то выдаст True, для функции которая будет добавлять новый header
@@ -535,7 +532,6 @@ class GoogleSheetServiceRevenue:
         return service_account(filename=self.creds_json)
 
     def add_for_all_new_nm_id_revenue(self, nm_ids_revenue_data: dict):
-
         """
         Добавляет выручку в таблицу за все 7 дней по совпадениям столбцов артикула и дней из nm_ids_revenue_data
         Задумана отрабатывать каждые 3 минуты, для всех новых артикулов
@@ -787,3 +783,153 @@ class GoogleSheetSopostTable:
         df = pd.DataFrame(data)
 
         return dict(zip(df["wild"], df["Добавляем"]))
+
+
+class PCGoogleSheet:
+    def __init__(self, spreadsheet: str, sheet: str, creds_json='creds.json'):
+        self.creds_json = creds_json
+        self.spreadsheet = spreadsheet
+        client = self.client_init_json()
+        for _ in range(10):
+            try:
+                spreadsheet = client.open(self.spreadsheet)
+                self.sheet = spreadsheet.worksheet(sheet)
+                break
+            except (gspread.exceptions.APIError, requests.exceptions.ConnectionError) as e:
+                print(datetime.now())
+                print(e)
+                print("time sleep 60 sec")
+                time.sleep(60)
+
+    def client_init_json(self) -> Client:
+        """Создание клиента для работы с Google Sheets."""
+        return service_account(filename=self.creds_json)
+
+    def check_last_day_header_from_table(self, header):
+        headers = self.sheet.row_values(1)
+        if header not in headers:
+            print(f"заголовка {header} нет в таблице")
+            return True
+        else:
+            print(f"Заголовок {header} уже есть в таблице")
+
+            return False
+
+    def create_lk_articles_dict(self):
+        """Создает словарь из ключей кабинета и его Артикулов"""
+        data = self.sheet.get_all_records()
+        df = pd.DataFrame(data)
+        lk_articles_dict = {}
+        for index, row in df.iterrows():
+
+            article = row['Артикул']
+            lk = row['ЛК'].upper()
+            profit = str(row['ЧП']).replace("\xa0", "")
+            # Пропускаем строки с пустыми значениями в столбце "ЛК" "Артикул"
+            if pd.isna(lk) or lk == "":
+                continue
+            if pd.isna(article) or article == "":
+                continue
+            if profit.isdigit() is False:
+                continue
+            if lk.upper() not in lk_articles_dict:
+                lk_articles_dict[lk.upper()] = {}
+            lk_articles_dict[lk.upper()].update({article: int(profit)})
+        return lk_articles_dict
+
+    def shift_orders_header(self, day):
+        all_values = self.sheet.get_all_values()
+        all_formulas = self.sheet.get_all_values(value_render_option='FORMULA')
+        print("смещает столбцы листа ПРОДАЖИ в таблице 'Условный расчет' (столбцы = ЧП по дням)")
+        # Преобразование в DataFrame
+        df_values = pd.DataFrame(all_values[1:], columns=all_values[0])
+        df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
+
+        # Сохраняем формулы из столбцов, которые не попадают в диапазон смещения
+        formulas_to_preserve = df_formulas.iloc[:, 48:].values
+
+        # Смещение заголовков и содержимого столбцов
+        header_values = df_values.columns[18:48].tolist()  # Индексы столбцов
+        print(header_values)
+        shifted_header_values = header_values[:29]
+        shifted_header_values.insert(0, day)
+        # Обновление заголовков
+        df_values.columns = df_values.columns[:18].tolist() + shifted_header_values + df_values.columns[48:].tolist()
+
+        df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
+        # Смещение содержимого столбцов
+        df_values.iloc[:, 19:48] = df_values.iloc[:, 18:47].values
+        df_values.iloc[:, 18] = ""  # Очистка первого столбца
+
+        # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
+        df_formulas.iloc[:, 19:48] = df_formulas.iloc[:, 18:47].values
+        df_formulas.iloc[:, 18] = ""  # Очистка первого столбца
+        df_formulas.iloc[:, 48:] = formulas_to_preserve
+
+        # Преобразование обратно в список списков
+        updated_values = [df_values.columns.tolist()] + df_values.values.tolist()
+        updated_formulas = [df_formulas.columns.tolist()] + df_formulas.values.tolist()
+
+        # Обновление таблицы одним запросом
+        self.sheet.update('A1', updated_values, value_input_option='USER_ENTERED')
+        self.sheet.update('A1', updated_formulas, value_input_option='USER_ENTERED')
+
+    def update_revenue_rows(self, data_json):
+        data = self.sheet.get_all_records(expected_headers=[])
+        df = pd.DataFrame(data)
+
+        # Преобразуем данные из словаря в DataFrame
+        json_df = pd.DataFrame.from_dict(data_json, orient='index')
+
+        # Преобразуем все значения в json_df в типы данных, которые могут быть сериализованы в JSON
+        json_df = json_df.astype(object).where(pd.notnull(json_df), None)
+
+        # Обновите данные в основном DataFrame на основе "Артикул"
+        for index, row in json_df.iterrows():
+            matching_rows = df[df["Артикул"] == index].index
+            for idx in matching_rows:
+                for column in row.index:
+                    if column in df.columns and (pd.isna(df.at[idx, column]) or df.at[idx, column] == ""):
+                        df.at[idx, column] = row[column]
+
+        # Обновите Google Таблицу только для измененных строк
+        updates = []
+        headers = df.columns.tolist()
+        for index, row in json_df.iterrows():
+            matching_rows = df[df["Артикул"] == index].index
+            for idx in matching_rows:
+                row_number = idx + 2  # +2 потому что индексация в Google Таблицах начинается с 1, а первая строка - заголовки
+                for column in row.index:
+                    if column in headers:
+                        # +2 потому что индексация в Google Таблицах начинается с 1 (я хз почему именно в этой таблице нужно делать +2)
+                        column_index = headers.index(column) + 2
+                        column_letter = column_index_to_letter(column_index)
+                        updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
+        self.sheet.batch_update(updates)
+        print("Актуализированы данные по дням в листе ПРОДАЖИ")
+
+
+def update_columns_in_purchase_calculation():
+    # Дает права на взаимодействие с гугл-таблицами
+    gc = gspread.service_account(filename='creds.json')
+
+    # Таблица из которой берем данные
+    table_from = gc.open("UNIT 2.0 (tested)")
+
+    #  Таблица в которую закидываем данные
+    table_to = gc.open("Условный расчет")
+
+    # Лист откуда берем данные
+    sheet_from = table_from.worksheet('MAIN (tested)').get_all_values()
+    # Лист куда вставляем данные
+    sheet_to = table_to.worksheet('Продажи')
+    sheet_from_df = pd.DataFrame(sheet_from[1:], columns=sheet_from[0])
+    sheet_from_before = sheet_from_df.iloc[:, :3]
+    # Данные для вставки в гугл таблицу
+    sheet_from_before_data = [sheet_from_before.columns.values.tolist()] + sheet_from_before.values.tolist()
+    sheet_to.update(sheet_from_before_data, 'A:C', value_input_option='USER_ENTERED')
+
+    # Данные для вставки в гугл таблицу
+    sheet_from_after = sheet_from_df.iloc[:, 4:10]
+    sheet_from_after_data = [sheet_from_after.columns.values.tolist()] + sheet_from_after.values.tolist()
+    sheet_to.update(sheet_from_after_data, 'E:J', value_input_option='USER_ENTERED')

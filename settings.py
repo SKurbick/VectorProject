@@ -18,6 +18,8 @@ class Setting:
     SPREADSHEET: str = os.getenv("SPREADSHEET")
     CREEDS_FILE_NAME: str = os.getenv("CREEDS_FILE_NAME")
     TOKENS_FILE_NAME: str = os.getenv("TOKENS_FILE_NAME")
+    PC_SHEET: str = os.getenv("PC_SHEET")
+    PC_SPREADSHEET: str = os.getenv("PC_SPREADSHEET")
 
 
 class DBConfig:

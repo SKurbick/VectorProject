@@ -6,15 +6,18 @@ from pprint import pprint
 import gspread.exceptions
 
 import settings
-from APIGoogleSheet.googlesheet import GoogleSheetServiceRevenue, GoogleSheet, GoogleSheetSopostTable
+from APIGoogleSheet.googlesheet import GoogleSheetServiceRevenue, GoogleSheet, GoogleSheetSopostTable, PCGoogleSheet, \
+    update_columns_in_purchase_calculation
 from APIWildberries.analytics import AnalyticsNMReport, AnalyticsWarehouseLimits
 from APIWildberries.content import ListOfCardsContent
 from APIWildberries.marketplace import WarehouseMarketplaceWB, LeftoversMarketplace
 from APIWildberries.prices_and_discounts import ListOfGoodsPricesAndDiscounts
 from APIWildberries.tariffs import CommissionTariffs
 from database.postgresql.repositories.accurate_net_profit_data import AccurateNetProfitTable
+from database.postgresql.repositories.accurate_npd_purchase_calculation import AccurateNetProfitPCTable
 from database.postgresql.repositories.article import ArticleTable
 from settings import get_wb_tokens
+from settings import Setting
 from utils import add_orders_data, calculate_sum_for_logistic, merge_dicts, validate_data, add_nm_ids_in_db, \
     get_last_weeks_dates
 
@@ -25,7 +28,8 @@ class ServiceGoogleSheet:
     def __init__(self, token, spreadsheet: str, sheet: str, creds_json='creds.json'):
         self.wb_api_token = token
         self.gs_connect = GoogleSheet(creds_json=creds_json, spreadsheet=spreadsheet, sheet=sheet)
-        # self.database = database
+        self.gs_connect_pc = PCGoogleSheet(creds_json=creds_json, spreadsheet=Setting().PC_SPREADSHEET,
+                                           sheet=Setting().PC_SHEET)
         self.gs_service_revenue_connect = GoogleSheetServiceRevenue(creds_json=creds_json, spreadsheet=spreadsheet,
                                                                     sheet=sheet)
         self.sheet = sheet
@@ -569,6 +573,8 @@ class ServiceGoogleSheet:
             gs_connect.shift_headers_count_list(today)
             # сместит заголовки дней в листе "MAIN"
             self.gs_connect.shift_orders_header(today=today)
+            # TODO функция смещения заголовков дат в "расчет юнит"
+            # self.gs_connect_pc.shift_orders_header(today=today)
         # если есть данные в БД - будут добавлены в лист
         if len(orders_count_data):
             print("актуализируем данные по заказам в таблице")
@@ -576,23 +582,34 @@ class ServiceGoogleSheet:
 
         print("Обновлено количество заказов по дням в MAIN")
         """ Функция добавления количества заказов по дням в таблицу """
-        try:
-            await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=net_profit_time,
-                                           nm_ids_table_data=nm_ids_table_data)
-        except asyncio.TimeoutError as e:
-            print("поймали исключение при add_data_in_db_psql:", e)
-            print("повторная попытка")
-            await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=net_profit_time,
-                                           nm_ids_table_data=nm_ids_table_data)
+        gs_pc_service = PCGoogleSheet(creds_json=Setting().CREEDS_FILE_NAME, sheet=Setting().PC_SHEET,
+                                      spreadsheet=Setting().PC_SPREADSHEET)
+        nm_ids_pc_table_data = gs_pc_service.create_lk_articles_dict()
+        current_time_by_pc = datetime.datetime.now().time()  # время для ЧП c листа ПРОДАЖИ
 
+        try:
+            print("Актуализируем данные в бд таблицы accurate_net_profit_data")
+            await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=net_profit_time,
+                                           nm_ids_table_data=nm_ids_table_data)
+            print("Актуализируем данные в бд таблицы accurate_npd_purchase_calculation")
+            await self.add_data_in_db_psql_purchase_calculation(psql_data_update=psql_data_update,
+                                                                net_profit_time=current_time_by_pc,
+                                                                nm_ids_table_data=nm_ids_pc_table_data)
+        except asyncio.TimeoutError as e:
+            print("поймали исключение при (add_data_in_db_psql, add_data_in_db_psql_purchase_calculation):", e)
+            print("повторная попытка: Актуализируем данные в бд таблицы accurate_net_profit_data")
+            await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=net_profit_time,
+                                           nm_ids_table_data=nm_ids_table_data)
+            print("повторная попытка: Актуализируем данные в бд таблицы accurate_npd_purchase_calculation")
+            await self.add_data_in_db_psql_purchase_calculation(psql_data_update=psql_data_update,
+                                                                net_profit_time=current_time_by_pc,
+                                                                nm_ids_table_data=nm_ids_pc_table_data)
 
     async def add_data_in_db_psql(self, psql_data_update, net_profit_time, nm_ids_table_data):
-        # try:
         print("Открываем pool в подключении к БД")
         async with Database1() as connection:
             accurate_net_profit_table = AccurateNetProfitTable(db=connection)
-            # async with self.database().acquire() as connection:
-            #     accurate_net_profit_table = AccurateNetProfitTable(db=connection)
+
             print("Смотрим данные в psql_data_update")
             for date, psql_data in psql_data_update.items():
                 nm_ids_list = list(psql_data.keys())
@@ -631,6 +648,60 @@ class ServiceGoogleSheet:
                 print("[INFO] Обновляем данные по сумме ЧП в листе MAIN")
                 self.gs_service_revenue_connect.update_revenue_rows(data_json=formatted_result)
                 print("данные по ЧП актуализированы")
-    # except:
-    #     print("сработало исключение во время актуализации данных в бд psql:")
-    #     raise
+
+    async def add_data_in_db_psql_purchase_calculation(self, psql_data_update, net_profit_time, nm_ids_table_data):
+        print("Открываем pool в подключении к БД")
+        async with Database1() as connection:
+            accurate_net_profit_pc_table = AccurateNetProfitPCTable(db=connection)
+
+            print("Смотрим данные в psql_data_update")
+            for date, psql_data in psql_data_update.items():
+                nm_ids_list = list(psql_data.keys())
+                print("Запрос по новым артикулам")
+                psql_new_nm_ids = await accurate_net_profit_pc_table.check_nm_ids(nm_ids=nm_ids_list, account=None,
+                                                                                  date=date)
+                print("новые артикулы которых нет в таблице accurate_npd_purchase_calculation:", psql_new_nm_ids)
+                "Добавляем данные в бд psql"
+                if psql_new_nm_ids:  # добавляем новые артикулы в бд psql
+                    # если новых артикулов нет в таблице net_profit, то будут добавлены
+                    await accurate_net_profit_pc_table.add_new_article_net_profit_data(time=net_profit_time,
+                                                                                       data=psql_data,
+                                                                                       nm_ids_net_profit=nm_ids_table_data,
+                                                                                       new_nm_ids=psql_new_nm_ids)
+                    print("артикулы в бд таблицы accurate_npd_purchase_calculation актуализированы")
+
+                # актуализируем информацию по полученному с таблицы чп по артикулам
+                await accurate_net_profit_pc_table.update_net_profit_data(time=net_profit_time,
+                                                                          response_data=psql_data,
+                                                                          nm_ids_table_data=nm_ids_table_data,
+                                                                          date=date)
+                print("актуализированы данные в бд таблицы accurate_npd_purchase_calculation")
+
+    async def update_purchase_calculation_data(self):
+        gs_pc_service = PCGoogleSheet(creds_json=Setting().CREEDS_FILE_NAME, sheet=Setting().PC_SHEET,
+                                      spreadsheet=Setting().PC_SPREADSHEET)
+
+        date_object = datetime.datetime.today() - datetime.timedelta(days=1)
+        yesterday = date_object.strftime("%d.%m")
+        print(yesterday)
+        if gs_pc_service.check_last_day_header_from_table(yesterday):
+            gs_pc_service.shift_orders_header(day=yesterday)
+            print(f"Добавлен новый заголовок: {yesterday}")
+        print("Актуализируем данные по артикулам из листа MAIN в лист ПРОДАЖИ")
+        update_columns_in_purchase_calculation()
+
+        print(" актуализируем данные по продажам из бд в таблицу ПРОДАЖИ")
+        async with Database1() as connection:
+            purchase_calculation_table = AccurateNetProfitPCTable(db=connection)
+            database_result = await purchase_calculation_table.get_net_profit_by_latest_dates()
+            edit_result = {}
+            for res in database_result:
+                article_id = res['article_id']
+                snp = int(res['snp'])
+                date = res['date']
+                if article_id not in edit_result:
+                    edit_result[article_id] = {}
+                edit_result[article_id][date] = snp
+
+            print(edit_result)
+        gs_pc_service.update_revenue_rows(edit_result)
