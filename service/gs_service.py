@@ -699,7 +699,8 @@ class ServiceGoogleSheet:
     async def update_purchase_calculation_data(self):
         gs_pc_service = PCGoogleSheet(creds_json=Setting().CREEDS_FILE_NAME, sheet=Setting().PC_SHEET,
                                       spreadsheet=Setting().PC_SPREADSHEET)
-
+        # result = gs_pc_service.create_lk_articles_dict()
+        # pprint(result)
         date_object = datetime.datetime.today() - datetime.timedelta(days=1)
         yesterday = date_object.strftime("%d.%m")
         print(yesterday)

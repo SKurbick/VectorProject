@@ -237,7 +237,7 @@ class GoogleSheet:
                 continue
             if pd.isna(article) or article == "":
                 continue
-            if profit.isdigit() is False:
+            if profit.lstrip('-').isdigit() is False:
                 continue
             if lk.upper() not in lk_articles_dict:
                 lk_articles_dict[lk.upper()] = {}
@@ -824,17 +824,18 @@ class PCGoogleSheet:
 
             article = row['Артикул']
             lk = row['ЛК'].upper()
-            profit = str(row['ЧП']).replace("\xa0", "")
+            # profit = str(row['ЧП']).replace("\xa0", "")
+            profit = row['ЧП']
             # Пропускаем строки с пустыми значениями в столбце "ЛК" "Артикул"
             if pd.isna(lk) or lk == "":
                 continue
             if pd.isna(article) or article == "":
                 continue
-            if profit.isdigit() is False:
+            if str(profit).lstrip('-').isdigit() is False:
                 continue
             if lk.upper() not in lk_articles_dict:
                 lk_articles_dict[lk.upper()] = {}
-            lk_articles_dict[lk.upper()].update({article: int(profit)})
+            lk_articles_dict[lk.upper()].update({article: profit})
         return lk_articles_dict
 
     def shift_orders_header(self, day):
