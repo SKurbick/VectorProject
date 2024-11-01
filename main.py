@@ -109,8 +109,6 @@ async def run_in_executor(func, *args):
     return await loop.run_in_executor(None, func, *args)
 
 
-
-
 def schedule_tasks():
     gs_service = gs_service_for_schedule_connection()
 
