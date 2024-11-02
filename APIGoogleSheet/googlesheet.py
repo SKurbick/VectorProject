@@ -903,7 +903,7 @@ class PCGoogleSheet:
                 for column in row.index:
                     if column in headers:
                         # +2 потому что индексация в Google Таблицах начинается с 1 (я хз почему именно в этой таблице нужно делать +2)
-                        column_index = headers.index(column) + 2
+                        column_index = headers.index(column) + 1
                         column_letter = column_index_to_letter(column_index)
                         updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
         self.sheet.batch_update(updates)
