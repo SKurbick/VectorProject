@@ -669,33 +669,35 @@ class ServiceGoogleSheet:
                 print("данные по ЧП актуализированы")
 
     async def add_data_in_db_psql_purchase_calculation(self, psql_data_update, net_profit_time, nm_ids_table_data):
-        print("Открываем pool в подключении к БД")
-        async with Database1() as connection:
-            accurate_net_profit_pc_table = AccurateNetProfitPCTable(db=connection)
+        try:
+            print("Открываем pool в подключении к БД")
+            async with Database1() as connection:
+                accurate_net_profit_pc_table = AccurateNetProfitPCTable(db=connection)
 
-            print("Смотрим данные в psql_data_update")
-            for date, psql_data in psql_data_update.items():
-                nm_ids_list = list(psql_data.keys())
-                print("Запрос по новым артикулам")
-                psql_new_nm_ids = await accurate_net_profit_pc_table.check_nm_ids(nm_ids=nm_ids_list, account=None,
-                                                                                  date=date)
-                print("новые артикулы которых нет в таблице accurate_npd_purchase_calculation:", psql_new_nm_ids)
-                "Добавляем данные в бд psql"
-                if psql_new_nm_ids:  # добавляем новые артикулы в бд psql
-                    # если новых артикулов нет в таблице net_profit, то будут добавлены
-                    await accurate_net_profit_pc_table.add_new_article_net_profit_data(time=net_profit_time,
-                                                                                       data=psql_data,
-                                                                                       nm_ids_net_profit=nm_ids_table_data,
-                                                                                       new_nm_ids=psql_new_nm_ids)
-                    print("артикулы в бд таблицы accurate_npd_purchase_calculation актуализированы")
+                print("Смотрим данные в psql_data_update")
+                for date, psql_data in psql_data_update.items():
+                    nm_ids_list = list(psql_data.keys())
+                    print("Запрос по новым артикулам")
+                    psql_new_nm_ids = await accurate_net_profit_pc_table.check_nm_ids(nm_ids=nm_ids_list, account=None,
+                                                                                      date=date)
+                    print("новые артикулы которых нет в таблице accurate_npd_purchase_calculation:", psql_new_nm_ids)
+                    "Добавляем данные в бд psql"
+                    if psql_new_nm_ids:  # добавляем новые артикулы в бд psql
+                        # если новых артикулов нет в таблице net_profit, то будут добавлены
+                        await accurate_net_profit_pc_table.add_new_article_net_profit_data(time=net_profit_time,
+                                                                                           data=psql_data,
+                                                                                           nm_ids_net_profit=nm_ids_table_data,
+                                                                                           new_nm_ids=psql_new_nm_ids)
+                        print("артикулы в бд таблицы accurate_npd_purchase_calculation актуализированы")
 
-                # актуализируем информацию по полученному с таблицы чп по артикулам
-                await accurate_net_profit_pc_table.update_net_profit_data(time=net_profit_time,
-                                                                          response_data=psql_data,
-                                                                          nm_ids_table_data=nm_ids_table_data,
-                                                                          date=date)
-                print("актуализированы данные в бд таблицы accurate_npd_purchase_calculation")
-
+                    # актуализируем информацию по полученному с таблицы чп по артикулам
+                    await accurate_net_profit_pc_table.update_net_profit_data(time=net_profit_time,
+                                                                              response_data=psql_data,
+                                                                              nm_ids_table_data=nm_ids_table_data,
+                                                                              date=date)
+                    print("актуализированы данные в бд таблицы accurate_npd_purchase_calculation")
+        except KeyError as e:
+            print("[ERROR] (func) add_data_in_db_psql_purchase_calculation, KeyError",e)
     async def update_purchase_calculation_data(self):
         gs_pc_service = PCGoogleSheet(creds_json=Setting().CREEDS_FILE_NAME, sheet=Setting().PC_SHEET,
                                       spreadsheet=Setting().PC_SPREADSHEET)
