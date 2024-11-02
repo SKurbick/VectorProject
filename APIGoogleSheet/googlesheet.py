@@ -153,9 +153,7 @@ class GoogleSheet:
             # Пропуск если данных по артикулу нет в бд (нужен для подтягивания валидно вилда)
             if str(article) not in db_nm_ids_data.keys() or "vendorCode" not in db_nm_ids_data[str(article)]:
                 continue
-            # пропуск если невалидное значение ЧП
-            if str(row['Чистая прибыль 1ед.'].replace('\xa0', '')).isdigit() is not True:
-                continue
+
             # Создание словаря для текущего артикула
             article_dict = {
                 # подтягиваем wild с БД
@@ -163,10 +161,12 @@ class GoogleSheet:
                 'Чистая прибыль 1ед.': row['Чистая прибыль 1ед.'].replace('\xa0', '')
             }
             if price_and_discount_status:
-                article_dict.update(
-                    {"price_discount": {'Установить новую цену': row['Установить новую цену'].replace('\xa0', ''),
-                                        'Установить новую скидку %': row['Установить новую скидку %'].replace('\xa0',
-                                                                                                              '')}})
+                # пропуск если невалидное значение ЧП
+                if str(row['Чистая прибыль 1ед.'].replace('\xa0', '')).isdigit():
+                    article_dict.update(
+                        {"price_discount": {'Установить новую цену': row['Установить новую цену'].replace('\xa0', ''),
+                                            'Установить новую скидку %': row['Установить новую скидку %'].replace('\xa0',
+                                                                                                                  '')}})
             if dimension_status:
                 article_dict.update({"dimensions": {
                     'Новая\nДлина (см)': row['Новая\nДлина (см)'].replace('\xa0', ''),
