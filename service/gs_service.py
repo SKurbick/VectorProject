@@ -387,19 +387,19 @@ class ServiceGoogleSheet:
                 print("Актуализируем данные в бд таблицы accurate_net_profit_data")
                 await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=current_time,
                                                nm_ids_table_data=nm_ids_table_data)
-                print("Актуализируем данные в бд таблицы accurate_npd_purchase_calculation")
-                await self.add_data_in_db_psql_purchase_calculation(psql_data_update=psql_data_update,
-                                                                    net_profit_time=current_time,
-                                                                    nm_ids_table_data=nm_ids_pc_table_data)
+                # print("Актуализируем данные в бд таблицы accurate_npd_purchase_calculation")
+                # await self.add_data_in_db_psql_purchase_calculation(psql_data_update=psql_data_update,
+                #                                                     net_profit_time=current_time,
+                #                                                     nm_ids_table_data=nm_ids_pc_table_data)
             except asyncio.TimeoutError as e:
-                print("поймали исключение при (add_data_in_db_psql, add_data_in_db_psql_purchase_calculation):", e)
+                # print("поймали исключение при (add_data_in_db_psql, add_data_in_db_psql_purchase_calculation):", e)
                 print("повторная попытка: Актуализируем данные в бд таблицы accurate_net_profit_data")
                 await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=current_time,
                                                nm_ids_table_data=nm_ids_table_data)
-                print("повторная попытка: Актуализируем данные в бд таблицы accurate_npd_purchase_calculation")
-                await self.add_data_in_db_psql_purchase_calculation(psql_data_update=psql_data_update,
-                                                                    net_profit_time=current_time,
-                                                                    nm_ids_table_data=nm_ids_pc_table_data)
+                # print("повторная попытка: Актуализируем данные в бд таблицы accurate_npd_purchase_calculation")
+                # await self.add_data_in_db_psql_purchase_calculation(psql_data_update=psql_data_update,
+                #                                                     net_profit_time=current_time,
+                #                                                     nm_ids_table_data=nm_ids_pc_table_data)
 
             print("Функция актуализации timer:", datetime.datetime.now() - start)
 
