@@ -132,9 +132,8 @@ def schedule_tasks():
 
 async def run_scheduler():
     while True:
-        await asyncio.sleep(1)
         schedule.run_pending()
-        await asyncio.sleep(111111111111)
+        await asyncio.sleep(1)
 
 
 async def main():
