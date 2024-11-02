@@ -162,7 +162,7 @@ class GoogleSheet:
             }
             if price_and_discount_status:
                 # пропуск если невалидное значение ЧП
-                if str(row['Чистая прибыль 1ед.'].replace('\xa0', '')).isdigit():
+                if str(row['Чистая прибыль 1ед.'].replace('\xa0', '')).lstrip('-').isdigit():
                     article_dict.update(
                         {"price_discount": {'Установить новую цену': row['Установить новую цену'].replace('\xa0', ''),
                                             'Установить новую скидку %': row['Установить новую скидку %'].replace('\xa0',
