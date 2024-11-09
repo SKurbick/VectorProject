@@ -393,6 +393,7 @@ class ServiceGoogleSheet:
                 #                                                     nm_ids_table_data=nm_ids_pc_table_data)
             except asyncio.TimeoutError as e:
                 # print("поймали исключение при (add_data_in_db_psql, add_data_in_db_psql_purchase_calculation):", e)
+                print(e)
                 print("повторная попытка: Актуализируем данные в бд таблицы accurate_net_profit_data")
                 await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=current_time,
                                                nm_ids_table_data=nm_ids_table_data)
@@ -592,8 +593,7 @@ class ServiceGoogleSheet:
             gs_connect.shift_headers_count_list(today)
             # сместит заголовки дней в листе "MAIN"
             self.gs_connect.shift_orders_header(today=today)
-            # TODO функция смещения заголовков дат в "расчет юнит"
-            # self.gs_connect_pc.shift_orders_header(today=today)
+
         # если есть данные в БД - будут добавлены в лист
         if len(orders_count_data):
             print("актуализируем данные по заказам в таблице")
@@ -601,28 +601,6 @@ class ServiceGoogleSheet:
 
         print("Обновлено количество заказов по дням в MAIN")
         """ Функция добавления количества заказов по дням в таблицу """
-        # gs_pc_service = PCGoogleSheet(creds_json=Setting().CREEDS_FILE_NAME, sheet=Setting().PC_SHEET,
-        #                               spreadsheet=Setting().PC_SPREADSHEET)
-        # nm_ids_pc_table_data = dict(gs_pc_service.create_lk_articles_dict().values())
-        # current_time_by_pc = datetime.datetime.now().time()  # время для ЧП c листа ПРОДАЖИ
-        #
-        # try:
-        #     print("Актуализируем данные в бд таблицы accurate_net_profit_data")
-        #     await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=net_profit_time,
-        #                                    nm_ids_table_data=nm_ids_table_data)
-        #     print("Актуализируем данные в бд таблицы accurate_npd_purchase_calculation")
-        #     await self.add_data_in_db_psql_purchase_calculation(psql_data_update=psql_data_update,
-        #                                                         net_profit_time=current_time_by_pc,
-        #                                                         nm_ids_table_data=nm_ids_pc_table_data)
-        # except asyncio.TimeoutError as e:
-        #     print("поймали исключение при (add_data_in_db_psql, add_data_in_db_psql_purchase_calculation):", e)
-        #     print("повторная попытка: Актуализируем данные в бд таблицы accurate_net_profit_data")
-        #     await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=net_profit_time,
-        #                                    nm_ids_table_data=nm_ids_table_data)
-        #     print("повторная попытка: Актуализируем данные в бд таблицы accurate_npd_purchase_calculation")
-        #     await self.add_data_in_db_psql_purchase_calculation(psql_data_update=psql_data_update,
-        #                                                         net_profit_time=current_time_by_pc,
-        #                                                         nm_ids_table_data=nm_ids_pc_table_data)
 
     async def add_data_in_db_psql(self, psql_data_update, net_profit_time, nm_ids_table_data):
         print("Открываем pool в подключении к БД")
@@ -697,7 +675,8 @@ class ServiceGoogleSheet:
                                                                               date=date)
                     print("актуализированы данные в бд таблицы accurate_npd_purchase_calculation")
         except KeyError as e:
-            print("[ERROR] (func) add_data_in_db_psql_purchase_calculation, KeyError",e)
+            print("[ERROR] (func) add_data_in_db_psql_purchase_calculation, KeyError", e)
+
     async def update_purchase_calculation_data(self):
         gs_pc_service = PCGoogleSheet(creds_json=Setting().CREEDS_FILE_NAME, sheet=Setting().PC_SHEET,
                                       spreadsheet=Setting().PC_SPREADSHEET)

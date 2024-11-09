@@ -19,9 +19,7 @@ class AccurateNetProfitPCTable:
     async def add_new_article_net_profit_data(self, time, data, nm_ids_net_profit, new_nm_ids):
         """Добавления ЧП и заказов по новым артикулам которых нет в таблице"""
         async with self.db.transaction():
-            # net_profit_data = [
-            #     (nm_id, nm_ids_net_profit[nm_id], datetime.datetime.strptime(data[nm_id]['dt'], '%Y-%m-%d').date(),
-            #      time, data[nm_id]['ordersCount']) for nm_id in new_nm_ids]
+
             net_profit_data = []
             for nm_id in new_nm_ids:
                 try:
