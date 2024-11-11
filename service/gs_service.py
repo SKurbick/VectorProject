@@ -4,6 +4,7 @@ import time
 from pprint import pprint
 
 import gspread.exceptions
+import requests
 
 import settings
 from APIGoogleSheet.googlesheet import GoogleSheetServiceRevenue, GoogleSheet, GoogleSheetSopostTable, PCGoogleSheet, \
@@ -166,13 +167,17 @@ class ServiceGoogleSheet:
                 #         if wh_data["barcode"] in account_barcodes:
                 #             barcodes_qty_wb[wh_data["barcode"]] = wh_data["quantityWarehousesFull"]
 
-                # получение комиссии WB
-                subject_commissions = commission_traffics.get_commission_on_subject(subject_names=subject_names)
-
+                subject_commissions = None
+                try:
+                    # получение комиссии WB
+                    subject_commissions = commission_traffics.get_commission_on_subject(subject_names=subject_names)
+                except (Exception, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
+                    print("[ERROR] Запрос получения комиссии по предметам завершился ошибкой:", e)
                 for card in merge_json_data.values():
-                    for sc in subject_commissions.items():
-                        if "Предмет" in card and sc[0] == card["Предмет"]:
-                            card["Комиссия WB"] = sc[1]
+                    if subject_commissions is not None:
+                        for sc in subject_commissions.items():
+                            if "Предмет" in card and sc[0] == card["Предмет"]:
+                                card["Комиссия WB"] = sc[1]
                     for bq_result in barcodes_quantity_result:
                         if "Баркод" in card and bq_result["Баркод"] == card["Баркод"]:
                             # card["Текущий остаток"] = bq_result["остаток"]
@@ -484,14 +489,18 @@ class ServiceGoogleSheet:
                             if wh_data["barcode"] in account_barcodes:
                                 barcodes_qty_wb[wh_data["barcode"]] = wh_data["quantityWarehousesFull"]
 
-                # получение комиссии WB
-                subject_commissions = commission_traffics.get_commission_on_subject(subject_names=subject_names)
-
+                subject_commissions = None
+                try:
+                    # получение комиссии WB
+                    subject_commissions = commission_traffics.get_commission_on_subject(subject_names=subject_names)
+                except (Exception,requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
+                    print("[ERROR] Запрос получения комиссии по предметам завершился ошибкой:",e)
                 # добавляем данные в merge_json_data
                 for card in merge_json_data.values():
-                    for sc in subject_commissions.items():
-                        if "Предмет" in card and sc[0] == card["Предмет"]:
-                            card["Комиссия WB"] = sc[1]
+                    if subject_commissions is not None:
+                        for sc in subject_commissions.items():
+                            if "Предмет" in card and sc[0] == card["Предмет"]:
+                                card["Комиссия WB"] = sc[1]
                     for bq_result in barcodes_quantity_result:
                         if "Баркод" in card and bq_result["Баркод"] == card["Баркод"]:
                             # card["Текущий остаток"] = bq_result["остаток"]
