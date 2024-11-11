@@ -325,17 +325,17 @@ class ServiceGoogleSheet:
             lk_articles = self.gs_connect.create_lk_articles_dict()
             gs_pc_service = PCGoogleSheet(creds_json=Setting().CREEDS_FILE_NAME, sheet=Setting().PC_SHEET,
                                           spreadsheet=Setting().PC_SPREADSHEET)
-            lk_articles_pc = gs_pc_service.create_lk_articles_dict()
+            # lk_articles_pc = gs_pc_service.create_lk_articles_dict()
             # собираем выручку по всем артикулам аккаунтов
             all_accounts_new_revenue_data = {}
             tasks = []
             nm_ids_table_data = {}
-            nm_ids_pc_table_data = {}
+            # nm_ids_pc_table_data = {}
             current_time = datetime.datetime.now().time()  # время для ЧП
             for account, nm_ids_data in lk_articles.items():
                 nm_ids = list(nm_ids_data.keys())
                 nm_ids_table_data.update(nm_ids_data)
-                nm_ids_pc_table_data.update(lk_articles_pc[account])
+                # nm_ids_pc_table_data.update(lk_articles_pc[account])
                 token = get_wb_tokens()[account.capitalize()]
                 anal_revenue = AnalyticsNMReport(token=token)
                 task = asyncio.create_task(
