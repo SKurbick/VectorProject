@@ -197,22 +197,22 @@ class ServiceGoogleSheet:
             self.gs_connect.add_photo(nm_ids_photo)
 
         # добавляем данные артикулов в psql в таблицу article
-        # if len(result_nm_ids_data) > 0:
-        #     # db = self.database()
-        #     try:
-        #         async with Database1() as connection:
-        #             # async with self.database().acquire() as connection:
-        #             psql_article = ArticleTable(db=connection)
-        #             # psql_article = ArticleTable(db=connection)
-        #
-        #             # ограничение функции: добавляет данные в psql, но только если их не было в бд json
-        #             filter_nm_ids = await psql_article.check_nm_ids(account="None", nm_ids=filter_nm_ids_data)
-        #             if filter_nm_ids:
-        #                 print("filter_nm_ids", filter_nm_ids)
-        #                 await psql_article.update_articles(data=result_nm_ids_data, filter_nm_ids=filter_nm_ids)
-        #             print("данные по артикулам добавлены в таблицу article psql")
-        #     except Exception as e:
-        #         print(e)
+        if len(result_nm_ids_data) > 0:
+            # db = self.database()
+            try:
+                async with Database1() as connection:
+                    # async with self.database().acquire() as connection:
+                    psql_article = ArticleTable(db=connection)
+                    # psql_article = ArticleTable(db=connection)
+
+                    # ограничение функции: добавляет данные в psql, но только если их не было в бд json
+                    filter_nm_ids = await psql_article.check_nm_ids(account="None", nm_ids=filter_nm_ids_data)
+                    if filter_nm_ids:
+                        print("filter_nm_ids", filter_nm_ids)
+                        await psql_article.update_articles(data=result_nm_ids_data, filter_nm_ids=filter_nm_ids)
+                    print("данные по артикулам добавлены в таблицу article psql")
+            except Exception as e:
+                print(e)
 
         return result_nm_ids_data
 
@@ -323,8 +323,8 @@ class ServiceGoogleSheet:
                 # сначала сдвигаем колонки с выручкой
                 self.gs_service_revenue_connect.shift_revenue_columns_to_the_left(last_day=last_day)
             lk_articles = self.gs_connect.create_lk_articles_dict()
-            gs_pc_service = PCGoogleSheet(creds_json=Setting().CREEDS_FILE_NAME, sheet=Setting().PC_SHEET,
-                                          spreadsheet=Setting().PC_SPREADSHEET)
+            # gs_pc_service = PCGoogleSheet(creds_json=Setting().CREEDS_FILE_NAME, sheet=Setting().PC_SHEET,
+            #                               spreadsheet=Setting().PC_SPREADSHEET)
             # lk_articles_pc = gs_pc_service.create_lk_articles_dict()
             # собираем выручку по всем артикулам аккаунтов
             all_accounts_new_revenue_data = {}
@@ -452,7 +452,7 @@ class ServiceGoogleSheet:
                 account_barcodes = []
                 current_tariffs_data = commission_traffics.get_tariffs_box_from_marketplace()
 
-                # если мы не получил данные по артикулам, то аккаунт будет пропущен
+                # если мы не получили данные по артикулам, то аккаунт будет пропущен
                 if len(card_from_nm_ids_filter) == 0:
                     print(f"По токену {account} не получили Артикулы с данными с API WB")
                     print(f"Артикулы:{articles}")
@@ -493,8 +493,8 @@ class ServiceGoogleSheet:
                 try:
                     # получение комиссии WB
                     subject_commissions = commission_traffics.get_commission_on_subject(subject_names=subject_names)
-                except (Exception,requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
-                    print("[ERROR] Запрос получения комиссии по предметам завершился ошибкой:",e)
+                except (Exception, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
+                    print("[ERROR] Запрос получения комиссии по предметам завершился ошибкой:", e)
                 # добавляем данные в merge_json_data
                 for card in merge_json_data.values():
                     if subject_commissions is not None:

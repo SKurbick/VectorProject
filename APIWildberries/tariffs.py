@@ -44,7 +44,6 @@ class CommissionTariffs:
         }
 
         response = requests.get(url=url, headers=self.headers, params=params)
-        # pprint(response.json())
         for warehouse_data in response.json()["response"]["data"]["warehouseList"]:
             if warehouse_data["warehouseName"] == "Маркетплейс":
                 current_tariffs_data = {'boxDeliveryBase': warehouse_data['boxDeliveryBase'],

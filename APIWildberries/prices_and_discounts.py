@@ -79,7 +79,7 @@ class ListOfGoodsPricesAndDiscounts:
             for _ in range(10):
                 try:
                     response = requests.post(url=url, headers=self.headers, json={"data": butch_data})
-                    print("Артиклы на изменение цены:", butch_data)
+                    print("Артикулы на изменение цены:", butch_data)
                     print("price and discount edit result:", response.json())
                     time.sleep(2)
                     if (response.status_code in (200, 208) or response.json()['errorText'] in

@@ -124,11 +124,12 @@ def schedule_tasks():
     """Смотрит в таблицу, оценивает изменения"""
     schedule.every(250).seconds.do(lambda: asyncio.create_task(check_edits_columns()))
 
-    # проверяет остатки
+    # проверяет остатки, обновляет через Сопост
     schedule.every(20).minutes.do(lambda: asyncio.create_task(gs_service.check_quantity_flag()))
 
     # Актуализация листа Продажи
     # schedule.every().day.at("09:30").do(lambda: asyncio.create_task(gs_service.update_purchase_calculation_data()))
+
 
 async def run_scheduler():
     while True:
