@@ -124,6 +124,7 @@ class ListOfCardsContent:
         # pprint(card_result_for_match)
         if len(nm_ids_list_for_edit) > 0:
             print("if len(nm_ids_list_for_edit) > 0:")
+            print(f"нет карточек по этим артикулам в кабинете {account}:",nm_ids_list_for_edit)
             if only_edits_data is False:
                 print("if only_edits_data is False:")
                 for nm_id in nm_ids_list_for_edit:
