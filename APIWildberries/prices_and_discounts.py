@@ -31,7 +31,7 @@ class ListOfGoodsPricesAndDiscounts:
         nm_ids = [*filter_nm_ids]
         nm_ids_list = {}
         print("попали в функцию get_log_for_nm_ids")
-        print(filter_nm_ids)
+        print("filter_nm_ids len:",len(filter_nm_ids))
         offset = 0
         limit = 1000
         while True:
