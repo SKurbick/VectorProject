@@ -109,64 +109,64 @@ async def check_edits_columns():
 #     return await loop.run_in_executor(None, func, *args)
 
 
-# def schedule_tasks():
-#     gs_service = gs_service_for_schedule_connection()
+def schedule_tasks():
+    gs_service = gs_service_for_schedule_connection()
+
+    "Добавляет выручку и сдвигает столбцы с выручкой по необходимости. Условие должно работать  каждые 25 мин"
+    schedule.every(25).minutes.do(lambda: asyncio.create_task(gs_service.add_new_day_revenue_to_table()))
+
+    """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
+    schedule.every(800).seconds.do(lambda: asyncio.create_task(gs_service.add_actually_data_to_table()))
+
+    """Смотрит в таблицу, оценивает новые nm_ids"""
+    schedule.every(300).seconds.do(lambda: asyncio.create_task(check_new_nm_ids()))
+
+    """Смотрит в таблицу, оценивает изменения"""
+    schedule.every(250).seconds.do(lambda: asyncio.create_task(check_edits_columns()))
+
+    # проверяет остатки, обновляет через Сопост
+    schedule.every(20).minutes.do(lambda: asyncio.create_task(gs_service.check_quantity_flag()))
+
+    # Актуализация листа Продажи
+    # schedule.every().day.at("09:30").do(lambda: asyncio.create_task(gs_service.update_purchase_calculation_data()))
+
 #
-#     "Добавляет выручку и сдвигает столбцы с выручкой по необходимости. Условие должно работать  каждые 25 мин"
-#     schedule.every(25).minutes.do(lambda: asyncio.create_task(gs_service.add_new_day_revenue_to_table()))
+async def run_scheduler():
+    while True:
+        schedule.run_pending()
+        await asyncio.sleep(1)
+
 #
-#     """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
-#     schedule.every(800).seconds.do(lambda: asyncio.create_task(gs_service.add_actually_data_to_table()))
-#
-#     """Смотрит в таблицу, оценивает новые nm_ids"""
-#     schedule.every(300).seconds.do(lambda: asyncio.create_task(check_new_nm_ids()))
-#
-#     """Смотрит в таблицу, оценивает изменения"""
-#     schedule.every(250).seconds.do(lambda: asyncio.create_task(check_edits_columns()))
-#
-#     # проверяет остатки, обновляет через Сопост
-#     schedule.every(20).minutes.do(lambda: asyncio.create_task(gs_service.check_quantity_flag()))
-#
-#     # Актуализация листа Продажи
-#     # schedule.every().day.at("09:30").do(lambda: asyncio.create_task(gs_service.update_purchase_calculation_data()))
+async def main():
+    schedule_tasks()
+    await run_scheduler()
 #
 #
-# async def run_scheduler():
-#     while True:
-#         schedule.run_pending()
-#         await asyncio.sleep(1)
+
+# from apscheduler.schedulers.asyncio import AsyncIOScheduler
 #
 #
 # async def main():
-#     schedule_tasks()
-#     await run_scheduler()
+#     gs_service = gs_service_for_schedule_connection()
 #
+#     # Create an instance of the scheduler
+#     scheduler = AsyncIOScheduler()
 #
-
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-
-
-async def main():
-    gs_service = gs_service_for_schedule_connection()
-
-    # Create an instance of the scheduler
-    scheduler = AsyncIOScheduler()
-
-    # Add jobs with the appropriate triggers and intervals
-    scheduler.add_job(gs_service.add_new_day_revenue_to_table, 'interval', minutes=25)
-    scheduler.add_job(gs_service.add_actually_data_to_table, 'interval', seconds=800)
-    scheduler.add_job(check_new_nm_ids, 'interval', seconds=300)
-    scheduler.add_job(check_edits_columns, 'interval', seconds=250)
-    scheduler.add_job(gs_service.check_quantity_flag, 'interval', minutes=20)
-    # Uncomment the following line to add the daily job
-    # scheduler.add_job(update_purchase_calculation_data, 'cron', hour=9, minute=30)
-
-    # Start the scheduler
-    scheduler.start()
-
-    # Keep the event loop running indefinitely
-    event = asyncio.Event()
-    await event.wait()
+#     # Add jobs with the appropriate triggers and intervals
+#     scheduler.add_job(gs_service.add_new_day_revenue_to_table, 'interval', minutes=25)
+#     scheduler.add_job(gs_service.add_actually_data_to_table, 'interval', seconds=800)
+#     scheduler.add_job(check_new_nm_ids, 'interval', seconds=300)
+#     scheduler.add_job(check_edits_columns, 'interval', seconds=250)
+#     scheduler.add_job(gs_service.check_quantity_flag, 'interval', minutes=20)
+#     # Uncomment the following line to add the daily job
+#     # scheduler.add_job(update_purchase_calculation_data, 'cron', hour=9, minute=30)
+#
+#     # Start the scheduler
+#     scheduler.start()
+#
+#     # Keep the event loop running indefinitely
+#     event = asyncio.Event()
+#     await event.wait()
 
 
 if __name__ == "__main__":
