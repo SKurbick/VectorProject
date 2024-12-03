@@ -1,7 +1,9 @@
+import asyncio
 import json
 import time
 from pprint import pprint
 
+import aiohttp
 import requests
 
 
@@ -31,7 +33,7 @@ class ListOfGoodsPricesAndDiscounts:
         nm_ids = [*filter_nm_ids]
         nm_ids_list = {}
         print("попали в функцию get_log_for_nm_ids")
-        print("filter_nm_ids len:",len(filter_nm_ids))
+        print("filter_nm_ids len:", len(filter_nm_ids))
         offset = 0
         limit = 1000
         while True:
@@ -70,6 +72,63 @@ class ListOfGoodsPricesAndDiscounts:
                 offset += limit
         print("НЕВАЛИДНЫЕ АРТИКУЛЫ get_log_for_nm_ids")
         pprint(nm_ids)
+        return nm_ids_list
+
+    async def get_log_for_nm_ids_async(self, filter_nm_ids, account=None) -> dict:
+        """Получение цен и скидок по совпадению с nmID"""
+        url = self.url.format("filter")
+        nm_ids = [*filter_nm_ids]
+        nm_ids_list = {}
+        print("В функции get_log_for_nm_ids")
+        offset = 0
+        limit = 1000
+        while True:
+            params = {
+                "limit": limit,
+                "offset": offset,
+            }
+
+            for i in range(1, 10):
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(url, headers=self.headers, params=params) as response:
+                            response_result = await response.json()
+                            if "data" in response_result:
+                                if response_result['data'] is not None:
+                                    for card in response_result["data"]["listGoods"]:
+                                        if card["nmID"] in nm_ids:
+                                            nm_ids_list[card["nmID"]] = {
+                                                "Цена на WB без скидки": card["sizes"][0]["price"],
+                                                "Скидка %": card["discount"]
+                                            }
+                                            nm_ids.remove(card["nmID"])
+                                    break
+                                else:
+                                    break
+                            elif len(response_result) == 0:
+                                break
+                            elif response.status == 429:
+                                print(nm_ids)
+                                print("попытка:", i, "sleep 10 sec")
+                                await asyncio.sleep(10)
+                                continue
+                            else:
+                                break
+                except (aiohttp.ClientError, aiohttp.ClientResponseError) as e:
+                    print(e, "sleep 36 sec")
+                    await asyncio.sleep(36)
+
+            print("Дошел до условия прерывания бесконечного цикла")
+            print("offset", offset)
+            if len(nm_ids) == 0 or i == 9 or "data" not in response_result or response_result['data'] is None or \
+                    response_result["data"]["listGoods"] is None or len(response_result["data"]["listGoods"]) == 0:
+                print("прерывание бесконечного цикла")
+                # для того что бы прервать бесконечный цикл
+                break
+            else:  # пагинация
+                offset += limit
+        if len(nm_ids) != 0:
+            print(f"в запросе просмотра цен есть невалидные артикулы -> {account}:", nm_ids)
         return nm_ids_list
 
     def add_new_price_and_discount(self, data: list, step=1000):
