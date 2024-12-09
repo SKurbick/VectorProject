@@ -165,8 +165,9 @@ class GoogleSheet:
                 if str(row['Чистая прибыль 1ед.'].replace('\xa0', '')).lstrip('-').isdigit():
                     article_dict.update(
                         {"price_discount": {'Установить новую цену': row['Установить новую цену'].replace('\xa0', ''),
-                                            'Установить новую скидку %': row['Установить новую скидку %'].replace('\xa0',
-                                                                                                                  '')}})
+                                            'Установить новую скидку %': row['Установить новую скидку %'].replace(
+                                                '\xa0',
+                                                '')}})
             if dimension_status:
                 article_dict.update({"dimensions": {
                     'Новая\nДлина (см)': row['Новая\nДлина (см)'].replace('\xa0', ''),

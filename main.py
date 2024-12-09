@@ -27,16 +27,18 @@ def gs_service_revenue_connection():
     return GoogleSheetServiceRevenue(sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
 
 
-retry = True
+# Если значения False, то функция будет прервана
+retry_to_check_new_nm_ids = True
+retry_to_check_edit_columns = True
 
 
 async def check_new_nm_ids():
-    global retry
+    global retry_to_check_new_nm_ids
     statuses = ServiceGoogleSheet.check_status()
     # если сервис включен (1), то пройдет проверка
     if statuses['ВКЛ - 1 /ВЫКЛ - 0']:
-        print("смотрим retry", retry)
-        if retry:
+        print("смотрим retry_to_check_new_nm_ids", retry_to_check_new_nm_ids)
+        if retry_to_check_new_nm_ids:
             print("Сервис АКТИВЕН. Смотрим в таблицу.")
             gs_connect = gs_connection()
 
@@ -45,14 +47,14 @@ async def check_new_nm_ids():
             if len(lk_articles) > 0:
                 service_gs_table = ServiceGoogleSheet(
                     token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
-                # retry = False
+                # retry_to_check_new_nm_ids = False
 
                 result_data_for_update_rows = await service_gs_table.add_new_data_from_table(lk_articles=lk_articles,
                                                                                              add_data_in_db=False)
                 if len(result_data_for_update_rows) > 0:
                     gs_connection().update_rows(data_json=result_data_for_update_rows, edit_column_clean=None)
 
-                    retry = False
+                    retry_to_check_new_nm_ids = False
 
                 try:
                     revenue_data_for_update_rows = await service_gs_table.add_revenue_for_new_nm_ids(
@@ -69,7 +71,7 @@ async def check_new_nm_ids():
                     return
 
                 finally:
-                    retry = True
+                    retry_to_check_new_nm_ids = True
 
             print("Упали в ожидание")
 
@@ -78,30 +80,40 @@ async def check_new_nm_ids():
 
 
 async def check_edits_columns():
+    global retry_to_check_edit_columns
+    print("смотрим retry_to_check_edit_columns", retry_to_check_new_nm_ids)
     statuses = ServiceGoogleSheet.check_status()
-    if statuses['ВКЛ - 1 /ВЫКЛ - 0']:
-        print("СЕРВИС АКТИВЕН. Смотрим в таблицу. Оцениваем ячейки по изменениям товара")
-        gs_connect = gs_connection()
-        if statuses["Остаток"] or statuses["Цены/Скидки"] or statuses["Габариты"]:
-            edit_statuses = ServiceGoogleSheet.check_status()
+    if statuses['ВКЛ - 1 /ВЫКЛ - 0'] and retry_to_check_edit_columns:
+        try:
+            gs_connect = gs_connection()
+            if statuses["Остаток"] or statuses["Цены/Скидки"] or statuses["Габариты"]:
+                retry_to_check_edit_columns = False
+                print("СЕРВИС РЕДАКТИРОВАНИЯ АКТИВЕН. Оцениваем ячейки по изменениям товара")
+                edit_statuses = ServiceGoogleSheet.check_status()
 
-            edit_data_from_table = gs_connect.get_edit_data(dimension_status=edit_statuses["Габариты"],
-                                                            price_and_discount_status=edit_statuses["Цены/Скидки"],
-                                                            qty_status=edit_statuses["Остаток"])
-            if len(edit_data_from_table) > 0:
-                service_gs_table = ServiceGoogleSheet(
-                    token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
+                edit_data_from_table = gs_connect.get_edit_data(dimension_status=edit_statuses["Габариты"],
+                                                                price_and_discount_status=edit_statuses["Цены/Скидки"],
+                                                                qty_status=edit_statuses["Остаток"])
+                if len(edit_data_from_table) > 0:
+                    service_gs_table = ServiceGoogleSheet(
+                        token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
 
-                edit_nm_ids_data = await service_gs_table.change_cards_and_tables_data(
-                    edit_data_from_table=edit_data_from_table)
-                if len(edit_nm_ids_data) > 0:
-                    gs_connection().update_rows(data_json=edit_nm_ids_data,
-                                                edit_column_clean={"price_discount": statuses['Цены/Скидки'],
-                                                                   "dimensions": statuses['Габариты'],
-                                                                   "qty": statuses["Остаток"]})
+                    edit_nm_ids_data = await service_gs_table.change_cards_and_tables_data(
+                        edit_data_from_table=edit_data_from_table)
+                    if len(edit_nm_ids_data) > 0:
+                        gs_connection().update_rows(data_json=edit_nm_ids_data,
+                                                    edit_column_clean={"price_discount": statuses['Цены/Скидки'],
+                                                                       "dimensions": statuses['Габариты'],
+                                                                       "qty": statuses["Остаток"]})
 
-        else:
-            print("Сервис заблокирован на изменения: (Цены/Скидки, Остаток, Габариты)")
+            else:
+                print("Сервис заблокирован на изменения: (Цены/Скидки, Остаток, Габариты)")
+        except Exception as e:
+            retry_to_check_edit_columns = True
+            print("[ERROR] СЕРВИС РЕДАКТИРОВАНИЯ ", e)
+            raise e
+        finally:
+            retry_to_check_edit_columns = True
 
 
 # async def run_in_executor(func, *args):
