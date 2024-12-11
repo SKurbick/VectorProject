@@ -465,8 +465,8 @@ class ServiceGoogleSheet:
                         subject_names.add(i["Предмет"])  # собираем множество с предметами
                         result_log_value = calculate_sum_for_logistic(
                             # на лету считаем "Логистика от склада WB до ПВЗ"
-                            for_one_liter=int(current_tariffs_data["boxDeliveryBase"]),
-                            next_liters=int(current_tariffs_data["boxDeliveryLiter"]),
+                            for_one_liter=float(current_tariffs_data["boxDeliveryBase"].replace(',', '.')),
+                            next_liters=float(current_tariffs_data["boxDeliveryLiter"].replace(',', '.')),
                             height=int(i['Текущая\nВысота (см)']),
                             length=int(i['Текущая\nДлина (см)']),
                             width=int(i['Текущая\nШирина (см)']), )
