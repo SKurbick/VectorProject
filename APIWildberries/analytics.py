@@ -182,9 +182,9 @@ class AnalyticsWarehouseLimits:
                 if response.status_code == 200:
                     result = response.json()
                     break
-                print(response.status_code)
+                print(response.status_code, "time sleep 36")
                 print(response.json())
-                await asyncio.sleep(63)
+                await asyncio.sleep(36)
             except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
                 print(e)
                 await asyncio.sleep(63)

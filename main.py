@@ -139,16 +139,16 @@ def schedule_tasks():
     # проверяет остатки, обновляет через Сопост
     schedule.every(20).minutes.do(lambda: asyncio.create_task(gs_service.check_quantity_flag()))
 
-    # Актуализация листа Продажи
-    # schedule.every().day.at("09:30").do(lambda: asyncio.create_task(gs_service.update_purchase_calculation_data()))
+    # schedule.every(1).seconds.do(lambda: asyncio.create_task(gs_service.get_actually_data_by_qty()))
 
 
 #
 async def run_scheduler():
     while True:
+        # await asyncio.sleep(1)
         schedule.run_pending()
+        # await asyncio.sleep(111111111111)
         await asyncio.sleep(1)
-
 
 #
 async def main():

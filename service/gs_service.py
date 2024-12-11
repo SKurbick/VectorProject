@@ -141,8 +141,8 @@ class ServiceGoogleSheet:
                         account_barcodes.append(i["Баркод"])
                         result_log_value = calculate_sum_for_logistic(
                             # на лету считаем "Логистика от склада WB до ПВЗ"
-                            for_one_liter=int(current_tariffs_data["boxDeliveryBase"]),
-                            next_liters=int(current_tariffs_data["boxDeliveryLiter"]),
+                            for_one_liter=float(current_tariffs_data["boxDeliveryBase"]),
+                            next_liters=float(current_tariffs_data["boxDeliveryLiter"]),
                             height=int(i['Текущая\nВысота (см)']),
                             length=int(i['Текущая\nДлина (см)']),
                             width=int(i['Текущая\nШирина (см)']), )
@@ -515,6 +515,40 @@ class ServiceGoogleSheet:
                 result_updates_rows.update(merge_json_data)
                 """обновляем данные по артикулам"""
             gs_connect.update_rows(data_json=result_updates_rows)
+
+    async def get_actually_data_by_qty(self):
+        if ServiceGoogleSheet.check_status()['ВКЛ - 1 /ВЫКЛ - 0']:
+            print("[INFO]", datetime.datetime.now(), "актуализируем данные в таблице")
+            """
+            Обновление данных по артикулам в гугл таблицу с WB api.
+            Задумана, чтобы использовать в schedule.
+            """
+            gs_connect_main = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet=self.sheet)
+            lk_articles = await gs_connect_main.create_lk_barcodes_articles()
+            gs_connect_warehouses_info = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet,
+                                                     sheet="Склады ИНФ")
+
+            warehouses_info = await gs_connect_warehouses_info.get_warehouses_info()
+            all_tracked_warehouses = {items for sublist in warehouses_info.values() for items in sublist}
+            print(all_tracked_warehouses)
+            # result_updates_rows = {}
+            # for account, data in lk_articles.items():
+            #     token = get_wb_tokens()[account.capitalize()]
+            #     wh_analytics = AnalyticsWarehouseLimits(token=token)
+            #
+            #     barcodes_set = set(data.keys())
+            #
+            #     # собираем остатки со складов WB
+            #     barcodes_qty_wb = {}
+            #     untracked_warehouses = {}
+            #     task_id = wh_analytics.create_report()
+            #     wb_warehouse_qty = await wh_analytics.check_data_by_task_id(task_id=task_id)
+            #     if task_id is not None and len(wb_warehouse_qty) > 0:
+            #         if wb_warehouse_qty:
+            #             for qty_data in wb_warehouse_qty:
+            #                 if qty_data['barcode'] in barcodes_set:
+            #                     print(qty_data)
+            #                     print(data[qty_data["barcode"]])
 
     async def check_quantity_flag(self):
         print(datetime.datetime.now(), "Проверка остатков по лимитам из столбца 'Минимальный остаток'")

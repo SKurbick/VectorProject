@@ -2,12 +2,14 @@ import json
 import time
 from datetime import timedelta, datetime
 from pprint import pprint
+
+import pandas
 from gspread.utils import rowcol_to_a1
 
 import gspread
 import requests
 from gspread import Client, service_account
-from utils import get_nm_ids_in_db, column_index_to_letter, get_data_for_nm_ids, subtract_percentage
+from utils import get_nm_ids_in_db, column_index_to_letter, get_data_for_nm_ids, subtract_percentage, can_be_int
 import pandas as pd
 
 
@@ -222,6 +224,28 @@ class GoogleSheet:
                 lk_articles_dict[lk.upper()] = []
             lk_articles_dict[lk.upper()].append(article)
         return lk_articles_dict
+
+    async def create_lk_barcodes_articles(self):
+        """Создание словарь из таблицы в формате Кабинет:{Артикул:Баркод}"""
+        data = self.sheet.get_all_records()
+        df = pd.DataFrame(data)
+        result_dict = {}
+
+        for index, row in df.iterrows():
+
+            article = row['Артикул']
+            lk = row['ЛК'].upper()
+            barcode = row['Баркод']
+
+            # пропуск невалидных значений
+            if pd.isna(lk) or lk == "" or False in (can_be_int(barcode), can_be_int(article)):
+                continue
+
+            if lk not in result_dict:
+                result_dict[lk] = {}
+            result_dict[lk][str(barcode)] = int(article)
+
+        return result_dict
 
     def create_lk_articles_dict(self):
         """Создает словарь из ключей кабинета и его Артикулов"""
@@ -508,6 +532,24 @@ class GoogleSheet:
         else:
             print(f"Заголовок {header} уже есть в таблице")
             return False
+
+    async def get_warehouses_info(self) -> dict:
+        """ Получить данные по региональным разделениям складов"""
+
+        region_headers = ["Центральный", "Приволжский", "Южный", "Северо-Кавказский"]
+        warehouses_by_region = self.sheet.get_all_records(
+            expected_headers=region_headers)
+        result_dict_data = {}
+        df_war_by_reg = pandas.DataFrame(warehouses_by_region)
+
+        for reg_name in region_headers:
+            result_dict_data[reg_name] = df_war_by_reg[reg_name].tolist()
+
+        return result_dict_data
+
+    async def add_unmonitored_warehouses(self):
+        """Актуализация остатков по неотслеживаемым складам"""
+        pass
 
 
 class GoogleSheetServiceRevenue:

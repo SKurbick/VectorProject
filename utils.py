@@ -25,8 +25,8 @@ def new_merge_dicts(d1, d2):
     return result
 
 
-def calculate_sum_for_logistic(for_one_liter: int,
-                               next_liters: int,
+def calculate_sum_for_logistic(for_one_liter: float,
+                               next_liters: float,
                                length,
                                width: int,
                                height: int):
@@ -269,3 +269,11 @@ def add_orders_data_in_database(orders_data):
 
 def subtract_percentage(number, percentage):
     return math.ceil(number * percentage / 100)
+
+
+def can_be_int(value):
+    try:
+        int(value)  # Попытка преобразования
+        return True
+    except (ValueError, TypeError):
+        return False
