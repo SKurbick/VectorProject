@@ -564,16 +564,23 @@ class ServiceGoogleSheet:
                         barcode = qty_data['barcode']
                         article = data[barcode]
                         articles_qty_wb[article] = {
-                            "ФБО": qty_data['quantityWarehousesFull']}
+                            "ФБО": qty_data['quantityWarehousesFull'],
+                            "Центральный": "",
+                            "Южный": "",
+                            "Северо-Кавказский": "",
+                            "Приволжский": ""
+
+                        }
                         warehouses = qty_data['warehouses']
 
                         if len(warehouses) > 1:
                             for wh_data in warehouses:
                                 if wh_data["warehouseName"] in warehouses_info:
                                     # по задумке должен суммировать остатки всех закрепленных регионов к складам
-                                    if warehouses_info[wh_data["warehouseName"]] not in articles_qty_wb[article]:
+                                    if articles_qty_wb[article][warehouses_info[wh_data["warehouseName"]]] == "":
                                         articles_qty_wb[article][warehouses_info[wh_data["warehouseName"]]] = 0
-                                    articles_qty_wb[article][warehouses_info[wh_data["warehouseName"]]] += wh_data["quantity"]
+                                    articles_qty_wb[article][warehouses_info[wh_data["warehouseName"]]] += wh_data[
+                                        "quantity"]
 
                                 else:
                                     # сбор данных по остаткам складов которые не отслеживаются по регионам
