@@ -564,9 +564,8 @@ class ServiceGoogleSheet:
                         barcode = qty_data['barcode']
                         article = data[barcode]
                         articles_qty_wb[article] = {
-                            # "ФБО": qty_data['quantityWarehousesFull']
-
-                            "ФБО": 0,
+                            "ФБО": qty_data['quantityWarehousesFull'],
+                            # "ФБО": 0,
                             "Центральный": "",
                             "Южный": "",
                             "Северо-Кавказский": "",
@@ -590,9 +589,9 @@ class ServiceGoogleSheet:
 
                                 else:
                                     # сбор данных по остаткам складов которые не отслеживаются по регионам
-                                    if warehouse_name in ("Всего находится на складах", "В пути возвраты на склад WB",
-                                                          "В пути до получателей"):
-                                        continue
+                                    # if warehouse_name in ("Всего находится на складах", "В пути возвраты на склад WB",
+                                    #                       "В пути до получателей"):
+                                    #     continue
                                     if warehouse_name not in untracked_warehouses:
                                         untracked_warehouses[warehouse_name] = 0
                                     untracked_warehouses[warehouse_name] += wh_data["quantity"]
