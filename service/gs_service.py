@@ -578,8 +578,8 @@ class ServiceGoogleSheet:
                                 if warehouse_name in warehouses_info:
                                     region_name_by_warehouse = warehouses_info[warehouse_name]
                                     # по задумке должен суммировать остатки всех закрепленных регионов к складам
-                                    # if warehouses_info[warehouse_name] not in articles_qty_wb[article]:
-                                    if articles_qty_wb[article][region_name_by_warehouse] == "":
+                                    if warehouses_info[warehouse_name] not in articles_qty_wb[article]:
+                                    # if articles_qty_wb[article][region_name_by_warehouse] == "":
                                         articles_qty_wb[article][region_name_by_warehouse] = 0
                                     articles_qty_wb[article][region_name_by_warehouse] += wh_data["quantity"]
 
@@ -592,14 +592,14 @@ class ServiceGoogleSheet:
                                         untracked_warehouses[warehouse_name] = 0
                                     untracked_warehouses[warehouse_name] += wh_data["quantity"]
 
-                        clean_data = {"Центральный": "",
-                                      "Южный": "",
-                                      "Северо-Кавказский": "",
-                                      "Приволжский": ""}
-
-                        for cd in clean_data:
-                            if cd not in articles_qty_wb[article]:
-                                articles_qty_wb[article].update({cd: ""})
+                        # clean_data = {"Центральный": "",
+                        #               "Южный": "",
+                        #               "Северо-Кавказский": "",
+                        #               "Приволжский": ""}
+                        #
+                        # for cd in clean_data:
+                        #     if cd not in articles_qty_wb[article]:
+                        #         articles_qty_wb[article].update({cd: ""})
 
         return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}
 
