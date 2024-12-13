@@ -566,10 +566,6 @@ class ServiceGoogleSheet:
                         articles_qty_wb[article] = {
                             "ФБО": qty_data['quantityWarehousesFull'],
                             # "ФБО": 0,
-                            "Центральный": "",
-                            "Южный": "",
-                            "Северо-Кавказский": "",
-                            "Приволжский": ""
                         }
                         warehouses = qty_data['warehouses']
 
@@ -580,7 +576,7 @@ class ServiceGoogleSheet:
                                     articles_qty_wb[article]['ФБО'] += wh_data['quantity']
 
                                 if warehouse_name in warehouses_info:
-                                    region_name_by_warehouse = warehouses_info[wh_data["warehouseName"]]
+                                    region_name_by_warehouse = warehouses_info[warehouse_name]
                                     # по задумке должен суммировать остатки всех закрепленных регионов к складам
                                     # if warehouses_info[warehouse_name] not in articles_qty_wb[article]:
                                     if articles_qty_wb[article][region_name_by_warehouse] == "":
@@ -596,16 +592,14 @@ class ServiceGoogleSheet:
                                         untracked_warehouses[warehouse_name] = 0
                                     untracked_warehouses[warehouse_name] += wh_data["quantity"]
 
-                                # try:  # по задумке должен суммировать остатки всех закрепленных регионов к складам
-                                #     if warehouses_info[wh_data["warehouseName"]] not in articles_qty_wb[article]:
-                                #         articles_qty_wb[article].update(
-                                #             {warehouses_info[wh_data["warehouseName"]]: wh_data["quantity"]})
-                                #     articles_qty_wb[article][wh_data["warehouseName"]] += wh_data["quantity"]
-                                # except KeyError:
-                                #     # сбор данных по остаткам складов которые не отслеживаются по регионам
-                                #     if wh_data["warehouseName"] not in untracked_warehouses:
-                                #         untracked_warehouses[wh_data["warehouseName"]] = 0
-                                #     untracked_warehouses[wh_data["warehouseName"]] += wh_data["quantity"]
+                        clean_data = {"Центральный": "",
+                                      "Южный": "",
+                                      "Северо-Кавказский": "",
+                                      "Приволжский": ""}
+
+                        for cd in clean_data:
+                            if cd not in articles_qty_wb[article]:
+                                articles_qty_wb[article].update({cd: ""})
 
         return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}
 
