@@ -523,7 +523,7 @@ class ServiceGoogleSheet:
 
             # словарь с регионом и группой складов
             warehouses_info = await gs_connect_warehouses_info.get_warehouses_info()
-
+            print("warehouse_info", warehouses_info)
             tasks = []
             for account, data in lk_articles.items():
                 task = asyncio.create_task(
@@ -569,9 +569,11 @@ class ServiceGoogleSheet:
 
                         if len(warehouses) > 1:
                             for wh_data in warehouses:
-                                try:
-                                    articles_qty_wb[article].update(
-                                        {warehouses_info[wh_data["warehouseName"]]: wh_data["quantity"]})
+                                try:  # по задумке должен суммировать остатки всех закрепленных регионов к складам
+                                    if warehouses_info[wh_data["warehouseName"]] not in articles_qty_wb[article]:
+                                        articles_qty_wb[article].update(
+                                            {warehouses_info[wh_data["warehouseName"]]: wh_data["quantity"]})
+                                    articles_qty_wb[article][wh_data["warehouseName"]] += wh_data["quantity"]
                                 except KeyError:
                                     # сбор данных по остаткам складов которые не отслеживаются по регионам
                                     if wh_data["warehouseName"] not in untracked_warehouses:
