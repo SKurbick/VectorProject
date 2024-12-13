@@ -578,8 +578,6 @@ class ServiceGoogleSheet:
                                         untracked_warehouses[wh_data["warehouseName"]] = 0
                                     untracked_warehouses[wh_data["warehouseName"]] += wh_data["quantity"]
 
-        print(articles_qty_wb)
-        print(untracked_warehouses)
         return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}
 
     async def check_quantity_flag(self):
