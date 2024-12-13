@@ -569,18 +569,19 @@ class ServiceGoogleSheet:
                             "Южный": "",
                             "Северо-Кавказский": "",
                             "Приволжский": ""
-
                         }
                         warehouses = qty_data['warehouses']
 
                         if len(warehouses) > 1:
                             for wh_data in warehouses:
-                                if wh_data["warehouseName"] in warehouses_info:
+                                warehouse_name = wh_data["warehouseName"]
+                                if warehouse_name in warehouses_info:
+                                    region_name_by_warehouse = warehouses_info[wh_data["warehouseName"]]
                                     # по задумке должен суммировать остатки всех закрепленных регионов к складам
-                                    if articles_qty_wb[article][warehouses_info[wh_data["warehouseName"]]] == "":
-                                        articles_qty_wb[article][warehouses_info[wh_data["warehouseName"]]] = 0
-                                    articles_qty_wb[article][warehouses_info[wh_data["warehouseName"]]] += wh_data[
-                                        "quantity"]
+                                    if warehouses_info[wh_data["warehouseName"]] not in articles_qty_wb[article]:
+                                        # if articles_qty_wb[article][warehouses_info[wh_data["warehouseName"]]] == "":
+                                        articles_qty_wb[article][region_name_by_warehouse] = 0
+                                    articles_qty_wb[article][region_name_by_warehouse] += wh_data["quantity"]
 
                                 else:
                                     # сбор данных по остаткам складов которые не отслеживаются по регионам
