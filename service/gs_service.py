@@ -564,7 +564,9 @@ class ServiceGoogleSheet:
                         barcode = qty_data['barcode']
                         article = data[barcode]
                         articles_qty_wb[article] = {
-                            "ФБО": qty_data['quantityWarehousesFull']
+                            "ФБО": 0,
+
+                            # "ФБО": qty_data['quantityWarehousesFull']
                             # "Центральный": "",
                             # "Южный": "",
                             # "Северо-Кавказский": "",
@@ -575,16 +577,22 @@ class ServiceGoogleSheet:
                         if len(warehouses) > 1:
                             for wh_data in warehouses:
                                 warehouse_name = wh_data["warehouseName"]
+                                if warehouse_name == "Всего находится на складах":
+                                    articles_qty_wb[article]['ФБО'] += wh_data['quantity']
+
                                 if warehouse_name in warehouses_info:
                                     region_name_by_warehouse = warehouses_info[wh_data["warehouseName"]]
                                     # по задумке должен суммировать остатки всех закрепленных регионов к складам
-                                    if warehouses_info[wh_data["warehouseName"]] not in articles_qty_wb[article]:
+                                    if warehouses_info[warehouse_name] not in articles_qty_wb[article]:
                                         # if articles_qty_wb[article][warehouses_info[wh_data["warehouseName"]]] == "":
                                         articles_qty_wb[article][region_name_by_warehouse] = 0
                                     articles_qty_wb[article][region_name_by_warehouse] += wh_data["quantity"]
 
                                 else:
                                     # сбор данных по остаткам складов которые не отслеживаются по регионам
+                                    if warehouse_name in ("Всего находится на складах", "В пути возвраты на склад WB",
+                                                          "В пути до получателей"):
+                                        continue
                                     if wh_data["warehouseName"] not in untracked_warehouses:
                                         untracked_warehouses[wh_data["warehouseName"]] = 0
                                     untracked_warehouses[wh_data["warehouseName"]] += wh_data["quantity"]
