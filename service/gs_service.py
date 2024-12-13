@@ -545,7 +545,7 @@ class ServiceGoogleSheet:
             await gs_connect_main.update_qty_by_reg(update_data=articles_qty_wb)
             # update по неотслеживаемым складам для sheet 'Склады ИНФ'
             await gs_connect_warehouses_info.update_untracked_warehouses_quantity(update_data=untracked_warehouses)
-            print("END TEST")
+            print("Данные по остаткам обновлены в таблице.")
 
     async def get_qty_data_by_account(self, account, data, warehouses_info):
         token = get_wb_tokens()[account.capitalize()]
