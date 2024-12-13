@@ -564,11 +564,11 @@ class ServiceGoogleSheet:
                         barcode = qty_data['barcode']
                         article = data[barcode]
                         articles_qty_wb[article] = {
-                            "ФБО": qty_data['quantityWarehousesFull'],
-                            "Центральный": "",
-                            "Южный": "",
-                            "Северо-Кавказский": "",
-                            "Приволжский": ""
+                            "ФБО": qty_data['quantityWarehousesFull']
+                            # "Центральный": "",
+                            # "Южный": "",
+                            # "Северо-Кавказский": "",
+                            # "Приволжский": ""
                         }
                         warehouses = qty_data['warehouses']
 
