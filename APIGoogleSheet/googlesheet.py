@@ -496,23 +496,24 @@ class GoogleSheet:
         df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
 
         # Сохраняем формулы из столбцов, которые не попадают в диапазон смещения
-        formulas_to_preserve = df_formulas.iloc[:, 97:].values
+        formulas_to_preserve = df_formulas.iloc[:, 101:].values
 
         # Смещение заголовков и содержимого столбцов
-        header_values = df_values.columns[67:97].tolist()  # Индексы столбцов
+        header_values = df_values.columns[71:101].tolist()  # Индексы столбцов
         shifted_header_values = header_values[:29]
         shifted_header_values.insert(0, today)
-        # # # Обновление заголовков
-        df_values.columns = df_values.columns[:67].tolist() + shifted_header_values + df_values.columns[97:].tolist()
+        # Обновление заголовков
+        df_values.columns = df_values.columns[:71].tolist() + shifted_header_values + df_values.columns[101:].tolist()
+
         df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
-        # # Смещение содержимого столбцов от "AG" до "AM"
-        df_values.iloc[:, 68:97] = df_values.iloc[:, 67:96].values
-        df_values.iloc[:, 67] = ""  # Очистка первого столбца
+        # Смещение содержимого столбцов
+        df_values.iloc[:, 72:101] = df_values.iloc[:, 71:100].values
+        df_values.iloc[:, 71] = ""  # Очистка первого столбца
 
         # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
-        df_formulas.iloc[:, 68:97] = df_formulas.iloc[:, 67:96].values
-        df_formulas.iloc[:, 67] = ""  # Очистка первого столбца
-        df_formulas.iloc[:, 97:] = formulas_to_preserve
+        df_formulas.iloc[:, 72:101] = df_formulas.iloc[:, 71:100].values
+        df_formulas.iloc[:, 71] = ""  # Очистка первого столбца
+        df_formulas.iloc[:, 101:] = formulas_to_preserve
 
         # Преобразование обратно в список списков
         updated_values = [df_values.columns.tolist()] + df_values.values.tolist()
@@ -543,13 +544,114 @@ class GoogleSheet:
         df_war_by_reg = pandas.DataFrame(warehouses_by_region)
 
         for reg_name in region_headers:
-            result_dict_data[reg_name] = df_war_by_reg[reg_name].tolist()
+            warehouse_names = df_war_by_reg[reg_name].tolist()
+            for wh_name in warehouse_names:
+                result_dict_data[wh_name] = reg_name
 
         return result_dict_data
 
-    async def add_unmonitored_warehouses(self):
+    async def update_untracked_warehouses_quantity(self, update_data):
         """Актуализация остатков по неотслеживаемым складам"""
-        pass
+        # Retrieve all values from the sheet
+        values = self.sheet.get_all_values()
+
+        # Assign headers and data
+        if values:
+            headers = values[0]
+            data = values[1:]
+        else:
+            headers = ["НЕОТСЛЕЖИВАЕМЫЕ СКЛАДЫ", "ОСТАТКИ"]
+            data = []
+
+        # Create the DataFrame
+        df = pd.DataFrame(data, columns=headers)
+
+        # Ensure required columns exist
+        required_headers = ["НЕОТСЛЕЖИВАЕМЫЕ СКЛАДЫ", "ОСТАТКИ"]
+        for header in required_headers:
+            if header not in df.columns:
+                df[header] = ""
+
+        # Identify existing warehouses
+        existing_warehouses = df["НЕОТСЛЕЖИВАЕМЫЕ СКЛАДЫ"].tolist()
+
+        # Determine new warehouses to add
+        new_warehouses = [key for key in update_data.keys() if key not in existing_warehouses]
+
+        # Prepare new rows for the DataFrame
+        if new_warehouses:
+            new_rows = []
+            for warehouse in new_warehouses:
+                row = {header: "" for header in headers}
+                row["НЕОТСЛЕЖИВАЕМЫЕ СКЛАДЫ"] = warehouse
+                row.update(update_data[warehouse])
+                new_rows.append(row)
+            new_df = pd.DataFrame(new_rows)
+            df = pd.concat([df, new_df], ignore_index=True)
+
+        # Create DataFrame from update data
+        json_df = pd.DataFrame.from_dict(update_data, orient='index')
+        json_df = json_df.astype(object).where(pd.notnull(json_df), None)
+
+        # Update existing rows in the DataFrame
+        for index, row in json_df.iterrows():
+            matching_rows = df[df["НЕОТСЛЕЖИВАЕМЫЕ СКЛАДЫ"] == index].index
+            for idx in matching_rows:
+                for column in row.index:
+                    if column in df.columns:
+                        df.at[idx, column] = row[column]
+
+        # Prepare updates for the Google Sheet
+        updates = []
+        headers_list = df.columns.tolist()
+        for index, row in df.iterrows():
+            row_number = index + 2  # +2 because indexing starts at 1, with the first row being headers
+            for column in headers_list:
+                column_index = headers_list.index(column) + 1
+                column_letter = column_index_to_letter(column_index)
+                value = row[column]
+                if value is not None:
+                    updates.append({'range': f'{column_letter}{row_number}', 'values': [[value]]})
+
+        # Batch update the Google Sheet with error handling
+        try:
+            self.sheet.batch_update(updates)
+        except Exception as e:
+            print(f'Error during batch update: {e}')
+
+    async def update_qty_by_reg(self, update_data):
+        data = self.sheet.get_all_records(expected_headers=[])
+        df = pd.DataFrame(data)
+
+        # Преобразуем данные из словаря в DataFrame
+        json_df = pd.DataFrame.from_dict(update_data, orient='index')
+
+        # Преобразуем все значения в json_df в типы данных, которые могут быть сериализованы в JSON
+        json_df = json_df.astype(object).where(pd.notnull(json_df), None)
+
+        # Обновите данные в основном DataFrame на основе "Артикул"
+        for index, row in json_df.iterrows():
+            matching_rows = df[df["Артикул"] == index].index
+            for idx in matching_rows:
+                for column in row.index:
+                    if column in df.columns and (pd.isna(df.at[idx, column]) or df.at[idx, column] == ""):
+                        df.at[idx, column] = row[column]
+
+        # Обновите Google Таблицу только для измененных строк
+        updates = []
+        headers = df.columns.tolist()
+        for index, row in json_df.iterrows():
+            matching_rows = df[df["Артикул"] == index].index
+            for idx in matching_rows:
+                row_number = idx + 2  # +2 потому что индексация в Google Таблицах начинается с 1, а первая строка - заголовки
+                for column in row.index:
+                    if column in headers:
+                        # +1 потому что индексация в Google Таблицах начинается с 1
+                        column_index = headers.index(column) + 1
+                        column_letter = column_index_to_letter(column_index)
+                        updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
+
+        self.sheet.batch_update(updates)
 
 
 class GoogleSheetServiceRevenue:
@@ -655,39 +757,39 @@ class GoogleSheetServiceRevenue:
         df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
 
         # Сохраняем формулы из столбцов, которые не попадают в диапазон смещения
-        formulas_to_preserve = df_formulas.iloc[:, 43:].values
+        formulas_to_preserve = df_formulas.iloc[:, 47:].values
 
         # Смещение заголовков и содержимого столбцов
-        header_values = df_values.columns[35:43].tolist()  # Индексы столбцов
+        header_values = df_values.columns[39:47].tolist()  # Индексы столбцов
+
         shifted_header_values = header_values[1:]
         shifted_header_values.append(last_day)
 
-        # Обновление заголовков
-        df_values.columns = df_values.columns[:35].tolist() + shifted_header_values + df_values.columns[43:].tolist()
+        # # Обновление заголовков
+        df_values.columns = df_values.columns[:39].tolist() + shifted_header_values + df_values.columns[47:].tolist()
         df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
 
         # Смещение содержимого столбцов
-        df_values.iloc[:, 35:42] = df_values.iloc[:, 36:43].values
-        df_values.iloc[:, 40] = ""  # Очистка последнего столбца "AM"
+        df_values.iloc[:, 39:46] = df_values.iloc[:, 40:47].values
 
         # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
-        df_formulas.iloc[:, 35:42] = df_formulas.iloc[:, 36:43].values
-        df_formulas.iloc[:, 42] = ""  # Очистка последнего столбца
-        df_formulas.iloc[:, 43:] = formulas_to_preserve
 
-        # Преобразование обратно в список списков
+        df_formulas.iloc[:, 39:46] = df_formulas.iloc[:, 40:47].values
+        df_formulas.iloc[:, 46] = ""  # Очистка последнего столбца
+        df_formulas.iloc[:, 47:] = formulas_to_preserve
+        #
+        # # Преобразование обратно в список списков
         updated_values = [df_values.columns.tolist()] + df_values.values.tolist()
         updated_formulas = [df_formulas.columns.tolist()] + df_formulas.values.tolist()
-
-        # Обновление таблицы одним запросом
+        #
+        # # Обновление таблицы одним запросом
         self.sheet.update('A1', updated_values, value_input_option='USER_ENTERED')
         self.sheet.update('A1', updated_formulas, value_input_option='USER_ENTERED')
 
     def shift_week_revenue_columns_to_the_left(self, last_week):
         """
-        Сдвигает содержимое столбцов (AO-AR) с выручкой влево и добавляет новый день в AR.
+        Сдвигает содержимое столбцов с выручкой влево и добавляет новый день.
         Функция задумана отрабатывать раз в день.
-        Должна отрабатывать по условию если заголовок AR это позавчерашний день
         """
 
         all_values = self.sheet.get_all_values()
@@ -698,26 +800,28 @@ class GoogleSheetServiceRevenue:
         df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
 
         # Сохраняем формулы из столбцов, которые не попадают в диапазон смещения
-        formulas_to_preserve = df_formulas.iloc[:, 47:].values
-        # Смещение заголовков и содержимого столбцов от "AO" до "AR"
-        header_values = df_values.columns[43:47].tolist()  # Индексы столбцов "AO" до "AR"
+        formulas_to_preserve = df_formulas.iloc[:, 51:].values
+
+        # Смещение заголовков и содержимого столбцов
+
+        header_values = df_values.columns[47:51].tolist()  # Индексы столбцов
         shifted_header_values = header_values[1:]
         shifted_header_values.append(last_week)
 
         # Обновление заголовков
-        df_values.columns = df_values.columns[:43].tolist() + shifted_header_values + df_values.columns[47:].tolist()
+        df_values.columns = df_values.columns[:47].tolist() + shifted_header_values + df_values.columns[51:].tolist()
+
         df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
 
-        # Смещение содержимого столбцов от "AO" до "AR"
-        df_values.iloc[:, 43:46] = df_values.iloc[:, 44:47].values
-        df_values.iloc[:, 44] = ""  # Очистка последнего столбца "AR"
+        # Смещение содержимого столбцов
+        df_values.iloc[:, 47:50] = df_values.iloc[:, 48:51].values
 
         # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
-        df_formulas.iloc[:, 43:46] = df_formulas.iloc[:, 44:47].values
-        df_formulas.iloc[:, 46] = ""  # Очистка последнего столбца "AM"
-        df_formulas.iloc[:, 47:] = formulas_to_preserve
+        df_formulas.iloc[:, 47:50] = df_formulas.iloc[:, 48:51].values
+        df_formulas.iloc[:, 50] = ""  # Очистка последнего столбца
+        df_formulas.iloc[:, 51:] = formulas_to_preserve
 
-        # # Преобразование обратно в список списков
+        # Преобразование обратно в список списков
         updated_values = [df_values.columns.tolist()] + df_values.values.tolist()
         updated_formulas = [df_formulas.columns.tolist()] + df_formulas.values.tolist()
 

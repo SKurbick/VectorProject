@@ -306,8 +306,6 @@ class ServiceGoogleSheet:
 
     async def add_new_day_revenue_to_table(self):
         start = datetime.datetime.now()
-        today = datetime.datetime.now().strftime('%Y-%m-%d')
-
         statuses = ServiceGoogleSheet.check_status()
         if statuses['ВКЛ - 1 /ВЫКЛ - 0']:
             begin_date = datetime.date.today()
@@ -323,15 +321,12 @@ class ServiceGoogleSheet:
                 print(last_day, "заголовка нет в таблице. Будет добавлен включая выручка по дню")
                 # сначала сдвигаем колонки с выручкой
                 self.gs_service_revenue_connect.shift_revenue_columns_to_the_left(last_day=last_day)
+
             lk_articles = self.gs_connect.create_lk_articles_dict()
-            # gs_pc_service = PCGoogleSheet(creds_json=Setting().CREEDS_FILE_NAME, sheet=Setting().PC_SHEET,
-            #                               spreadsheet=Setting().PC_SPREADSHEET)
-            # lk_articles_pc = gs_pc_service.create_lk_articles_dict()
             # собираем выручку по всем артикулам аккаунтов
             all_accounts_new_revenue_data = {}
             tasks = []
             nm_ids_table_data = {}
-            # nm_ids_pc_table_data = {}
             current_time = datetime.datetime.now().time()  # время для ЧП
             for account, nm_ids_data in lk_articles.items():
                 nm_ids = list(nm_ids_data.keys())
@@ -481,14 +476,14 @@ class ServiceGoogleSheet:
                     barcodes_quantity_result.extend(bqs_result)
 
                 # собираем остатки со складов WB
-                barcodes_qty_wb = {}
-                task_id = wh_analytics.create_report()
-                wb_warehouse_qty = await wh_analytics.check_data_by_task_id(task_id=task_id)
-                if task_id is not None and len(wb_warehouse_qty) > 0:
-                    if wb_warehouse_qty:
-                        for wh_data in wb_warehouse_qty:
-                            if wh_data["barcode"] in account_barcodes:
-                                barcodes_qty_wb[wh_data["barcode"]] = wh_data["quantityWarehousesFull"]
+                # barcodes_qty_wb = {}
+                # task_id = await wh_analytics.create_report()
+                # wb_warehouse_qty = await wh_analytics.check_data_by_task_id(task_id=task_id)
+                # if task_id is not None and len(wb_warehouse_qty) > 0:
+                #     if wb_warehouse_qty:
+                #         for wh_data in wb_warehouse_qty:
+                #             if wh_data["barcode"] in account_barcodes:
+                #                 barcodes_qty_wb[wh_data["barcode"]] = wh_data["quantityWarehousesFull"]
 
                 subject_commissions = None
                 try:
@@ -507,48 +502,85 @@ class ServiceGoogleSheet:
                             # card["Текущий остаток"] = bq_result["остаток"]
                             card["ФБС"] = bq_result["остаток"]
 
-                    if len(barcodes_qty_wb) > 0:
-                        if "Баркод" in card and card["Баркод"] in barcodes_qty_wb.keys():
-                            # card["Текущий остаток\nСклады WB"] = barcodes_qty_wb[card["Баркод"]]
-                            card["ФБО"] = barcodes_qty_wb[card["Баркод"]]
+                    # if len(barcodes_qty_wb) > 0:
+                    #     if "Баркод" in card and card["Баркод"] in barcodes_qty_wb.keys():
+                    #         # card["Текущий остаток\nСклады WB"] = barcodes_qty_wb[card["Баркод"]]
+                    #         card["ФБО"] = barcodes_qty_wb[card["Баркод"]]
 
                 result_updates_rows.update(merge_json_data)
                 """обновляем данные по артикулам"""
             gs_connect.update_rows(data_json=result_updates_rows)
 
     async def get_actually_data_by_qty(self):
+
         if ServiceGoogleSheet.check_status()['ВКЛ - 1 /ВЫКЛ - 0']:
-            print("[INFO]", datetime.datetime.now(), "актуализируем данные в таблице")
-            """
-            Обновление данных по артикулам в гугл таблицу с WB api.
-            Задумана, чтобы использовать в schedule.
-            """
+            print("[INFO]", datetime.datetime.now(), "актуализируем данные по остаткам в таблице")
+
             gs_connect_main = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet=self.sheet)
             lk_articles = await gs_connect_main.create_lk_barcodes_articles()
             gs_connect_warehouses_info = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet,
                                                      sheet="Склады ИНФ")
 
+            # словарь с регионом и группой складов
             warehouses_info = await gs_connect_warehouses_info.get_warehouses_info()
-            all_tracked_warehouses = {items for sublist in warehouses_info.values() for items in sublist}
-            print(all_tracked_warehouses)
-            # result_updates_rows = {}
-            # for account, data in lk_articles.items():
-            #     token = get_wb_tokens()[account.capitalize()]
-            #     wh_analytics = AnalyticsWarehouseLimits(token=token)
-            #
-            #     barcodes_set = set(data.keys())
-            #
-            #     # собираем остатки со складов WB
-            #     barcodes_qty_wb = {}
-            #     untracked_warehouses = {}
-            #     task_id = wh_analytics.create_report()
-            #     wb_warehouse_qty = await wh_analytics.check_data_by_task_id(task_id=task_id)
-            #     if task_id is not None and len(wb_warehouse_qty) > 0:
-            #         if wb_warehouse_qty:
-            #             for qty_data in wb_warehouse_qty:
-            #                 if qty_data['barcode'] in barcodes_set:
-            #                     print(qty_data)
-            #                     print(data[qty_data["barcode"]])
+
+            tasks = []
+            for account, data in lk_articles.items():
+                task = asyncio.create_task(
+                    self.get_qty_data_by_account(account=account, data=data, warehouses_info=warehouses_info))
+
+                tasks.append(task)
+            together_result = await asyncio.gather(*tasks)
+            articles_qty_wb = {}  # результат данных по отслеживаемым регионам\складам
+            untracked_warehouses = {}  # результат данных по неотслеживаемым складам и сумма остаток
+            for tr in together_result:
+                articles_qty_wb.update(tr['articles_qty_wb'])
+                for key, value in tr['untracked_warehouses'].items():
+                    # untracked_warehouses[key] = untracked_warehouses.get(key, 0) + value
+                    if key not in untracked_warehouses:
+                        untracked_warehouses[key] = {"ОСТАТКИ": value}
+                    untracked_warehouses[key]["ОСТАТКИ"] += value
+
+            # update по остаткам в sheet UNIT
+            await gs_connect_main.update_qty_by_reg(update_data=articles_qty_wb)
+            # update по неотслеживаемым складам для sheet 'Склады ИНФ'
+            await gs_connect_warehouses_info.update_untracked_warehouses_quantity(update_data=untracked_warehouses)
+            print("END TEST")
+
+    async def get_qty_data_by_account(self, account, data, warehouses_info):
+        token = get_wb_tokens()[account.capitalize()]
+        wh_analytics = AnalyticsWarehouseLimits(token=token)
+
+        barcodes_set = set(data.keys())  # баркоды по аккаунту с таблицы
+
+        articles_qty_wb = {}
+        untracked_warehouses = {}
+        task_id = await wh_analytics.create_report()
+        wb_warehouse_qty = await wh_analytics.check_data_by_task_id(task_id=task_id)
+        if task_id is not None and len(wb_warehouse_qty) > 0:
+            if wb_warehouse_qty:  # собираем остатки со складов WB
+                for qty_data in wb_warehouse_qty:
+                    if qty_data['barcode'] in barcodes_set:
+                        barcode = qty_data['barcode']
+                        article = data[barcode]
+                        articles_qty_wb[article] = {
+                            "ФБО": qty_data['quantityWarehousesFull']}
+                        warehouses = qty_data['warehouses']
+
+                        if len(warehouses) > 1:
+                            for wh_data in warehouses:
+                                try:
+                                    articles_qty_wb[article].update(
+                                        {warehouses_info[wh_data["warehouseName"]]: wh_data["quantity"]})
+                                except KeyError:
+                                    # сбор данных по остаткам складов которые не отслеживаются по регионам
+                                    if wh_data["warehouseName"] not in untracked_warehouses:
+                                        untracked_warehouses[wh_data["warehouseName"]] = 0
+                                    untracked_warehouses[wh_data["warehouseName"]] += wh_data["quantity"]
+
+        print(articles_qty_wb)
+        print(untracked_warehouses)
+        return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}
 
     async def check_quantity_flag(self):
         print(datetime.datetime.now(), "Проверка остатков по лимитам из столбца 'Минимальный остаток'")
@@ -636,7 +668,6 @@ class ServiceGoogleSheet:
             # сместит заголовки дней в листе "Количество заказов"
             gs_connect.shift_headers_count_list(today)
             # сместит заголовки дней в листе "MAIN"
-            self.gs_connect.shift_orders_header(today=today)
 
         # если есть данные в БД - будут добавлены в лист
         if len(orders_count_data):
@@ -750,3 +781,24 @@ class ServiceGoogleSheet:
 
             print(edit_result)
         gs_pc_service.update_revenue_rows(edit_result)
+
+    async def add_data_by_net_profit(self):
+        """Функция для актуализации ЧП за конкретный день.(Если данные за день вдруг не подгрузились в таблице)"""
+        async with Database1() as connection:
+            date = '2024-12-11'
+            accurate_net_profit_table = AccurateNetProfitTable(db=connection)
+            result_som_net_profit_data = await accurate_net_profit_table.get_net_profit_by_date(date=date)
+
+            formatted_result = {}
+            for record in result_som_net_profit_data:
+                article_id = record['article_id']
+                sum_value = record['sum_snp']
+                date_obj = datetime.datetime.strptime(date, "%Y-%m-%d")
+
+                formatted_date_str = date_obj.strftime("%d.%m")
+                formatted_result[article_id] = {formatted_date_str: int(sum_value)}
+
+            print("[INFO] Обновляем данные по сумме ЧП в листе MAIN")
+            pprint(formatted_result)
+            self.gs_service_revenue_connect.update_revenue_rows(data_json=formatted_result)
+            print("данные по ЧП актуализированы")

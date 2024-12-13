@@ -144,7 +144,7 @@ class AnalyticsWarehouseLimits:
             'Content-Type': 'application/json'
         }
 
-    def create_report(self):
+    async def create_report(self):
         print("create_report")
         """Создает и возвращает taskId для остатков по баркодам"""
         result = None
@@ -157,15 +157,15 @@ class AnalyticsWarehouseLimits:
                 response = requests.get(url=url, headers=self.headers, params=params)
                 if response.status_code == 200:
                     result = response.json()["data"]["taskId"]
-                    print("taskId:",result)
+                    print("taskId:", result)
                     break
 
                 print("create_report", response.status_code, "sleep 63 sec")
-                time.sleep(63)
+                await asyncio.sleep(63)
 
             except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
-                print(e)
-                time.sleep(63)
+                print("create_report", '[ERROR]', e, "sleep 63 sec")
+                await asyncio.sleep(63)
 
         return result
 
@@ -189,6 +189,6 @@ class AnalyticsWarehouseLimits:
                 print(e)
                 await asyncio.sleep(63)
             except requests.exceptions.JSONDecodeError as e:
-                print(e,"Нет json ответа в запросе остатков")
+                print(e, "Нет json ответа в запросе остатков")
                 break
         return result
