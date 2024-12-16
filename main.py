@@ -139,6 +139,7 @@ def schedule_tasks():
     # проверяет остатки, обновляет через Сопост
     schedule.every(20).minutes.do(lambda: asyncio.create_task(gs_service.check_quantity_flag()))
 
+    # актуализация остатков по регионам в таблице "MAIN"
     schedule.every(5).minutes.do(lambda: asyncio.create_task(gs_service.get_actually_data_by_qty()))
 
 
@@ -147,7 +148,6 @@ async def run_scheduler():
     while True:
         schedule.run_pending()
         await asyncio.sleep(1)
-
 
 
 async def main():
