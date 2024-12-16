@@ -800,13 +800,12 @@ class ServiceGoogleSheet:
                     edit_result[article_id] = {}
                 edit_result[article_id][date] = snp
 
-            print(edit_result)
         gs_pc_service.update_revenue_rows(edit_result)
 
     async def add_data_by_net_profit(self):
         """Функция для актуализации ЧП за конкретный день.(Если данные за день вдруг не подгрузились в таблице)"""
         async with Database1() as connection:
-            date = '2024-12-11'
+            date = '2024-12-16'
             accurate_net_profit_table = AccurateNetProfitTable(db=connection)
             result_som_net_profit_data = await accurate_net_profit_table.get_net_profit_by_date(date=date)
 
@@ -820,6 +819,5 @@ class ServiceGoogleSheet:
                 formatted_result[article_id] = {formatted_date_str: int(sum_value)}
 
             print("[INFO] Обновляем данные по сумме ЧП в листе MAIN")
-            pprint(formatted_result)
             self.gs_service_revenue_connect.update_revenue_rows(data_json=formatted_result)
             print("данные по ЧП актуализированы")

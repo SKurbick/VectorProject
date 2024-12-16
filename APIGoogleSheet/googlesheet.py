@@ -884,7 +884,6 @@ class GoogleSheetServiceRevenue:
                 for column in row.index:
                     if column in df.columns and (pd.isna(df.at[idx, column]) or df.at[idx, column] == ""):
                         df.at[idx, column] = row[column]
-
         # Обновите Google Таблицу только для измененных строк
         updates = []
         headers = df.columns.tolist()
