@@ -142,8 +142,12 @@ def schedule_tasks():
     # актуализация остатков по регионам в таблице "MAIN"
     schedule.every(5).minutes.do(lambda: asyncio.create_task(gs_service.get_actually_data_by_qty()))
 
+    # актуализация заказов в
+    schedule.every().day.at("00:01:30").do(lambda: asyncio.create_task(gs_service.turnover_of_goods()))
 
-#
+
+
+
 async def run_scheduler():
     while True:
         schedule.run_pending()

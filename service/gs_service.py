@@ -13,10 +13,12 @@ from APIWildberries.analytics import AnalyticsNMReport, AnalyticsWarehouseLimits
 from APIWildberries.content import ListOfCardsContent
 from APIWildberries.marketplace import WarehouseMarketplaceWB, LeftoversMarketplace
 from APIWildberries.prices_and_discounts import ListOfGoodsPricesAndDiscounts
+from APIWildberries.statistics import Statistic
 from APIWildberries.tariffs import CommissionTariffs
 from database.postgresql.repositories.accurate_net_profit_data import AccurateNetProfitTable
 from database.postgresql.repositories.accurate_npd_purchase_calculation import AccurateNetProfitPCTable
 from database.postgresql.repositories.article import ArticleTable
+from database.postgresql.repositories.inventory_turnover_by_reg import InventoryTurnoverByRegTable
 from settings import get_wb_tokens
 from settings import Setting
 from utils import add_orders_data, calculate_sum_for_logistic, merge_dicts, validate_data, add_nm_ids_in_db, \
@@ -813,3 +815,111 @@ class ServiceGoogleSheet:
             print("[INFO] Обновляем данные по сумме ЧП в листе MAIN")
             self.gs_service_revenue_connect.update_revenue_rows(data_json=formatted_result)
             print("данные по ЧП актуализированы")
+
+    async def turnover_of_goods(self):
+        yesterday = str(datetime.datetime.today().date() - datetime.timedelta(days=1))
+        print(yesterday)
+        """Оборачиваемость товара по оценке остатков. Вычисление среднего за день и за неделю"""
+        gs_connect_main = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet=self.sheet)
+        lk_articles = await gs_connect_main.create_lk_barcodes_articles()
+        gs_connect_warehouses_info = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet,
+                                                 sheet="Склады ИНФ")
+        warehouses_info = await gs_connect_warehouses_info.get_warehouses_info()
+        print("warehouse_info", warehouses_info)
+        tasks_by_qty = []
+        tasks_by_supplies = []
+        for account, data in lk_articles.items():
+            token = get_wb_tokens()[account.capitalize()]
+            statistic = Statistic(token=token)
+            task_by_supplies = asyncio.create_task(statistic.get_supplies_data(date=yesterday))
+            task_by_qty = asyncio.create_task(
+                self.get_qty_data_by_account_for_turnover(token=token, data=data, warehouses_info=warehouses_info))
+            tasks_by_qty.append(task_by_qty)
+            tasks_by_supplies.append(task_by_supplies)
+
+        results = await asyncio.gather(
+            asyncio.gather(*tasks_by_qty),
+            asyncio.gather(*tasks_by_supplies)
+        )
+        gather_result_by_qty, gather_result_by_supplies = results
+        ready_qty_data = {}
+        plus_supply = {}
+        for qty in gather_result_by_qty:
+            ready_qty_data.update(qty['articles_qty_wb'])
+        for supplies in gather_result_by_supplies:
+            if len(supplies) > 0:
+                for data in supplies:
+                    nm_id = data['nmId']
+                    date_close = data['dateClose'].split('T')[0]
+                    warehouse_name = data['warehouseName']
+                    status = data['status']
+                    supply_qty = data['quantity']
+                    barcode = data['barcode']
+                    if warehouse_name in warehouses_info:
+                        if nm_id in ready_qty_data and status == "Принято" and yesterday == date_close:
+                            district_by_warehouse = warehouses_info[warehouse_name]
+                            district_qty = ready_qty_data[nm_id].pop(district_by_warehouse)
+                            if nm_id in plus_supply:
+                                if district_by_warehouse in plus_supply[nm_id]:
+                                    plus_supply[nm_id][district_by_warehouse]['supply_qty'] += supply_qty
+                                    plus_supply[nm_id][district_by_warehouse]['supply_count'] += 1
+                                else:
+                                    plus_supply[nm_id][district_by_warehouse] = {
+                                        "barcode": barcode, "quantity": district_qty, "supply_qty": supply_qty, "supply_count": 1
+                                    }
+                            else:
+                                plus_supply[nm_id] = {
+                                    district_by_warehouse: {"barcode": barcode, "quantity": district_qty, "supply_qty": supply_qty, "supply_count": 1}
+                                }
+
+        async with Database1() as connection:
+            inventory_turnover_by_reg = InventoryTurnoverByRegTable(db=connection)
+            await inventory_turnover_by_reg.update_stock_balances(yesterday, ready_qty_data, plus_supply)
+        print("[INFO] Завершили актуализацию остатков")
+
+    async def get_qty_data_by_account_for_turnover(self, token, data, warehouses_info):
+        wh_analytics = AnalyticsWarehouseLimits(token=token)
+
+        barcodes_set = set(data.keys())  # баркоды по аккаунту с таблицы
+        articles_qty_wb = {}
+        untracked_warehouses = {}
+        task_id = await wh_analytics.create_report()
+        wb_warehouse_qty = await wh_analytics.check_data_by_task_id(task_id=task_id)
+
+        if task_id is not None and len(wb_warehouse_qty) > 0:
+            if wb_warehouse_qty:  # собираем остатки со складов WB
+                for qty_data in wb_warehouse_qty:
+                    if qty_data['barcode'] in barcodes_set:
+                        barcode = qty_data['barcode']
+                        article = data[barcode]
+                        articles_qty_wb[article] = {
+                            # "ФБО": qty_data['quantityWarehousesFull'],
+                            "barcode": barcode
+                        }
+                        warehouses = qty_data['warehouses']
+
+                        if len(warehouses) > 0:
+                            for wh_data in warehouses:
+                                warehouse_name = wh_data["warehouseName"]
+                                if warehouse_name in warehouses_info:
+                                    region_name_by_warehouse = warehouses_info[warehouse_name]
+                                    # по задумке должен суммировать остатки всех закрепленных регионов к складам
+                                    if region_name_by_warehouse not in articles_qty_wb[article]:
+                                        articles_qty_wb[article][region_name_by_warehouse] = 0
+                                    articles_qty_wb[article][region_name_by_warehouse] += wh_data["quantity"]
+
+                                else:
+                                    if warehouse_name not in untracked_warehouses:
+                                        untracked_warehouses[warehouse_name] = 0
+                                    untracked_warehouses[warehouse_name] += wh_data["quantity"]
+
+                        clean_data = {"Центральный": "",
+                                      "Южный": "",
+                                      "Северо-Кавказский": "",
+                                      "Приволжский": ""}
+
+                        for cd in clean_data:
+                            if cd not in articles_qty_wb[article]:
+                                articles_qty_wb[article].update({cd: 0})
+
+        return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}

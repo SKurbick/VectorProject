@@ -111,3 +111,7 @@ class Database1:
         async with self.acquire() as connection:
             async with connection.transaction():
                 yield
+
+    async def copy_records_to_table(self, table_name, columns, records):
+        async with self.acquire() as connection:
+            await connection.copy_records_to_table(table_name, columns=columns, records=records)

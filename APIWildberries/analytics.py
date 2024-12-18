@@ -150,7 +150,8 @@ class AnalyticsWarehouseLimits:
         result = None
         url = self.url
         params = {
-            "groupByBarcode": True
+            "groupByBarcode": True,
+            "groupByNm": True
         }
         for _ in range(10):
             try:
