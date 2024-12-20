@@ -127,11 +127,9 @@ class ServiceGoogleSheet:
                 goods_nm_ids = await wb_api_price_and_discount.get_log_for_nm_ids_async(filter_nm_ids=nm_ids_result,
                                                                                         account=account)
                 commission_traffics = CommissionTariffs(token=token)
-                wh_analytics = AnalyticsWarehouseLimits(token=token)
-                # print(f"{account}","card_from_nm_ids_filter",card_from_nm_ids_filter)
+
                 # объединяем полученные данные
                 merge_json_data = merge_dicts(card_from_nm_ids_filter, goods_nm_ids)
-
                 subject_names = set()  # итог предметов со всех карточек
                 account_barcodes = []
                 current_tariffs_data = commission_traffics.get_tariffs_box_from_marketplace()
@@ -161,15 +159,6 @@ class ServiceGoogleSheet:
                         barcodes=account_barcodes)
                     barcodes_quantity_result.extend(bqs_result)
 
-                # собираем остатки со складов WB
-                # barcodes_qty_wb = {}
-                # task_id = wh_analytics.create_report()
-                # wb_warehouse_qty = await wh_analytics.check_data_by_task_id(task_id=task_id)
-                # if task_id is not None and len(wb_warehouse_qty) > 0:
-                #     for wh_data in wb_warehouse_qty:
-                #         if wh_data["barcode"] in account_barcodes:
-                #             barcodes_qty_wb[wh_data["barcode"]] = wh_data["quantityWarehousesFull"]
-
                 subject_commissions = None
                 try:
                     # получение комиссии WB
@@ -186,11 +175,6 @@ class ServiceGoogleSheet:
                             # card["Текущий остаток"] = bq_result["остаток"]
                             card["ФБС"] = bq_result["остаток"]
 
-                    # if len(barcodes_qty_wb) > 0:
-                    #     if "Баркод" in card and card["Баркод"] in barcodes_qty_wb.keys():
-                    #         # card["Текущий остаток\nСклады WB"] = barcodes_qty_wb[card["Баркод"]]
-                    #         card["ФБО"] = barcodes_qty_wb[card["Баркод"]]
-
                 result_nm_ids_data.update(merge_json_data)
 
                 if add_data_in_db is True:
@@ -204,9 +188,7 @@ class ServiceGoogleSheet:
             # db = self.database()
             try:
                 async with Database1() as connection:
-                    # async with self.database().acquire() as connection:
                     psql_article = ArticleTable(db=connection)
-                    # psql_article = ArticleTable(db=connection)
 
                     # ограничение функции: добавляет данные в psql, но только если их не было в бд json
                     filter_nm_ids = await psql_article.check_nm_ids(account="None", nm_ids=filter_nm_ids_data)
@@ -297,8 +279,7 @@ class ServiceGoogleSheet:
 
         # если хоть по одному артикулу данные будут валидны...
         if len(updates_nm_ids_data):
-            # print("updates_nm_ids_data",updates_nm_ids_data)
-            time.sleep(5)
+            await asyncio.sleep(5)
             result = await self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
                                                         only_edits_data=True, add_data_in_db=False,
                                                         check_nm_ids_in_db=False)
@@ -390,20 +371,12 @@ class ServiceGoogleSheet:
                 print("Актуализируем данные в бд таблицы accurate_net_profit_data")
                 await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=current_time,
                                                nm_ids_table_data=nm_ids_table_data)
-                # print("Актуализируем данные в бд таблицы accurate_npd_purchase_calculation")
-                # await self.add_data_in_db_psql_purchase_calculation(psql_data_update=psql_data_update,
-                #                                                     net_profit_time=current_time,
-                #                                                     nm_ids_table_data=nm_ids_pc_table_data)
+
             except asyncio.TimeoutError as e:
-                # print("поймали исключение при (add_data_in_db_psql, add_data_in_db_psql_purchase_calculation):", e)
-                print(e)
+                print("[ERROR]", e)
                 print("повторная попытка: Актуализируем данные в бд таблицы accurate_net_profit_data")
                 await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=current_time,
                                                nm_ids_table_data=nm_ids_table_data)
-                # print("повторная попытка: Актуализируем данные в бд таблицы accurate_npd_purchase_calculation")
-                # await self.add_data_in_db_psql_purchase_calculation(psql_data_update=psql_data_update,
-                #                                                     net_profit_time=current_time,
-                #                                                     nm_ids_table_data=nm_ids_pc_table_data)
 
             print("Функция актуализации timer:", datetime.datetime.now() - start)
 
@@ -858,20 +831,26 @@ class ServiceGoogleSheet:
                     if warehouse_name in warehouses_info:
                         if nm_id in ready_qty_data and status == "Принято" and yesterday == date_close:
                             district_by_warehouse = warehouses_info[warehouse_name]
-                            district_qty = ready_qty_data[nm_id].pop(district_by_warehouse)
+                            print("ready_qty_data[nm_id]", ready_qty_data[nm_id])
+
                             if nm_id in plus_supply:
                                 if district_by_warehouse in plus_supply[nm_id]:
                                     plus_supply[nm_id][district_by_warehouse]['supply_qty'] += supply_qty
                                     plus_supply[nm_id][district_by_warehouse]['supply_count'] += 1
                                 else:
+                                    district_qty = ready_qty_data[nm_id].pop(district_by_warehouse)
+
                                     plus_supply[nm_id][district_by_warehouse] = {
                                         "barcode": barcode, "quantity": district_qty, "supply_qty": supply_qty, "supply_count": 1
                                     }
                             else:
+                                district_qty = ready_qty_data[nm_id].pop(district_by_warehouse)
                                 plus_supply[nm_id] = {
                                     district_by_warehouse: {"barcode": barcode, "quantity": district_qty, "supply_qty": supply_qty, "supply_count": 1}
                                 }
 
+        pprint(ready_qty_data)
+        pprint(plus_supply)
         async with Database1() as connection:
             inventory_turnover_by_reg = InventoryTurnoverByRegTable(db=connection)
             await inventory_turnover_by_reg.update_stock_balances(yesterday, ready_qty_data, plus_supply)
@@ -920,6 +899,6 @@ class ServiceGoogleSheet:
 
                         for cd in clean_data:
                             if cd not in articles_qty_wb[article]:
-                                articles_qty_wb[article].update({cd: 0})
+                                articles_qty_wb[article][cd] = 0
 
         return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}
