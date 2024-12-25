@@ -15,14 +15,16 @@ from APIWildberries.marketplace import WarehouseMarketplaceWB, LeftoversMarketpl
 from APIWildberries.prices_and_discounts import ListOfGoodsPricesAndDiscounts
 from APIWildberries.statistics import Statistic
 from APIWildberries.tariffs import CommissionTariffs
+from database.postgresql.models.inventory_turnover_by_reg import QuantityAndSupply
 from database.postgresql.repositories.accurate_net_profit_data import AccurateNetProfitTable
 from database.postgresql.repositories.accurate_npd_purchase_calculation import AccurateNetProfitPCTable
 from database.postgresql.repositories.article import ArticleTable
 from database.postgresql.repositories.inventory_turnover_by_reg import InventoryTurnoverByRegTable
+from database.postgresql.repositories.orders_by_federal_district import OrdersByFederalDistrict
 from settings import get_wb_tokens
 from settings import Setting
 from utils import add_orders_data, calculate_sum_for_logistic, merge_dicts, validate_data, add_nm_ids_in_db, \
-    get_last_weeks_dates
+    get_last_weeks_dates, create_valid_data_from_db
 
 from database.postgresql.database import Database, Database1
 
@@ -410,7 +412,6 @@ class ServiceGoogleSheet:
                 warehouses = WarehouseMarketplaceWB(token=token)
                 barcodes_quantity = LeftoversMarketplace(token=token)
                 commission_traffics = CommissionTariffs(token=token)
-                wh_analytics = AnalyticsWarehouseLimits(token=token)
                 card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=articles, limit=100,
                                                                            only_edits_data=True, add_data_in_db=False,
                                                                            account=account)
@@ -450,16 +451,6 @@ class ServiceGoogleSheet:
                         barcodes=account_barcodes)
                     barcodes_quantity_result.extend(bqs_result)
 
-                # собираем остатки со складов WB
-                # barcodes_qty_wb = {}
-                # task_id = await wh_analytics.create_report()
-                # wb_warehouse_qty = await wh_analytics.check_data_by_task_id(task_id=task_id)
-                # if task_id is not None and len(wb_warehouse_qty) > 0:
-                #     if wb_warehouse_qty:
-                #         for wh_data in wb_warehouse_qty:
-                #             if wh_data["barcode"] in account_barcodes:
-                #                 barcodes_qty_wb[wh_data["barcode"]] = wh_data["quantityWarehousesFull"]
-
                 subject_commissions = None
                 try:
                     # получение комиссии WB
@@ -474,13 +465,7 @@ class ServiceGoogleSheet:
                                 card["Комиссия WB"] = sc[1]
                     for bq_result in barcodes_quantity_result:
                         if "Баркод" in card and bq_result["Баркод"] == card["Баркод"]:
-                            # card["Текущий остаток"] = bq_result["остаток"]
                             card["ФБС"] = bq_result["остаток"]
-
-                    # if len(barcodes_qty_wb) > 0:
-                    #     if "Баркод" in card and card["Баркод"] in barcodes_qty_wb.keys():
-                    #         # card["Текущий остаток\nСклады WB"] = barcodes_qty_wb[card["Баркод"]]
-                    #         card["ФБО"] = barcodes_qty_wb[card["Баркод"]]
 
                 result_updates_rows.update(merge_json_data)
                 """обновляем данные по артикулам"""
@@ -649,7 +634,6 @@ class ServiceGoogleSheet:
         orders_count_data = get_order_data_from_database()
         date_object = datetime.datetime.today()
         today = date_object.strftime("%d.%m")
-
         # если нет текущего дня
         if gs_connect.check_header(header=today):
             print(f"Нет текущего дня {today} в листах. Сервис сместит данные по дням")
@@ -902,3 +886,185 @@ class ServiceGoogleSheet:
                                 articles_qty_wb[article][cd] = 0
 
         return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}
+
+    async def find_out_orders_by_balances(self):
+        date1 = '2024-12-19'  # example
+        date2 = '2024-12-20'  # example
+        yesterday = str(datetime.datetime.today().date() - datetime.timedelta(days=1))  # use
+        previous_day = str(datetime.datetime.today().date() - datetime.timedelta(days=2))  # use
+        async with Database1() as connection:
+            inventory_turnover_by_reg = InventoryTurnoverByRegTable(db=connection)
+
+            data_to_update = []
+            last_day_dict = await create_valid_data_from_db(await inventory_turnover_by_reg.get_data_by_day(date2))
+            previous_day_dict = await create_valid_data_from_db(await inventory_turnover_by_reg.get_data_by_day(date1))
+            # pprint(last_day_dict)
+            error_article = []
+            for article, district_data in last_day_dict.items():
+                #
+                try:
+                    previous_dist_data = previous_day_dict[article]
+                    for district, last_data in district_data.items():
+                        previous_data = previous_dist_data[district]
+                        orders_per_day = last_data['supply_qty'] + previous_data['quantity'] - last_data['quantity']
+                        if orders_per_day < 0:
+                            print(article, last_data['supply_qty'], previous_data['quantity'], last_data['quantity'])
+                            print(orders_per_day)
+                        data_to_update.append(
+                            (article, district, orders_per_day, datetime.datetime.strptime(date2, "%Y-%m-%d"))
+                        )
+                except KeyError as e:
+                    error_article.append(article)
+                    print("[ERROR]", KeyError, e)
+            # await inventory_turnover_by_reg.update_orders(data=data_to_update)
+            print("Данные по заказам ФБО обновлено в бд таблицы 'inventory_turnover_by_reg'")
+
+    async def get_data_by_supplies(self):
+        # search_date = str(datetime.datetime.today().date() - datetime.timedelta(days=1))
+        search_date = '2024-12-19'
+        search_date_format = datetime.datetime.strptime(search_date, "%Y-%m-%d")
+        gs_connect_main = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet=self.sheet)
+        lk_articles = await gs_connect_main.create_lk_barcodes_articles()
+        gs_connect_warehouses_info = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet,
+                                                 sheet="Склады ИНФ")
+        warehouses_info = await gs_connect_warehouses_info.get_warehouses_info()
+        print("warehouse_info", warehouses_info)
+        tasks_by_supplies = []
+        articles = []  # для сверки из полученных данных по поставкам
+        for account, data in lk_articles.items():
+            articles.extend(list(data.values()))
+            token = get_wb_tokens()[account.capitalize()]
+            statistic = Statistic(token=token)
+            task_by_supplies = asyncio.create_task(statistic.get_supplies_data(date=search_date))
+            tasks_by_supplies.append(task_by_supplies)
+
+        # (article, date, federal_district, supply_qty, supply_count)
+        result_dict_data = {}
+        gather_results = await asyncio.gather(*tasks_by_supplies)
+        for results in gather_results:
+            for data in results:
+                if len(data) > 0:
+                    # for data in res:
+                    nm_id = data['nmId']
+                    date = data['date'].split('T')[0]
+                    warehouse_name = data['warehouseName']
+                    supply_qty = data['quantity']
+                    if warehouse_name in warehouses_info and date == search_date and nm_id in articles:
+                        print(data)
+
+                        district_by_warehouse = warehouses_info[warehouse_name]
+                        if nm_id in result_dict_data:
+                            if district_by_warehouse in result_dict_data[nm_id]:
+                                result_dict_data[nm_id][district_by_warehouse]['supply_qty'] += supply_qty
+                                result_dict_data[nm_id][district_by_warehouse]['supply_count'] += 1
+                            else:
+
+                                result_dict_data[nm_id][district_by_warehouse] = {
+                                    "date": date, "article_id": nm_id, "supply_qty": supply_qty, "supply_count": 1
+                                }
+                        else:
+                            result_dict_data[nm_id] = {
+                                district_by_warehouse: {"date": date, "article_id": nm_id, "supply_qty": supply_qty, "supply_count": 1}
+                            }
+        pprint(result_dict_data)
+        prepare_data_for_db = []
+
+        for article, district_data in result_dict_data.items():
+            for district, data in district_data.items():
+                prepare_data_for_db.append(
+                    (article, district, search_date_format, data['supply_qty'], data['supply_count'])
+                )
+
+        # print(prepare_data_for_db)
+        # print(len(result_dict_data))
+        pprint(prepare_data_for_db)
+        async with Database1() as connection:
+            inventory_turnover_by_reg = InventoryTurnoverByRegTable(db=connection)
+            await inventory_turnover_by_reg.update_supplies(data=prepare_data_for_db)
+        print("end test")
+
+    async def get_orders_by_federal_district(self):
+        print("Актуализируем данные по заказам по всем кабинетам в бд")
+        gs_connect_warehouses_info = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet="Склады ИНФ")
+        warehouses_info = await gs_connect_warehouses_info.get_warehouses_info()
+
+        date = str(datetime.datetime.today().date() - datetime.timedelta(days=1))
+        date_obj = datetime.datetime.strptime(date, "%Y-%m-%d")
+
+        tasks = []
+        for account, token in get_wb_tokens().items():
+            statistics = Statistic(token=token)
+            task = asyncio.create_task(statistics.get_orders_data(date=date))
+            tasks.append(task)
+
+        together_result = await asyncio.gather(*tasks)
+        results = []
+        for t_res in together_result:
+            results.extend(t_res)
+
+        sum_order_data_by_fbo = {}
+        for res in results:
+            warehouse = res['warehouseName']
+
+            if res['warehouseType'] == 'Склад WB' and warehouse in warehouses_info:
+                federal_district = warehouses_info[warehouse]
+                article_id = res['nmId']
+                barcode = res['barcode']
+                vendor_code = res['supplierArticle']
+
+                if article_id not in sum_order_data_by_fbo:
+                    sum_order_data_by_fbo[article_id] = {
+                        "federal_district": {},  # количество заказов
+                        "barcode": barcode,
+                        "date": date_obj,
+                        "vendor_code": vendor_code
+                    }
+                if federal_district not in sum_order_data_by_fbo[article_id]["federal_district"]:
+                    sum_order_data_by_fbo[article_id]["federal_district"].update({federal_district: 0})
+
+                sum_order_data_by_fbo[article_id]["federal_district"][federal_district] += 1
+
+        records_data = []
+        for article, data in sum_order_data_by_fbo.items():
+            for district_name, count in data['federal_district'].items():
+                records_data.append(
+                    (article, date_obj, district_name, count, int(data['barcode']), data['vendor_code'])
+                )
+
+        pprint(records_data, width=100, compact=True)
+        async with Database1() as connection:
+            orders_by_federal_district = OrdersByFederalDistrict(db=connection)
+            await orders_by_federal_district.add_orders_data(records_data=records_data)
+            print("Данные по заказам актуализированы в БД")
+
+    async def get_awg_data_by_orders(self):
+        start_day = datetime.datetime.today().date() - datetime.timedelta(days=7)
+        end_day = datetime.datetime.today().date() - datetime.timedelta(days=1)
+        async with Database1() as connection:
+            orders_by_federal_district = OrdersByFederalDistrict(db=connection)
+            avg_data = await orders_by_federal_district.get_awg_orders_per_days(start_day=start_day, end_day=end_day)
+            headers_by_district = {"Центральный": "СВД - Ц",
+                                   "Южный": "СВД - Ю",
+                                   "Северо-Кавказский": "СВД - СК",
+                                   "Приволжский": "СВД - П"}
+            avg_data_for_update = {}
+            for record in avg_data:
+                article_id = record['article_id']
+                avg_header_name = headers_by_district[record['federal_district']]
+                avg_orders_result = record['avg_opd']
+                if article_id not in avg_data_for_update:
+                    avg_data_for_update[article_id] = {}
+                avg_data_for_update[article_id].update({
+                    avg_header_name: float(avg_orders_result)
+                })
+        print("Получили avg данные c бд по заказам ")
+        return avg_data_for_update
+
+    async def actualize_avg_orders_data_in_table(self):
+        # актуализация по заказам в бд
+        await self.get_orders_by_federal_district()
+        # получили средн. арифм. за последние 7 дней по заказам с каждого склада (фед округа)
+        avg_data_by_orders = await self.get_awg_data_by_orders()
+        # актуализируем данные в таблице
+        await self.gs_connect.update_qty_by_reg(update_data=avg_data_by_orders)
+        print("Усредненные данные по заказам со складов\регионов актуализированы в Таблице")

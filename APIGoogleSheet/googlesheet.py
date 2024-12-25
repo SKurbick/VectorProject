@@ -496,24 +496,24 @@ class GoogleSheet:
         df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
 
         # Сохраняем формулы из столбцов, которые не попадают в диапазон смещения
-        formulas_to_preserve = df_formulas.iloc[:, 101:].values
+        formulas_to_preserve = df_formulas.iloc[:, 109:].values
 
         # Смещение заголовков и содержимого столбцов
-        header_values = df_values.columns[71:101].tolist()  # Индексы столбцов
+        header_values = df_values.columns[79:109].tolist()  # Индексы столбцов
         shifted_header_values = header_values[:29]
         shifted_header_values.insert(0, today)
         # Обновление заголовков
-        df_values.columns = df_values.columns[:71].tolist() + shifted_header_values + df_values.columns[101:].tolist()
+        df_values.columns = df_values.columns[:79].tolist() + shifted_header_values + df_values.columns[109:].tolist()
 
         df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
         # Смещение содержимого столбцов
-        df_values.iloc[:, 72:101] = df_values.iloc[:, 71:100].values
+        df_values.iloc[:, 80:109] = df_values.iloc[:, 79:108].values
         df_values.iloc[:, 71] = ""  # Очистка первого столбца
 
         # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
-        df_formulas.iloc[:, 72:101] = df_formulas.iloc[:, 71:100].values
-        df_formulas.iloc[:, 71] = ""  # Очистка первого столбца
-        df_formulas.iloc[:, 101:] = formulas_to_preserve
+        df_formulas.iloc[:, 80:109] = df_formulas.iloc[:, 79:108].values
+        df_formulas.iloc[:, 79] = ""  # Очистка первого столбца
+        df_formulas.iloc[:, 109:] = formulas_to_preserve
 
         # Преобразование обратно в список списков
         updated_values = [df_values.columns.tolist()] + df_values.values.tolist()
@@ -757,32 +757,30 @@ class GoogleSheetServiceRevenue:
         df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
 
         # Сохраняем формулы из столбцов, которые не попадают в диапазон смещения
-        formulas_to_preserve = df_formulas.iloc[:, 47:].values
-
+        formulas_to_preserve = df_formulas.iloc[:, 55:].values
         # Смещение заголовков и содержимого столбцов
-        header_values = df_values.columns[39:47].tolist()  # Индексы столбцов
+        header_values = df_values.columns[47:55].tolist()  # Индексы столбцов
 
         shifted_header_values = header_values[1:]
         shifted_header_values.append(last_day)
+        # Обновление заголовков
+        df_values.columns = df_values.columns[:47].tolist() + shifted_header_values + df_values.columns[55:].tolist()
 
-        # # Обновление заголовков
-        df_values.columns = df_values.columns[:39].tolist() + shifted_header_values + df_values.columns[47:].tolist()
         df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
 
         # Смещение содержимого столбцов
-        df_values.iloc[:, 39:46] = df_values.iloc[:, 40:47].values
+        df_values.iloc[:, 47:54] = df_values.iloc[:, 48:55].values
 
         # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
+        df_formulas.iloc[:, 47:54] = df_formulas.iloc[:, 48:55].values
+        df_formulas.iloc[:, 54] = ""  # Очистка последнего столбца
+        df_formulas.iloc[:, 55:] = formulas_to_preserve
 
-        df_formulas.iloc[:, 39:46] = df_formulas.iloc[:, 40:47].values
-        df_formulas.iloc[:, 46] = ""  # Очистка последнего столбца
-        df_formulas.iloc[:, 47:] = formulas_to_preserve
-        #
-        # # Преобразование обратно в список списков
+        # Преобразование обратно в список списков
         updated_values = [df_values.columns.tolist()] + df_values.values.tolist()
         updated_formulas = [df_formulas.columns.tolist()] + df_formulas.values.tolist()
-        #
-        # # Обновление таблицы одним запросом
+
+        # Обновление таблицы одним запросом
         self.sheet.update('A1', updated_values, value_input_option='USER_ENTERED')
         self.sheet.update('A1', updated_formulas, value_input_option='USER_ENTERED')
 
@@ -800,26 +798,26 @@ class GoogleSheetServiceRevenue:
         df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
 
         # Сохраняем формулы из столбцов, которые не попадают в диапазон смещения
-        formulas_to_preserve = df_formulas.iloc[:, 51:].values
+        formulas_to_preserve = df_formulas.iloc[:, 59:].values
 
         # Смещение заголовков и содержимого столбцов
 
-        header_values = df_values.columns[47:51].tolist()  # Индексы столбцов
+        header_values = df_values.columns[55:59].tolist()  # Индексы столбцов
         shifted_header_values = header_values[1:]
         shifted_header_values.append(last_week)
 
         # Обновление заголовков
-        df_values.columns = df_values.columns[:47].tolist() + shifted_header_values + df_values.columns[51:].tolist()
+        df_values.columns = df_values.columns[:55].tolist() + shifted_header_values + df_values.columns[59:].tolist()
 
         df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
 
         # Смещение содержимого столбцов
-        df_values.iloc[:, 47:50] = df_values.iloc[:, 48:51].values
+        df_values.iloc[:, 55:58] = df_values.iloc[:, 56:59].values
 
         # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
-        df_formulas.iloc[:, 47:50] = df_formulas.iloc[:, 48:51].values
-        df_formulas.iloc[:, 50] = ""  # Очистка последнего столбца
-        df_formulas.iloc[:, 51:] = formulas_to_preserve
+        df_formulas.iloc[:, 55:58] = df_formulas.iloc[:, 56:59].values
+        df_formulas.iloc[:, 58] = ""  # Очистка последнего столбца
+        df_formulas.iloc[:, 59:] = formulas_to_preserve
 
         # Преобразование обратно в список списков
         updated_values = [df_values.columns.tolist()] + df_values.values.tolist()

@@ -7,6 +7,21 @@ import re
 import math
 
 
+async def create_valid_data_from_db(data):
+    result_data = {}
+    for record in data:
+        article = record['article_id']
+        quantity = record['quantity']
+        supply_qty = record['supply_qty']
+        federal_district = record['federal_district']
+
+        if article in result_data:
+            result_data[article].update({federal_district: {"quantity": quantity, "supply_qty": supply_qty}})
+        else:
+            result_data[article] = {federal_district: {"quantity": quantity, "supply_qty": supply_qty}}
+
+    return result_data
+
 def merge_dicts(d1, d2):
     result = {}
     for key in d1.keys() | d2.keys():

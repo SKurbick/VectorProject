@@ -132,18 +132,20 @@ def schedule_tasks():
 
     """Смотрит в таблицу, оценивает новые nm_ids"""
     schedule.every(300).seconds.do(lambda: asyncio.create_task(check_new_nm_ids()))
-    #
-    # """Смотрит в таблицу, оценивает изменения"""
+
+    """Смотрит в таблицу, оценивает изменения"""
     schedule.every(250).seconds.do(lambda: asyncio.create_task(check_edits_columns()))
 
-    # проверяет остатки, обновляет через Сопост
+    """проверяет остатки, обновляет через Сопост"""
     schedule.every(20).minutes.do(lambda: asyncio.create_task(gs_service.check_quantity_flag()))
 
-    # актуализация остатков по регионам в таблице "MAIN"
+    """актуализация остатков по регионам в таблице MAIN"""
     schedule.every(5).minutes.do(lambda: asyncio.create_task(gs_service.get_actually_data_by_qty()))
 
-    # актуализация заказов в
+    """актуализация заказов в"""
     schedule.every().day.at("00:01:55").do(lambda: asyncio.create_task(gs_service.turnover_of_goods()))
+    schedule.every().day.at("00:09:30").do(lambda: asyncio.create_task(gs_service.actualize_avg_orders_data_in_table()))
+    # schedule.every(1).seconds.do(lambda: asyncio.create_task(gs_service.actualize_avg_orders_data_in_table()))
 
 
 async def run_scheduler():
