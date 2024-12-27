@@ -144,7 +144,7 @@ def schedule_tasks():
 
     """актуализация заказов в"""
     schedule.every().day.at("00:01:55").do(lambda: asyncio.create_task(gs_service.turnover_of_goods()))
-    schedule.every().day.at("00:09:30").do(lambda: asyncio.create_task(gs_service.actualize_avg_orders_data_in_table()))
+    schedule.every().day.at("09:30:30").do(lambda: asyncio.create_task(gs_service.actualize_avg_orders_data_in_table()))
     # schedule.every(1).seconds.do(lambda: asyncio.create_task(gs_service.actualize_avg_orders_data_in_table()))
 
 
@@ -159,8 +159,8 @@ async def main():
     await run_scheduler()
 
 
-#
-#
+
+
 
 # from apscheduler.schedulers.asyncio import AsyncIOScheduler
 #
