@@ -26,7 +26,8 @@ class AccurateNetProfitTable:
 
             net_profit_query = """
             INSERT INTO accurate_net_profit_data (article_id, net_profit, date, time, orders)
-            VALUES ($1, $2, $3, $4, $5) ;
+            SELECT $1, $2, $3, $4, $5
+            WHERE EXISTS (SELECT 1 FROM article WHERE article.nm_id = $1)
             """
             await self.db.executemany(net_profit_query, net_profit_data)
 
@@ -41,10 +42,23 @@ class AccurateNetProfitTable:
             result = await self.db.fetch(query=select_query)
             db_nm_ids_orders = dict(result)
 
-            subtractions_orders_result = {
-                nm_id: response_data[nm_id]["ordersCount"] - db_nm_ids_orders[nm_id] for nm_id in response_data
-            }
-
+            # subtractions_orders_result = {
+            #     nm_id: response_data[nm_id]["ordersCount"] - db_nm_ids_orders[nm_id] for nm_id in response_data
+            # }
+            subtractions_orders_result = {}
+            for nm_id in response_data:
+                try:
+                    # Attempt to access the required keys
+                    orders_count = response_data[nm_id]["ordersCount"]
+                    db_value = db_nm_ids_orders[nm_id]
+                    # Perform the subtraction
+                    subtraction_result = orders_count - db_value
+                    # Add to the dictionary
+                    subtractions_orders_result[nm_id] = subtraction_result
+                except KeyError as e:
+                    print(e, "Key Error", "update_net_profit_data")
+                    # Skip this nm_id if any key is missing
+                    continue
             # Запрос для добавления или обновления данных
             query = """
             INSERT INTO accurate_net_profit_data (article_id, net_profit, orders, time, date)
@@ -55,9 +69,23 @@ class AccurateNetProfitTable:
             """
 
             # создаем результирующий список с данными для заполнения в бд
-            data_for_add_db = [(nm_id, nm_ids_table_data[nm_id], subtractions_orders_result[nm_id], time,
-                                datetime.datetime.strptime(date, '%Y-%m-%d').date()) for
-                               nm_id, value in response_data.items()]
+            # data_for_add_db = [(nm_id, nm_ids_table_data[nm_id], subtractions_orders_result[nm_id], time,
+            #                     datetime.datetime.strptime(date, '%Y-%m-%d').date()) for
+            #                    nm_id, value in response_data.items()]
+            data_for_add_db = []
+            for nm_id, value in response_data.items():
+                try:
+                    # Attempt to access the required keys
+                    nm_ids_value = nm_ids_table_data[nm_id]
+                    subtractions_value = subtractions_orders_result[nm_id]
+                    date_obj = datetime.datetime.strptime(date, '%Y-%m-%d').date()
+                    # Create the tuple and append to the list
+                    data_tuple = (nm_id, nm_ids_value, subtractions_value, time, date_obj)
+                    data_for_add_db.append(data_tuple)
+                except KeyError as e:
+                    # Skip this nm_id if any key is missing
+                    print(e, "Key Error", "update_net_profit_data")
+                    continue
 
             # Разбиваем данные на пакеты
             batch_size = 1000

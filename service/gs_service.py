@@ -1068,3 +1068,10 @@ class ServiceGoogleSheet:
         # актуализируем данные в таблице
         await self.gs_connect.update_qty_by_reg(update_data=avg_data_by_orders)
         print("Усредненные данные по заказам со складов\регионов актуализированы в Таблице")
+
+
+    # async def test(self):
+    #     async with Database1() as connection:
+    #         accurate_test = AccurateNetProfitTable(db=connection)
+    #         await accurate_test.add_new_article_net_profit_data(None, None, None, None)
+    #         print("end test")
