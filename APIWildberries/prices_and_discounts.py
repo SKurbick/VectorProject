@@ -91,7 +91,7 @@ class ListOfGoodsPricesAndDiscounts:
             for i in range(1, 10):
                 try:
                     async with aiohttp.ClientSession() as session:
-                        async with session.get(url, headers=self.headers, params=params) as response:
+                        async with session.get(url, headers=self.headers, params=params, timeout=60) as response:
                             response_result = await response.json()
                             if "data" in response_result:
                                 if response_result['data'] is not None:
@@ -114,8 +114,8 @@ class ListOfGoodsPricesAndDiscounts:
                                 continue
                             else:
                                 break
-                except (aiohttp.ClientError, aiohttp.ClientResponseError) as e:
-                    print(e, "sleep 36 sec")
+                except (aiohttp.ClientError, aiohttp.ClientResponseError, aiohttp.ConnectionTimeoutError) as e:
+                    print("[ERROR] func -get_log_for_nm_ids_async",e, "sleep 36 sec")
                     await asyncio.sleep(36)
 
             print("Дошел до условия прерывания бесконечного цикла")
