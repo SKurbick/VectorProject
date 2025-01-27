@@ -114,7 +114,7 @@ class ListOfGoodsPricesAndDiscounts:
                                 continue
                             else:
                                 break
-                except (aiohttp.ClientError, aiohttp.ClientResponseError, aiohttp.ConnectionTimeoutError) as e:
+                except (aiohttp.ClientError, aiohttp.ClientResponseError, aiohttp.ConnectionTimeoutError, asyncio.TimeoutError) as e:
                     print("[ERROR] func -get_log_for_nm_ids_async",e, "sleep 36 sec")
                     await asyncio.sleep(36)
 
