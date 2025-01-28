@@ -1,3 +1,4 @@
+import asyncio
 import json
 import time
 from datetime import timedelta, datetime
@@ -11,6 +12,27 @@ import requests
 from gspread import Client, service_account
 from utils import get_nm_ids_in_db, column_index_to_letter, get_data_for_nm_ids, subtract_percentage, can_be_int
 import pandas as pd
+
+
+def retry_on_quota_exceeded_async(max_retries=10, delay=60):
+    def decorator(func):
+        async def async_wrapper(*args, **kwargs):
+            retries = 0
+            while retries < max_retries:
+                try:
+                    return await func(*args, **kwargs)
+                except gspread.exceptions.APIError as e:
+                    print(e)
+                    print(f"Async sleep {delay} sec [сработал декоратор]")
+                    await asyncio.sleep(delay)
+                    retries += 1
+            raise Exception("Не удалось выполнить операцию после нескольких попыток.")
+
+        return async_wrapper
+
+    return decorator
+
+
 
 
 class GoogleSheet:
@@ -225,6 +247,7 @@ class GoogleSheet:
             lk_articles_dict[lk.upper()].append(article)
         return lk_articles_dict
 
+    @retry_on_quota_exceeded_async()
     async def create_lk_barcodes_articles(self):
         """Создание словарь из таблицы в формате Кабинет:{Артикул:Баркод}"""
         data = self.sheet.get_all_records()
@@ -534,6 +557,7 @@ class GoogleSheet:
             print(f"Заголовок {header} уже есть в таблице")
             return False
 
+    @retry_on_quota_exceeded_async()
     async def get_warehouses_info(self) -> dict:
         """ Получить данные по региональным разделениям складов"""
 
@@ -550,6 +574,7 @@ class GoogleSheet:
 
         return result_dict_data
 
+    @retry_on_quota_exceeded_async()
     async def update_untracked_warehouses_quantity(self, update_data):
         """Актуализация остатков по неотслеживаемым складам"""
         # Retrieve all values from the sheet
@@ -619,6 +644,7 @@ class GoogleSheet:
         except Exception as e:
             print(f'Error during batch update: {e}')
 
+    @retry_on_quota_exceeded_async()
     async def update_qty_by_reg(self, update_data):
         data = self.sheet.get_all_records(expected_headers=[])
         df = pd.DataFrame(data)
