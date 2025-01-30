@@ -36,9 +36,9 @@ class CommissionTariffs:
                     break
         return result_commission_data
 
-    def get_tariffs_box_from_marketplace(self, date: datetime.date.today() = datetime.date.today()) -> dict or None:
+    def get_tariffs_box_from_marketplace(self) -> dict or None:
         url = self.url.format("box")
-
+        date = datetime.date.today()
         params = {
             "date": date
         }
