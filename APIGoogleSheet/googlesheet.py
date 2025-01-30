@@ -33,8 +33,6 @@ def retry_on_quota_exceeded_async(max_retries=10, delay=60):
     return decorator
 
 
-
-
 class GoogleSheet:
     def __init__(self, spreadsheet: str, sheet: str, creds_json='creds.json'):
         self.creds_json = creds_json
@@ -421,7 +419,8 @@ class GoogleSheet:
                 print("[ERROR]", e)
                 time.sleep(63)
 
-    def add_data_to_count_list(self, data_json):
+    @retry_on_quota_exceeded_async()
+    async def add_data_to_count_list(self, data_json):
         # сначала мы добавляем новые nmId которых нет в листе "Количество заказов"
         nm_ids_list = list(data_json.keys())
 
@@ -436,7 +435,7 @@ class GoogleSheet:
             self.sheet.append_rows([[article] for article in missing_articles])
 
         # на всякий пожарный, что бы гугл не ныл на спам запросов
-        time.sleep(10)
+        await asyncio.sleep(10)
 
         data = self.sheet.get_all_records(expected_headers=[])
         df = pd.DataFrame(data)

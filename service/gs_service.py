@@ -644,7 +644,7 @@ class ServiceGoogleSheet:
         # если есть данные в БД - будут добавлены в лист
         if len(orders_count_data):
             print("актуализируем данные по заказам в таблице")
-            gs_connect.add_data_to_count_list(data_json=orders_count_data)
+            await gs_connect.add_data_to_count_list(data_json=orders_count_data)
 
         print("Обновлено количество заказов по дням в MAIN")
         """ Функция добавления количества заказов по дням в таблицу """
