@@ -43,6 +43,7 @@ class ServiceGoogleSheet:
         self.creds_json = creds_json
 
     async def get_actually_revenues_orders_and_net_profit_data(self):
+        gs_connect_orders_sheet = GoogleSheetServiceRevenue(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet="Количество заказов")
         # todo так же можно добавить актуализацию по другим данным с бд таблицы
         current_date = datetime.datetime.today().date() - datetime.timedelta(days=0)
         revenue_date_header = current_date.strftime("%d-%m-%Y")
@@ -69,7 +70,6 @@ class ServiceGoogleSheet:
                     data_to_update_main[article_id] = {}
                 data_to_update_main[article_id].update({orders_and_np_date_header: sum_value})
 
-            pprint(data_to_update_main)
             try:
                 self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
                 print("Данные по чп и выручке в Unit актуализированы")
@@ -78,11 +78,12 @@ class ServiceGoogleSheet:
                 await asyncio.sleep(36)
                 self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
                 print("Данные по чп и выручке в Unit актуализированы")
-
+            #
             try:
-                self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_orders)
+                gs_connect_orders_sheet.update_revenue_rows(data_json=data_to_update_orders)
                 print("Данные по чп и выручке в Unit актуализированы")
             except Exception as e:
+                gs_connect_orders_sheet.update_revenue_rows(data_json=data_to_update_orders)
                 print("[ERROR]", e, "Ошибка при актуализации информации в Количество заказов. Повторная попытка 36 sec")
                 await asyncio.sleep(36)
                 self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_orders)

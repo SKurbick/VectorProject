@@ -149,7 +149,6 @@ def schedule_tasks():
     schedule.every(6).minutes.do(lambda: asyncio.create_task(gs_service.get_actually_revenues_orders_and_net_profit_data()))
 
 
-
 async def run_scheduler():
     while True:
         schedule.run_pending()
@@ -159,9 +158,6 @@ async def run_scheduler():
 async def main():
     schedule_tasks()
     await run_scheduler()
-
-
-
 
 
 # from apscheduler.schedulers.asyncio import AsyncIOScheduler
