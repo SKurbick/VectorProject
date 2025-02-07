@@ -87,7 +87,7 @@ class ServiceGoogleSheet:
                 print("[ERROR]", e, "Ошибка при актуализации информации в Количество заказов. Повторная попытка 36 sec")
                 await asyncio.sleep(36)
                 self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_orders)
-                print("Данные по чп и выручке в Unit актуализированы")
+                print("Данные по количеству заказов актуализированы")
 
     async def add_revenue_for_new_nm_ids(self, lk_articles: dict):
         """ Добавление выручки по новым артикулам за 7 последних дней (сегодняшний не учитывается)"""
