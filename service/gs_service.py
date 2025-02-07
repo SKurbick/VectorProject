@@ -21,12 +21,13 @@ from database.postgresql.repositories.accurate_npd_purchase_calculation import A
 from database.postgresql.repositories.article import ArticleTable
 from database.postgresql.repositories.inventory_turnover_by_reg import InventoryTurnoverByRegTable
 from database.postgresql.repositories.orders_by_federal_district import OrdersByFederalDistrict
+from database.postgresql.repositories.orders_revenues import OrdersRevenuesTable
 from settings import get_wb_tokens
 from settings import Setting
 from utils import add_orders_data, calculate_sum_for_logistic, merge_dicts, validate_data, add_nm_ids_in_db, \
     get_last_weeks_dates, create_valid_data_from_db
 
-from database.postgresql.database import Database, Database1
+from database.postgresql.database import Database1
 
 
 class ServiceGoogleSheet:
@@ -40,6 +41,52 @@ class ServiceGoogleSheet:
         self.sheet = sheet
         self.spreadsheet = spreadsheet
         self.creds_json = creds_json
+
+    async def get_actually_revenues_orders_and_net_profit_data(self):
+        # todo так же можно добавить актуализацию по другим данным с бд таблицы
+        current_date = datetime.datetime.today().date() - datetime.timedelta(days=0)
+        revenue_date_header = current_date.strftime("%d-%m-%Y")
+        orders_and_np_date_header = current_date.strftime("%d.%m")
+        print(current_date)
+        data_to_update_main = {}
+        data_to_update_orders = {}
+        async with Database1() as connection:
+            accurate_net_profit_table = AccurateNetProfitTable(db=connection)
+            orders_revenues = OrdersRevenuesTable(db=connection)
+            orders_revenues_db_data = await orders_revenues.get_data_by_date(date=current_date)
+            for res in orders_revenues_db_data:
+                article_id = res['article_id']
+                revenues = res['orders_sum_rub']
+                orders = res['orders_count']
+                data_to_update_main[article_id] = {revenue_date_header: revenues}
+                data_to_update_orders[article_id] = {orders_and_np_date_header: orders}
+
+            result_som_net_profit_data = await accurate_net_profit_table.get_net_profit_by_date(date=str(current_date))
+            for record in result_som_net_profit_data:
+                article_id = record['article_id']
+                sum_value = int(record['sum_snp'])
+                if article_id not in data_to_update_main:
+                    data_to_update_main[article_id] = {}
+                data_to_update_main[article_id].update({orders_and_np_date_header: sum_value})
+
+            pprint(data_to_update_main)
+            try:
+                self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
+                print("Данные по чп и выручке в Unit актуализированы")
+            except Exception as e:
+                print("[ERROR]", e, "Ошибка при актуализации информации по выручке и чп в main. Повторная попытка 36 sec")
+                await asyncio.sleep(36)
+                self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
+                print("Данные по чп и выручке в Unit актуализированы")
+
+            try:
+                self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_orders)
+                print("Данные по чп и выручке в Unit актуализированы")
+            except Exception as e:
+                print("[ERROR]", e, "Ошибка при актуализации информации в Количество заказов. Повторная попытка 36 sec")
+                await asyncio.sleep(36)
+                self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_orders)
+                print("Данные по чп и выручке в Unit актуализированы")
 
     async def add_revenue_for_new_nm_ids(self, lk_articles: dict):
         """ Добавление выручки по новым артикулам за 7 последних дней (сегодняшний не учитывается)"""
@@ -304,7 +351,7 @@ class ServiceGoogleSheet:
                 # на вчерашний, чтобы актуализировать выручку за вчерашний день так же
                 begin_date = datetime.date.today() - datetime.timedelta(days=1)
                 print(last_day, "заголовка нет в таблице. Будет добавлен включая выручка по дню")
-                # сначала сдвигаем колонки с выручкой
+                # сначала сдвигаем колонки с выручкой и добавляем заголовок нового дня
                 self.gs_service_revenue_connect.shift_revenue_columns_to_the_left(last_day=last_day)
 
             lk_articles = self.gs_connect.create_lk_articles_dict()
@@ -660,7 +707,7 @@ class ServiceGoogleSheet:
                 print("Запрос по новым артикулам")
                 psql_new_nm_ids = await accurate_net_profit_table.check_nm_ids(nm_ids=nm_ids_list, account=None,
                                                                                date=date)
-                print("новые артикулы которых нет в таблице net_profit:", psql_new_nm_ids)
+                print("новые артикулы которых нет в таблице accurate_net_profit_data:", psql_new_nm_ids)
                 "Добавляем данные в бд psql"
                 if psql_new_nm_ids:  # добавляем новые артикулы в бд psql
                     # если новых артикулов нет в таблице net_profit, то будут добавлены
@@ -668,7 +715,7 @@ class ServiceGoogleSheet:
                                                                                     data=psql_data,
                                                                                     nm_ids_net_profit=nm_ids_table_data,
                                                                                     new_nm_ids=psql_new_nm_ids)
-                    print("артикулы в бд таблицы accurate_net_profit_table актуализированы")
+                    print("артикулы в бд таблицы accurate_net_profit_data актуализированы")
 
                 # актуализируем информацию по полученному с таблицы чп по артикулам
                 await accurate_net_profit_table.update_net_profit_data(time=net_profit_time,
@@ -677,7 +724,7 @@ class ServiceGoogleSheet:
                                                                        date=date)
                 print("актуализированы данные в бд таблицы accurate_net_profit_data")
 
-                print("[INFO] Получаем данные с бд с таблицы accurate_net_profit")
+                print("[INFO] Получаем данные с бд с таблицы accurate_net_profit_data")
                 result_som_net_profit_data = await accurate_net_profit_table.get_net_profit_by_date(date=date)
 
                 formatted_result = {}
@@ -1068,7 +1115,6 @@ class ServiceGoogleSheet:
         # актуализируем данные в таблице
         await self.gs_connect.update_qty_by_reg(update_data=avg_data_by_orders)
         print("Усредненные данные по заказам со складов\регионов актуализированы в Таблице")
-
 
     # async def test(self):
     #     async with Database1() as connection:

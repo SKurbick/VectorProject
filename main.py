@@ -125,7 +125,7 @@ def schedule_tasks():
     gs_service = gs_service_for_schedule_connection()
 
     "Добавляет выручку и сдвигает столбцы с выручкой по необходимости. Условие должно работать  каждые 25 мин"
-    schedule.every(25).minutes.do(lambda: asyncio.create_task(gs_service.add_new_day_revenue_to_table()))
+    # schedule.every(25).minutes.do(lambda: asyncio.create_task(gs_service.add_new_day_revenue_to_table()))
 
     """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
     schedule.every(800).seconds.do(lambda: asyncio.create_task(gs_service.add_actually_data_to_table()))
@@ -145,7 +145,9 @@ def schedule_tasks():
     """актуализация заказов в"""
     schedule.every().day.at("00:01:55").do(lambda: asyncio.create_task(gs_service.turnover_of_goods()))
     schedule.every().day.at("09:30:30").do(lambda: asyncio.create_task(gs_service.actualize_avg_orders_data_in_table()))
-    # schedule.every(1).seconds.do(lambda: asyncio.create_task(gs_service.actualize_avg_orders_data_in_table()))
+    """Актуализация данных по выручке, заказам и сумме с чистой прибыли"""
+    schedule.every(6).minutes.do(lambda: asyncio.create_task(gs_service.get_actually_revenues_orders_and_net_profit_data()))
+
 
 
 async def run_scheduler():
