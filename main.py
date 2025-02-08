@@ -147,6 +147,8 @@ def schedule_tasks():
     schedule.every().day.at("09:30:30").do(lambda: asyncio.create_task(gs_service.actualize_avg_orders_data_in_table()))
     """Актуализация данных по выручке, заказам и сумме с чистой прибыли"""
     schedule.every(6).minutes.do(lambda: asyncio.create_task(gs_service.get_actually_revenues_orders_and_net_profit_data()))
+    """Смотрим состояние заголовков текущих дней"""
+    schedule.every(30).minutes.do(lambda: asyncio.create_task(gs_service.check_headers()))
 
 
 async def run_scheduler():
