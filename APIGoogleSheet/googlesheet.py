@@ -168,7 +168,7 @@ class GoogleSheet:
         # Перебор строк DataFrame
         for index, row in df.iterrows():
             article = row['Артикул']
-            account = row['ЛК']
+            account = str(row['ЛК']).capitalize()
             # Пропуск строки, если "ЛК" или "Артикул" пустые
             if pd.isna(article) or pd.isna(article) or article.strip() == '' or article.strip() == '':
                 continue
