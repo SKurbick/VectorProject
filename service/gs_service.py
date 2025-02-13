@@ -96,7 +96,6 @@ class ServiceGoogleSheet:
 
     async def get_actually_revenues_orders_and_net_profit_data(self):
 
-
         gs_connect_orders_sheet = GoogleSheetServiceRevenue(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet="Количество заказов")
         # todo так же можно добавить актуализацию по другим данным с бд таблицы
         current_date = datetime.datetime.today().date() - datetime.timedelta(days=0)
@@ -135,7 +134,7 @@ class ServiceGoogleSheet:
             #
             try:
                 gs_connect_orders_sheet.update_revenue_rows(data_json=data_to_update_orders)
-                print("Данные по чп и выручке в Unit актуализированы")
+                print("Данные по количеству заказов актуализированы")
             except Exception as e:
                 gs_connect_orders_sheet.update_revenue_rows(data_json=data_to_update_orders)
                 print("[ERROR]", e, "Ошибка при актуализации информации в Количество заказов. Повторная попытка 36 sec")
@@ -511,8 +510,8 @@ class ServiceGoogleSheet:
                 token = get_wb_tokens()[account.capitalize()]
                 wb_api_content = ListOfCardsContent(token=token)
                 wb_api_price_and_discount = ListOfGoodsPricesAndDiscounts(token=token)
-                warehouses = WarehouseMarketplaceWB(token=token)
-                barcodes_quantity = LeftoversMarketplace(token=token)
+                # warehouses = WarehouseMarketplaceWB(token=token)
+                # barcodes_quantity = LeftoversMarketplace(token=token)
                 commission_traffics = CommissionTariffs(token=token)
                 card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=articles, limit=100,
                                                                            only_edits_data=True, add_data_in_db=False,
@@ -523,7 +522,7 @@ class ServiceGoogleSheet:
                 # объединяем полученные данные
                 merge_json_data = merge_dicts(goods_nm_ids, card_from_nm_ids_filter)
                 subject_names = set()  # итог всех полученных с карточек предметов
-                account_barcodes = []
+                # account_barcodes = []
                 current_tariffs_data = commission_traffics.get_tariffs_box_from_marketplace()
 
                 # если мы не получили данные по артикулам, то аккаунт будет пропущен
@@ -534,7 +533,7 @@ class ServiceGoogleSheet:
                     continue  # пропускаем этот аккаунт
                 for i in merge_json_data.values():
                     if "wild" in i and i["wild"] != "не найдено":
-                        account_barcodes.append(i["Баркод"])
+                        # account_barcodes.append(i["Баркод"])
                         subject_names.add(i["Предмет"])  # собираем множество с предметами
                         result_log_value = calculate_sum_for_logistic(
                             # на лету считаем "Логистика от склада WB до ПВЗ"
@@ -546,12 +545,12 @@ class ServiceGoogleSheet:
                         # добавляем результат вычислений в итоговые данные
                         i["Логистика от склада WB до ПВЗ"] = result_log_value
 
-                barcodes_quantity_result = []
-                for warehouse_id in warehouses.get_account_warehouse():
-                    bqs_result = barcodes_quantity.get_amount_from_warehouses(
-                        warehouse_id=warehouse_id['id'],
-                        barcodes=account_barcodes)
-                    barcodes_quantity_result.extend(bqs_result)
+                # barcodes_quantity_result = []
+                # for warehouse_id in warehouses.get_account_warehouse():
+                #     bqs_result = barcodes_quantity.get_amount_from_warehouses(
+                #         warehouse_id=warehouse_id['id'],
+                #         barcodes=account_barcodes)
+                #     barcodes_quantity_result.extend(bqs_result)
 
                 subject_commissions = None
                 try:
@@ -565,13 +564,31 @@ class ServiceGoogleSheet:
                         for sc in subject_commissions.items():
                             if "Предмет" in card and sc[0] == card["Предмет"]:
                                 card["Комиссия WB"] = sc[1]
-                    for bq_result in barcodes_quantity_result:
-                        if "Баркод" in card and bq_result["Баркод"] == card["Баркод"]:
-                            card["ФБС"] = bq_result["остаток"]
+                    # for bq_result in barcodes_quantity_result:
+                    #     if "Баркод" in card and bq_result["Баркод"] == card["Баркод"]:
+                    #         card["ФБС"] = bq_result["остаток"]
 
                 result_updates_rows.update(merge_json_data)
                 """обновляем данные по артикулам"""
             gs_connect.update_rows(data_json=result_updates_rows)
+
+    async def get_actually_virtual_qty(self, account, data: dict, token):
+        articles_qty_data = {}
+        warehouses = WarehouseMarketplaceWB(token=token)
+        barcodes_quantity = LeftoversMarketplace(token=token)
+
+        for warehouse_id in warehouses.get_account_warehouse():
+            bqs_result = barcodes_quantity.get_amount_from_warehouses(
+                warehouse_id=warehouse_id['id'],
+                barcodes=list(data.keys()))
+
+            for qty_data in bqs_result:
+                barcode = qty_data['Баркод']
+                qty = qty_data['остаток']
+                article = data.get(barcode, None)
+                if article is not None:
+                    articles_qty_data[article] = {"ФБС": qty}
+        return articles_qty_data
 
     async def get_actually_data_by_qty(self):
 
@@ -586,16 +603,24 @@ class ServiceGoogleSheet:
             # словарь с регионом и группой складов
             warehouses_info = await gs_connect_warehouses_info.get_warehouses_info()
             print("warehouse_info", warehouses_info)
-            tasks = []
+            tasks_qty = []
+            tasks_virtual_qty = []
+            tokens = get_wb_tokens()
             for account, data in lk_articles.items():
+                token = tokens[account.capitalize()]
                 task = asyncio.create_task(
-                    self.get_qty_data_by_account(account=account, data=data, warehouses_info=warehouses_info))
+                    self.get_qty_data_by_account(account=account, data=data, warehouses_info=warehouses_info, token=token))
+                tasks_qty.append(task)
 
-                tasks.append(task)
-            together_result = await asyncio.gather(*tasks)
+                task_2 = asyncio.create_task(
+                    self.get_actually_virtual_qty(account=account, data=data, token=token)
+                )
+                tasks_virtual_qty.append(task_2)
+            together_qty_result = await asyncio.gather(*tasks_qty)
+            together_virtual_qty_result = await asyncio.gather(*tasks_virtual_qty)
             articles_qty_wb = {}  # результат данных по отслеживаемым регионам\складам
             untracked_warehouses = {}  # результат данных по неотслеживаемым складам и сумма остаток
-            for tr in together_result:
+            for tr in together_qty_result:
                 articles_qty_wb.update(tr['articles_qty_wb'])
                 for key, value in tr['untracked_warehouses'].items():
                     # untracked_warehouses[key] = untracked_warehouses.get(key, 0) + value
@@ -603,14 +628,18 @@ class ServiceGoogleSheet:
                         untracked_warehouses[key] = {"ОСТАТКИ": value}
                     untracked_warehouses[key]["ОСТАТКИ"] += value
 
+            virtual_qty_data = {}
+            for tr_virtual in together_virtual_qty_result:
+                virtual_qty_data.update(tr_virtual)
+
+            merge_qty_data = merge_dicts(articles_qty_wb, virtual_qty_data)
             # update по остаткам в sheet UNIT
-            await gs_connect_main.update_qty_by_reg(update_data=articles_qty_wb)
+            await gs_connect_main.update_qty_by_reg(update_data=merge_qty_data)
             # update по неотслеживаемым складам для sheet 'Склады ИНФ'
             await gs_connect_warehouses_info.update_untracked_warehouses_quantity(update_data=untracked_warehouses)
             print("Данные по остаткам обновлены в таблице.")
 
-    async def get_qty_data_by_account(self, account, data, warehouses_info):
-        token = get_wb_tokens()[account.capitalize()]
+    async def get_qty_data_by_account(self, account, data, token, warehouses_info):
         wh_analytics = AnalyticsWarehouseLimits(token=token)
 
         barcodes_set = set(data.keys())  # баркоды по аккаунту с таблицы

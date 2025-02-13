@@ -142,7 +142,7 @@ def schedule_tasks():
     """актуализация остатков по регионам в таблице MAIN"""
     schedule.every(5).minutes.do(lambda: asyncio.create_task(gs_service.get_actually_data_by_qty()))
 
-    """актуализация заказов в"""
+    """Выгрузка данных по обороту"""
     schedule.every().day.at("00:01:55").do(lambda: asyncio.create_task(gs_service.turnover_of_goods()))
     schedule.every().day.at("09:30:30").do(lambda: asyncio.create_task(gs_service.actualize_avg_orders_data_in_table()))
     """Актуализация данных по выручке, заказам и сумме с чистой прибыли"""
@@ -155,7 +155,6 @@ async def run_scheduler():
     while True:
         schedule.run_pending()
         await asyncio.sleep(1)
-
 
 async def main():
     schedule_tasks()
