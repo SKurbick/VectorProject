@@ -616,7 +616,7 @@ class ServiceGoogleSheet:
                     self.get_actually_virtual_qty(account=account, data=data, token=token)
                 )
                 tasks_virtual_qty.append(task_2)
-            together_qty_result = await asyncio.gather(*tasks_qty)
+            together_qty_result = await asyncio.gather(*tasks_qty, return_exceptions=True)
             together_virtual_qty_result = await asyncio.gather(*tasks_virtual_qty)
             articles_qty_wb = {}  # результат данных по отслеживаемым регионам\складам
             untracked_warehouses = {}  # результат данных по неотслеживаемым складам и сумма остаток
