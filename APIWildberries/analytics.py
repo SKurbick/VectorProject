@@ -181,12 +181,14 @@ class AnalyticsWarehouseLimits:
                     async with session.get(url=url, headers=self.headers, params=task_id) as response:
                         # response = requests.get(url=url, headers=self.headers, params=task_id)
                         # print(response.status_code)
+                        response_json = await response.json()
+
                         print(response.status)
                         if response.status == 200:
-                            result = response.json()
+                            result = response_json
                             break
                         print(response.status, "time sleep 36")
-                        print(response.json())
+                        print(response_json)
                         await asyncio.sleep(36)
             # except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
             except (aiohttp.ClientError, aiohttp.ClientConnectionError, aiohttp.ClientResponseError) as e:
