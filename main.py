@@ -186,7 +186,6 @@ async def main():
 
     """проверяет остатки, обновляет через Сопост"""
     scheduler.add_job(gs_service.check_quantity_flag, 'interval', minutes=20, coalesce=True)
-
     """Выгрузка данных по обороту"""
     scheduler.add_job(gs_service.actualize_avg_orders_data_in_table, 'cron', hour=9, minute=30)
     scheduler.add_job(gs_service.turnover_of_goods, 'cron', hour=1, minute=55)

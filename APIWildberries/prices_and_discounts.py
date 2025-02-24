@@ -115,7 +115,7 @@ class ListOfGoodsPricesAndDiscounts:
                             else:
                                 break
                 except (aiohttp.ClientError, aiohttp.ClientResponseError, aiohttp.ConnectionTimeoutError, asyncio.TimeoutError) as e:
-                    print("[ERROR] func -get_log_for_nm_ids_async",e, "sleep 36 sec")
+                    print("[ERROR] func -get_log_for_nm_ids_async", e, "sleep 36 sec")
                     await asyncio.sleep(36)
 
             print("Дошел до условия прерывания бесконечного цикла")
@@ -148,3 +148,28 @@ class ListOfGoodsPricesAndDiscounts:
                 except (Exception, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
                     print(e)
                     time.sleep(63)
+
+    # def add_new_price_and_discount_async(self, data: list, step=1000):
+    #     url = self.post_url
+    #     for start in range(0, len(data), step):
+    #         butch_data = data[start: start + step]
+    #         for _ in range(10):
+    #             try:
+    #                 async with aiohttp.ClientSession() as session:
+    #                     async with session.post(url=url, headers=self.headers, json={"data": butch_data}) as response:
+    #                     if (response.status in (200, 208) or response.json()['errorText'] in
+    #                             ("Task already exists", "No goods for process")):
+    #                         break
+    #
+    #             except:
+            # response = requests.post(url=url, headers=self.headers, json={"data": butch_data})
+            #     print("Артикулы на изменение цены:", butch_data)
+            #     print("price and discount edit result:", response.json())
+            #     time.sleep(2)
+            #     if (response.status_code in (200, 208) or response.json()['errorText'] in
+            #             ("Task already exists", "No goods for process")):
+            #         break
+            #
+            # except (Exception, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
+            #     print(e)
+            #     time.sleep(63)

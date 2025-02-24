@@ -177,19 +177,23 @@ class AnalyticsWarehouseLimits:
         result = {}
         for _ in range(10):
             try:
-                response = requests.get(url=url, headers=self.headers, params=task_id)
-                print(response.status_code)
-
-                if response.status_code == 200:
-                    result = response.json()
-                    break
-                print(response.status_code, "time sleep 36")
-                print(response.json())
-                await asyncio.sleep(36)
-            except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url=url, headers=self.headers, params=task_id) as response:
+                        # response = requests.get(url=url, headers=self.headers, params=task_id)
+                        # print(response.status_code)
+                        print(response.status)
+                        if response.status == 200:
+                            result = response.json()
+                            break
+                        print(response.status, "time sleep 36")
+                        print(response.json())
+                        await asyncio.sleep(36)
+            # except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
+            except (aiohttp.ClientError, aiohttp.ClientConnectionError, aiohttp.ClientResponseError) as e:
                 print(e)
                 await asyncio.sleep(63)
-            except requests.exceptions.JSONDecodeError as e:
-                print(e, "Нет json ответа в запросе остатков")
+            # except requests.exceptions.JSONDecodeError as e:
+            except Exception as e:
+                print("[ERROR]", e)
                 break
         return result
