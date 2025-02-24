@@ -617,7 +617,7 @@ class ServiceGoogleSheet:
                 )
                 tasks_virtual_qty.append(task_2)
             together_qty_result = await asyncio.gather(*tasks_qty, return_exceptions=True)
-            together_virtual_qty_result = await asyncio.gather(*tasks_virtual_qty)
+            together_virtual_qty_result = await asyncio.gather(*tasks_virtual_qty, return_exceptions=True)
             articles_qty_wb = {}  # результат данных по отслеживаемым регионам\складам
             untracked_warehouses = {}  # результат данных по неотслеживаемым складам и сумма остаток
             for tr in together_qty_result:
@@ -651,39 +651,43 @@ class ServiceGoogleSheet:
         if task_id is not None and len(wb_warehouse_qty) > 0:
             if wb_warehouse_qty:  # собираем остатки со складов WB
                 for qty_data in wb_warehouse_qty:
-                    if qty_data['barcode'] in barcodes_set:
-                        barcode = qty_data['barcode']
-                        article = data[barcode]
-                        articles_qty_wb[article] = {
-                            "ФБО": qty_data['quantityWarehousesFull'],
-                        }
-                        warehouses = qty_data['warehouses']
+                    try:  # почему-то начал отображать в данные по артикулам без ключа barcode
+                        if qty_data['barcode'] in barcodes_set:
+                            barcode = qty_data['barcode']
+                            article = data[barcode]
+                            articles_qty_wb[article] = {
+                                "ФБО": qty_data['quantityWarehousesFull'],
+                            }
+                            warehouses = qty_data['warehouses']
 
-                        if len(warehouses) > 0:
-                            for wh_data in warehouses:
-                                warehouse_name = wh_data["warehouseName"]
+                            if len(warehouses) > 0:
+                                for wh_data in warehouses:
+                                    warehouse_name = wh_data["warehouseName"]
 
-                                if warehouse_name in warehouses_info:
-                                    region_name_by_warehouse = warehouses_info[warehouse_name]
-                                    # по задумке должен суммировать остатки всех закрепленных регионов к складам
-                                    if region_name_by_warehouse not in articles_qty_wb[article]:
-                                        articles_qty_wb[article][region_name_by_warehouse] = 0
-                                    articles_qty_wb[article][region_name_by_warehouse] += wh_data["quantity"]
+                                    if warehouse_name in warehouses_info:
+                                        region_name_by_warehouse = warehouses_info[warehouse_name]
+                                        # по задумке должен суммировать остатки всех закрепленных регионов к складам
+                                        if region_name_by_warehouse not in articles_qty_wb[article]:
+                                            articles_qty_wb[article][region_name_by_warehouse] = 0
+                                        articles_qty_wb[article][region_name_by_warehouse] += wh_data["quantity"]
 
-                                else:
-                                    if warehouse_name not in untracked_warehouses:
-                                        untracked_warehouses[warehouse_name] = 0
-                                    untracked_warehouses[warehouse_name] += wh_data["quantity"]
+                                    else:
+                                        if warehouse_name not in untracked_warehouses:
+                                            untracked_warehouses[warehouse_name] = 0
+                                        untracked_warehouses[warehouse_name] += wh_data["quantity"]
 
-                        clean_data = {"Центральный": "",
-                                      "Южный": "",
-                                      "Северо-Кавказский": "",
-                                      "Приволжский": ""}
+                            clean_data = {"Центральный": "",
+                                          "Южный": "",
+                                          "Северо-Кавказский": "",
+                                          "Приволжский": ""}
 
-                        for cd in clean_data:
-                            if cd not in articles_qty_wb[article]:
-                                articles_qty_wb[article].update({cd: ""})
-
+                            for cd in clean_data:
+                                if cd not in articles_qty_wb[article]:
+                                    articles_qty_wb[article].update({cd: ""})
+                    except KeyError as e:
+                        print(e)
+                        print(account)
+                        print(qty_data)
         return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}
 
     async def check_quantity_flag(self):
