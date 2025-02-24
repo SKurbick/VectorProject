@@ -313,6 +313,7 @@ class ServiceGoogleSheet:
         print("Получил данные по ячейкам на изменение товара")
         for account, nm_ids_data in edit_data_from_table["nm_ids_edit_data"].items():
             valid_data_result = validate_data(nm_ids_data)
+            print(valid_data_result)
             token = get_wb_tokens()[account.capitalize()]
             warehouses = WarehouseMarketplaceWB(token=token)
             warehouses_qty_edit = LeftoversMarketplace(token=token)

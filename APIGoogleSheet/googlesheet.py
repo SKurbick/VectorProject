@@ -1,8 +1,7 @@
 import asyncio
 import json
 import time
-from datetime import timedelta, datetime
-from pprint import pprint
+from datetime import datetime
 
 import pandas
 from gspread.utils import rowcol_to_a1
@@ -132,17 +131,17 @@ class GoogleSheet:
                         updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
                 if edit_column_clean is not None:
                     if edit_column_clean["price_discount"]:
-                        updates.append({'range': f'K{row_number}',
+                        updates.append({'range': f'L{row_number}',
                                         'values': [['']]})  # Очистка столбца 'Установить новую скидку %'
                         updates.append(
-                            {'range': f'I{row_number}', 'values': [['']]})  # Очистка столбца 'Установить новую цену'
+                            {'range': f'J{row_number}', 'values': [['']]})  # Очистка столбца 'Установить новую цену'
                     if edit_column_clean["dimensions"]:
-                        updates.append({'range': f'S{row_number}', 'values': [['']]})
                         updates.append({'range': f'T{row_number}', 'values': [['']]})
                         updates.append({'range': f'U{row_number}', 'values': [['']]})
+                        updates.append({'range': f'V{row_number}', 'values': [['']]})
 
                     if edit_column_clean["qty"]:
-                        updates.append({'range': f'AE{row_number}', 'values': [['']]})
+                        updates.append({'range': f'AF{row_number}', 'values': [['']]})
 
         # pprint(updates)
         self.sheet.batch_update(updates)
