@@ -28,6 +28,7 @@ from utils import add_orders_data, calculate_sum_for_logistic, merge_dicts, vali
     get_last_weeks_dates, create_valid_data_from_db
 
 from database.postgresql.database import Database1
+from settings import settings
 
 
 class ServiceGoogleSheet:
@@ -46,23 +47,19 @@ class ServiceGoogleSheet:
         start = datetime.datetime.now()
         statuses = ServiceGoogleSheet.check_status()
         if statuses['ВКЛ - 1 /ВЫКЛ - 0']:
-            begin_date = datetime.date.today()
             end_date = datetime.date.today()
             last_day = end_date.strftime("%d-%m-%Y")
             """Добавление нового дня в заголовки таблицы и выручки по этим дням и сдвиг последних шести дней влево"""
             # проверяем нет ли вчерашнего дня в заголовках таблицы
             print(f"Актуализируем выручку по текущему дню: {last_day}")
             if self.gs_service_revenue_connect.check_last_day_header_from_table(header=last_day):
-                # По умолчанию begin_date - дата сегодняшнего дня. Если будет смещение, то begin_date будет форматирован
-                # на вчерашний, чтобы актуализировать выручку за вчерашний день так же
-                begin_date = datetime.date.today() - datetime.timedelta(days=1)
                 print(last_day, "заголовка нет в таблице. Будет добавлен включая выручка по дню")
-                # сначала сдвигаем колонки с выручкой и добавляем заголовок нового дня
+                #  сдвигаем колонки с выручкой и добавляем заголовок нового дня
                 self.gs_service_revenue_connect.shift_revenue_columns_to_the_left(last_day=last_day)
 
             # проверяем заголовок прошлой недели
             week_date = list(get_last_weeks_dates().keys())
-            if self.gs_service_revenue_connect.check_last_day_header_from_table(header=week_date[0]):
+            if self.gs_service_revenue_connect.check_last_day_header_from_table(header=week_date[0]):  # перенести функционал по актуализации недельной выручки
                 all_accounts_new_revenue_data = {}
                 print(f"Заголовка {week_date[0]} нет в таблице, будет добавлен со смещением столбцов")
                 self.gs_service_revenue_connect.shift_week_revenue_columns_to_the_left(last_week=week_date[0])
@@ -81,7 +78,6 @@ class ServiceGoogleSheet:
                 # добавляем выручку в таблицу
                 print("Собрали недельную выручку по всем кабинетам timer:", datetime.datetime.now() - start)
                 self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
-        from settings import settings
         gs_connect = GoogleSheet(sheet="Количество заказов", spreadsheet=settings.SPREADSHEET,
                                  creds_json=settings.CREEDS_FILE_NAME)
         date_object = datetime.datetime.today()
@@ -91,6 +87,7 @@ class ServiceGoogleSheet:
             print(f"Нет текущего дня {today} в листах. Сервис сместит данные по дням")
             # сместит заголовки дней в листе "Количество заказов"
             gs_connect.shift_headers_count_list(today)
+        if self.gs_connect.check_header(header=today):
             # сместит заголовки дней в листе "MAIN"
             self.gs_connect.shift_orders_header(today=today)
 
@@ -761,7 +758,6 @@ class ServiceGoogleSheet:
                                                                    "dimensions": False})
 
     async def add_orders_data_in_table(self):
-        from settings import settings
         from utils import get_order_data_from_database
         gs_connect = GoogleSheet(sheet="Количество заказов", spreadsheet=settings.SPREADSHEET,
                                  creds_json=settings.CREEDS_FILE_NAME)
