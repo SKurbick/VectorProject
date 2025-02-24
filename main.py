@@ -97,7 +97,6 @@ async def check_edits_columns():
                                                                 price_and_discount_status=edit_statuses["Цены/Скидки"],
                                                                 qty_status=edit_statuses["Остаток"])
                 if len(edit_data_from_table) > 0:
-                    pprint(edit_data_from_table)
                     service_gs_table = ServiceGoogleSheet(
                         token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
 
@@ -207,11 +206,5 @@ async def main():
     await event.wait()
 
 
-# if __name__ == "__main__":
-#     asyncio.run(main())
-
-async def test():
-    # gs_service = gs_service_for_schedule_connection()
-    await check_edits_columns()
-
-asyncio.run(test())
+if __name__ == "__main__":
+    asyncio.run(main())
