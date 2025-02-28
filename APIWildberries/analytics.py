@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 import time
-from pprint import pprint
+from logger import app_logger as logger
 
 import aiohttp
 import requests
@@ -71,17 +71,16 @@ class AnalyticsNMReport:
                                     orders_data_for_database[nm_id_from_data] = orders_by_dates
                                 break
                             else:
-                                print(f"account:{account}|Превышен лимит запросов:error {response.status}",
-                                      "повторение", i)
+                                logger.info(
+                                    f"account:{account}|Превышен лимит запросов:error {response.status} повторение {i}")
                                 await asyncio.sleep(63)
 
                 except aiohttp.ClientError as e:
-                    print(f"aiohttp.ClientError: {e}", "повторение", i)
+                    logger.exception(f"aiohttp.ClientError: {e} повторение{i}")
                     await asyncio.sleep(63)
 
                 except asyncio.TimeoutError:
-                    print(f"account:{account}|Превышен лимит запросов:error asyncio.TimeoutError",
-                          "повторение", i)
+                    logger.info(f"account:{account}|Превышен лимит запросов:error asyncio.TimeoutError повторение {i}")
                     await asyncio.sleep(63)
 
         if orders_db_ad:
@@ -124,7 +123,7 @@ class AnalyticsNMReport:
                                     })
                                 break
                     except (aiohttp.ClientError, Exception) as e:
-                        print(e)
+                        logger.exception(e)
 
                 if response_data["data"]["isNextPage"] is False:
                     # если нет следующей страницы, цикл должен остановиться
@@ -145,7 +144,7 @@ class AnalyticsWarehouseLimits:
         }
 
     async def create_report(self):
-        print("create_report")
+        logger.info("create_report")
         """Создает и возвращает taskId для остатков по баркодам"""
         result = None
         url = self.url
@@ -158,14 +157,14 @@ class AnalyticsWarehouseLimits:
                 response = requests.get(url=url, headers=self.headers, params=params)
                 if response.status_code == 200:
                     result = response.json()["data"]["taskId"]
-                    print("taskId:", result)
+                    logger.info(f"taskId: {result}")
                     break
 
-                print("create_report", response.status_code, "sleep 63 sec")
+                logger.info(f"create_report {response.status_code} sleep 63 sec")
                 await asyncio.sleep(63)
 
             except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
-                print("create_report", '[ERROR]', e, "sleep 63 sec")
+                logger.exception(f"create_report [ERROR] {e} sleep 63 sec")
                 await asyncio.sleep(63)
 
         return result
@@ -183,19 +182,19 @@ class AnalyticsWarehouseLimits:
                         # print(response.status_code)
                         response_json = await response.json()
 
-                        print(response.status)
+                        logger.info(response.status)
                         if response.status == 200:
                             result = response_json
                             break
-                        print(response.status, "time sleep 36")
-                        print(response_json)
+                        logger.info(f"{response.status} time sleep 36")
+                        logger.info(response_json)
                         await asyncio.sleep(36)
             # except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
             except (aiohttp.ClientError, aiohttp.ClientConnectionError, aiohttp.ClientResponseError) as e:
-                print(e)
+                logger.exception(e)
                 await asyncio.sleep(63)
             # except requests.exceptions.JSONDecodeError as e:
             except Exception as e:
-                print("[ERROR]", e)
+                logger.exception(f"[ERROR] {e}")
                 break
         return result

@@ -12,6 +12,8 @@ from gspread import Client, service_account
 from utils import get_nm_ids_in_db, column_index_to_letter, get_data_for_nm_ids, subtract_percentage, can_be_int
 import pandas as pd
 
+from logger import app_logger as logger
+
 
 def retry_on_quota_exceeded_async(max_retries=10, delay=60):
     def decorator(func):
@@ -21,8 +23,8 @@ def retry_on_quota_exceeded_async(max_retries=10, delay=60):
                 try:
                     return await func(*args, **kwargs)
                 except gspread.exceptions.APIError as e:
-                    print(e)
-                    print(f"Async sleep {delay} sec [сработал декоратор]")
+                    logger.exception(e)
+                    logger.error(f"Async sleep {delay} sec [сработал декоратор]")
                     await asyncio.sleep(delay)
                     retries += 1
             raise Exception("Не удалось выполнить операцию после нескольких попыток.")
@@ -43,9 +45,9 @@ class GoogleSheet:
                 self.sheet = spreadsheet.worksheet(sheet)
                 break
             except (gspread.exceptions.APIError, requests.exceptions.ConnectionError) as e:
-                print(datetime.now())
-                print(e)
-                print("time sleep 60 sec")
+                logger.info(datetime.now())
+                logger.exception(e)
+                logger.info("time sleep 60 sec")
                 time.sleep(60)
 
     def client_init_json(self) -> Client:
@@ -79,19 +81,19 @@ class GoogleSheet:
             result = (set(nm_ids) - set(nm_ids_in_db))
             return [*result]
 
-        print("итог:", result)
-        print("инфа в бд:", nm_ids_in_db)
+        logger.info(f"итог: {result}")
+        logger.info(f"инфа в бд: {nm_ids_in_db}")
         return result
 
     def update_rows(self, data_json, edit_column_clean: dict = None):
-        print("Попал в функцию обновления таблицы")
+        logger.info("Попал в функцию обновления таблицы")
         data = self.sheet.get_all_records(expected_headers=[])
         df = pd.DataFrame(data)
         json_df = pd.DataFrame(list(data_json.values()))
         try:
             json_df = json_df.drop(["vendor_code", "account"], axis=1)
         except KeyError as e:
-            print(f"[func:update_rows] {e} 'vendor_code', 'account'")
+            logger.exception(f"[func:update_rows] {e} 'vendor_code', 'account'")
         # Преобразуем все значения в json_df в типы данных, которые могут быть сериализованы в JSON
         json_df = json_df.astype(object).where(pd.notnull(json_df), None)
         # Обновите данные в основном DataFrame на основе "Артикул"
@@ -145,7 +147,7 @@ class GoogleSheet:
 
         # pprint(updates)
         self.sheet.batch_update(updates)
-        print("Данные успешно обновлены.")
+        logger.info("Данные успешно обновлены.")
         return True
 
     def get_edit_data(self, dimension_status, price_and_discount_status, qty_status):
@@ -415,7 +417,7 @@ class GoogleSheet:
                 sheet.append_rows(updates)
                 break
             except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
-                print("[ERROR]", e)
+                logger.exception(f"[ERROR] {e}")
                 time.sleep(63)
 
     @retry_on_quota_exceeded_async()
@@ -469,12 +471,12 @@ class GoogleSheet:
 
         self.sheet.batch_update(updates)
 
-        print("Проверка и добавление завершены")
+        logger.info("Проверка и добавление завершены")
 
     def shift_headers_count_list(self, today):
         all_values = self.sheet.get_all_values()
         all_formulas = self.sheet.get_all_values(value_render_option='FORMULA')
-        print("Смещаем столбцы листа - Количество заказов")
+        logger.info("Смещаем столбцы листа - Количество заказов")
         # Преобразование в DataFrame
         df_values = pd.DataFrame(all_values[1:], columns=all_values[0])
         df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
@@ -511,7 +513,7 @@ class GoogleSheet:
     def shift_orders_header(self, today):
         all_values = self.sheet.get_all_values()
         all_formulas = self.sheet.get_all_values(value_render_option='FORMULA')
-        print("смещает столбцы листа MAIN (столбцы = ЧП по дням)")
+        logger.info("смещает столбцы листа MAIN (столбцы = ЧП по дням)")
         # Преобразование в DataFrame
         df_values = pd.DataFrame(all_values[1:], columns=all_values[0])
         df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
@@ -548,10 +550,10 @@ class GoogleSheet:
         # Если заголовка нет в листе, то выдаст True, для функции которая будет добавлять новый header
         headers = self.sheet.row_values(1)
         if header not in headers:
-            print(f"заголовка {header} нет в таблице")
+            logger.info(f"заголовка {header} нет в таблице")
             return True
         else:
-            print(f"Заголовок {header} уже есть в таблице")
+            logger.info(f"Заголовок {header} уже есть в таблице")
             return False
 
     @retry_on_quota_exceeded_async()
@@ -639,7 +641,7 @@ class GoogleSheet:
         try:
             self.sheet.batch_update(updates)
         except Exception as e:
-            print(f'Error during batch update: {e}')
+            logger.exception(f'Error during batch update: {e}')
 
     @retry_on_quota_exceeded_async()
     async def update_qty_by_reg(self, update_data):
@@ -690,9 +692,9 @@ class GoogleSheetServiceRevenue:
                 self.sheet = spreadsheet.worksheet(sheet)
                 break
             except (gspread.exceptions.APIError, requests.exceptions.ConnectionError) as e:
-                print(datetime.now())
-                print(e)
-                print("time sleep 60 sec")
+                logger.info(datetime.now())
+                logger.exception(e)
+                logger.info("time sleep 60 sec")
                 time.sleep(60)
 
     def client_init_json(self) -> Client:
@@ -733,7 +735,7 @@ class GoogleSheetServiceRevenue:
         # Отправка обновлений одним запросом
         self.sheet.batch_update(updates)
 
-        print("Значения обновлены в таблице.")
+        logger.info("Значения обновлены в таблице.")
 
     def add_last_day_revenue(self, last_day, nm_ids_revenue_data: dict):
         """
@@ -761,10 +763,10 @@ class GoogleSheetServiceRevenue:
                 })
 
         # Отправка обновлений одним запросом
-        print(updates)
+        logger.info(updates)
         self.sheet.batch_update(updates, value_input_option="USER_ENTERED")
 
-        print("Значения обновлены в таблице.")
+        logger.info("Значения обновлены в таблице.")
 
     def shift_revenue_columns_to_the_left(self, last_day):
         """
@@ -876,15 +878,15 @@ class GoogleSheetServiceRevenue:
 
         # Отправляем обновленные данные обратно в таблицу
         self.sheet.update('A1', updated_values)
-        print("week data added")
+        logger.info("week data added")
 
     def check_last_day_header_from_table(self, header):
         headers = self.sheet.row_values(1)
         if header not in headers:
-            print(f"заголовка {header} нет в таблице")
+            logger.info(f"заголовка {header} нет в таблице")
             return True
         else:
-            print(f"Заголовок {header} уже есть в таблице")
+            logger.info(f"Заголовок {header} уже есть в таблице")
 
             return False
 
@@ -935,8 +937,8 @@ class GoogleSheetSopostTable:
                 self.sheet = spreadsheet.worksheet(sheet)
                 break
             except (gspread.exceptions.APIError, requests.exceptions.JSONDecodeError) as e:
-                print(datetime.now())
-                print(e)
+                logger.info(datetime.now())
+                logger.info(e)
                 time.sleep(60)
                 spreadsheet = client.open(spreadsheet)
                 self.sheet = spreadsheet.worksheet(sheet)
@@ -963,9 +965,9 @@ class PCGoogleSheet:
                 self.sheet = spreadsheet.worksheet(sheet)
                 break
             except (gspread.exceptions.APIError, requests.exceptions.ConnectionError) as e:
-                print(datetime.now())
-                print(e)
-                print("time sleep 60 sec")
+                logger.info(datetime.now())
+                logger.info(e)
+                logger.info("time sleep 60 sec")
                 time.sleep(60)
 
     def client_init_json(self) -> Client:
@@ -975,10 +977,10 @@ class PCGoogleSheet:
     def check_last_day_header_from_table(self, header):
         headers = self.sheet.row_values(1)
         if header not in headers:
-            print(f"заголовка {header} нет в таблице")
+            logger.info(f"заголовка {header} нет в таблице")
             return True
         else:
-            print(f"Заголовок {header} уже есть в таблице")
+            logger.info(f"Заголовок {header} уже есть в таблице")
 
             return False
 
@@ -1008,7 +1010,7 @@ class PCGoogleSheet:
     def shift_orders_header(self, day):
         all_values = self.sheet.get_all_values()
         all_formulas = self.sheet.get_all_values(value_render_option='FORMULA')
-        print("смещает столбцы листа ПРОДАЖИ в таблице 'Условный расчет' (столбцы = ЧП по дням)")
+        logger.info("смещает столбцы листа ПРОДАЖИ в таблице 'Условный расчет' (столбцы = ЧП по дням)")
         # Преобразование в DataFrame
         df_values = pd.DataFrame(all_values[1:], columns=all_values[0])
         df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
@@ -1018,7 +1020,7 @@ class PCGoogleSheet:
 
         # Смещение заголовков и содержимого столбцов
         header_values = df_values.columns[18:48].tolist()  # Индексы столбцов
-        print(header_values)
+        logger.info(header_values)
         shifted_header_values = header_values[:29]
         shifted_header_values.insert(0, day)
         # Обновление заголовков
@@ -1074,7 +1076,7 @@ class PCGoogleSheet:
                         column_letter = column_index_to_letter(column_index)
                         updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
         self.sheet.batch_update(updates)
-        print("Актуализированы данные по дням в листе ПРОДАЖИ")
+        logger.info("Актуализированы данные по дням в листе ПРОДАЖИ")
 
 
 def update_columns_in_purchase_calculation():

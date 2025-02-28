@@ -1,18 +1,25 @@
 import asyncio
 import datetime
-from pprint import pprint
+import contextlib
+
+import pytz
 
 from settings import settings
-from APIGoogleSheet.googlesheet import GoogleSheet, GoogleSheetServiceRevenue, PCGoogleSheet
+from logger import app_logger as logger, log_job
 from service.gs_service import ServiceGoogleSheet
-import schedule
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from APIGoogleSheet.googlesheet import GoogleSheet, GoogleSheetServiceRevenue, PCGoogleSheet
+
+scheduler = AsyncIOScheduler(job_defaults={'misfire_grace_time': 1000, 'max_instances': 1})
 
 creds_json = settings.CREEDS_FILE_NAME
 spreadsheet = settings.SPREADSHEET
 sheet = settings.SHEET
-print(settings.SHEET)
-print(settings.SPREADSHEET)
-print("time to start:", datetime.datetime.today().time().strftime("%H:%M:%S"))
+logger.info(settings.SHEET)
+logger.info(settings.SPREADSHEET)
+logger.info("time to start:", datetime.datetime.now().time().strftime("%H:%M:%S"))
 
 
 def gs_connection():
@@ -39,9 +46,9 @@ async def check_new_nm_ids():
     statuses = ServiceGoogleSheet.check_status()
     # если сервис включен (1), то пройдет проверка
     if statuses['ВКЛ - 1 /ВЫКЛ - 0']:
-        print("смотрим retry_to_check_new_nm_ids", retry_to_check_new_nm_ids)
+        logger.info("смотрим retry_to_check_new_nm_ids", retry_to_check_new_nm_ids)
         if retry_to_check_new_nm_ids:
-            print("Сервис АКТИВЕН. Смотрим в таблицу.")
+            logger.info("Сервис АКТИВЕН. Смотрим в таблицу.")
             gs_connect = gs_connection()
 
             # получение словаря с ключом ЛК и его Артикулами
@@ -63,34 +70,34 @@ async def check_new_nm_ids():
                         lk_articles=lk_articles)
 
                     if len(revenue_data_for_update_rows) > 0:
-                        print("Добавляем выручку в таблицу")
+                        logger.info("Добавляем выручку в таблицу")
                         """Добавление информации по выручкам за последние 7 дней"""
                         gs_service_revenue_connection().update_revenue_rows(
                             data_json=revenue_data_for_update_rows)
 
                 except Exception as e:
-                    print(f"Ошибка при выполнении асинхронной функции: {e}")
+                    logger.exception(f"Ошибка при выполнении асинхронной функции: {e}")
                     return
 
                 finally:
                     retry_to_check_new_nm_ids = True
 
-            print("Упали в ожидание")
+            logger.info("Упали в ожидание")
 
     else:
-        print("СЕРВИС ОТКЛЮЧЕН (0)")
+        logger.info("СЕРВИС ОТКЛЮЧЕН (0)")
 
 
 async def check_edits_columns():
     global retry_to_check_edit_columns
-    print("смотрим retry_to_check_edit_columns", retry_to_check_new_nm_ids)
+    logger.info("смотрим retry_to_check_edit_columns", retry_to_check_new_nm_ids)
     statuses = ServiceGoogleSheet.check_status()
     if statuses['ВКЛ - 1 /ВЫКЛ - 0'] and retry_to_check_edit_columns:
         try:
             gs_connect = gs_connection()
             if statuses["Остаток"] or statuses["Цены/Скидки"] or statuses["Габариты"]:
                 retry_to_check_edit_columns = False
-                print("СЕРВИС РЕДАКТИРОВАНИЯ АКТИВЕН. Оцениваем ячейки по изменениям товара")
+                logger.info("СЕРВИС РЕДАКТИРОВАНИЯ АКТИВЕН. Оцениваем ячейки по изменениям товара")
                 edit_statuses = ServiceGoogleSheet.check_status()
 
                 edit_data_from_table = gs_connect.get_edit_data(dimension_status=edit_statuses["Габариты"],
@@ -109,10 +116,10 @@ async def check_edits_columns():
                                                                        "qty": statuses["Остаток"]})
 
             else:
-                print("Сервис заблокирован на изменения: (Цены/Скидки, Остаток, Габариты)")
+                logger.info("Сервис заблокирован на изменения: (Цены/Скидки, Остаток, Габариты)")
         except Exception as e:
             retry_to_check_edit_columns = True
-            print("[ERROR] СЕРВИС РЕДАКТИРОВАНИЯ ", e)
+            logger.info(f"[ERROR] СЕРВИС РЕДАКТИРОВАНИЯ {e}")
             raise e
         finally:
             retry_to_check_edit_columns = True
@@ -164,46 +171,101 @@ async def check_edits_columns():
 #     await run_scheduler()
 
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+# @scheduler.scheduled_job(IntervalTrigger(minutes=6), coalesce=True)
+# @log_job
+# async def get_actually_revenues_orders_and_net_profit_data():
+#     """Актуализация данных по выручке, заказам и сумме с чистой прибыли"""
+#     logger.info("Запуск : Актуализация данных по выручке, заказам и сумме с чистой прибыли")
+#     gs_service = gs_service_for_schedule_connection()
+#     await gs_service.get_actually_revenues_orders_and_net_profit_data()
+#     logger.info("Завершение : Актуализация данных по выручке, заказам и сумме с чистой прибыли")
+
+
+# @scheduler.scheduled_job(IntervalTrigger(seconds=800), coalesce=True)
+# @log_job
+# async def add_actually_data_to_table():
+#     """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
+#     logger.info(
+#         "Запуск : Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
+#     gs_service = gs_service_for_schedule_connection()
+#     await gs_service.add_actually_data_to_table()
+#     logger.info(
+#         "Завершение : Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
+
+
+@scheduler.scheduled_job(IntervalTrigger(seconds=300), coalesce=True)
+@log_job
+async def job_check_new_nm_ids():
+    """Смотрит в таблицу, оценивает новые nm_ids"""
+    logger.info("Запуск : Смотрит в таблицу, оценивает новые nm_ids")
+    await check_new_nm_ids()
+    logger.info("Завершение : Смотрит в таблицу, оценивает новые nm_ids")
+
+
+@scheduler.scheduled_job(IntervalTrigger(seconds=250), coalesce=True)
+@log_job
+async def job_check_edits_columns():
+    """Смотрит в таблицу, оценивает изменения"""
+    logger.info("Запуск : Смотрит в таблицу, оценивает изменения")
+    await check_edits_columns()
+    logger.info("Завершение : Смотрит в таблицу, оценивает изменения")
+
+
+@scheduler.scheduled_job(IntervalTrigger(minutes=20), coalesce=True)
+@log_job
+async def check_quantity_flag():
+    """Проверяет остатки, обновляет через Сопост"""
+    logger.info("Запуск : проверяет остатки, обновляет через Сопост")
+    gs_service = gs_service_for_schedule_connection()
+    await gs_service.check_quantity_flag()
+    logger.info("Завершение : проверяет остатки, обновляет через Сопост")
+
+
+@scheduler.scheduled_job(CronTrigger(hour=9, minute=30, timezone=pytz.timezone('Europe/Moscow')), coalesce=True)
+@log_job
+async def actualize_avg_orders_data_in_table():
+    """Выгрузка данных по обороту"""
+    logger.info("Запуск : Выгрузка данных по обороту")
+    gs_service = gs_service_for_schedule_connection()
+    await gs_service.actualize_avg_orders_data_in_table()
+    logger.info("Завершение : Выгрузка данных по обороту")
+
+
+@scheduler.scheduled_job(CronTrigger(hour=1, minute=55, timezone=pytz.timezone('Europe/Moscow')))
+@log_job
+async def turnover_of_goods():
+    """Выгрузка данных по обороту"""
+    logger.info("Запуск : Выгрузка данных по обороту")
+    gs_service = gs_service_for_schedule_connection()
+    await gs_service.turnover_of_goods()
+    logger.info("Завершение : Выгрузка данных по обороту")
+
+
+@scheduler.scheduled_job(IntervalTrigger(minutes=30), coalesce=True)
+@log_job
+async def check_headers():
+    """Смотрим состояние заголовков текущих дней"""
+    logger.info("Запуск : Смотрим состояние заголовков текущих дней")
+    gs_service = gs_service_for_schedule_connection()
+    await gs_service.check_headers()
+    logger.info("Завершение : Смотрим состояние заголовков текущих дней")
+
+
+@scheduler.scheduled_job(IntervalTrigger(minutes=5), coalesce=True)
+@log_job
+async def get_actually_data_by_qty():
+    """Актуализация остатков по регионам в таблице MAIN"""
+    logger.info("Запуск : актуализация остатков по регионам в таблице MAIN")
+    gs_service = gs_service_for_schedule_connection()
+    await gs_service.get_actually_data_by_qty()
+    logger.info("Завершение : актуализация остатков по регионам в таблице MAIN")
 
 
 async def main():
-    gs_service = gs_service_for_schedule_connection()
-
-    # Create an instance of the scheduler
-    # scheduler = AsyncIOScheduler()
-    scheduler = AsyncIOScheduler(job_defaults={'misfire_grace_time': 1000, 'max_instances': 1})
-
-    """Актуализация данных по выручке, заказам и сумме с чистой прибыли"""
-    scheduler.add_job(gs_service.get_actually_revenues_orders_and_net_profit_data, 'interval', minutes=6, coalesce=True)
-
-    """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
-    scheduler.add_job(gs_service.add_actually_data_to_table, 'interval', seconds=800, coalesce=True)
-
-    """Смотрит в таблицу, оценивает новые nm_ids"""
-    scheduler.add_job(check_new_nm_ids, 'interval', seconds=300, coalesce=True)
-
-    """Смотрит в таблицу, оценивает изменения"""
-    scheduler.add_job(check_edits_columns, 'interval', seconds=250, coalesce=True)
-
-    """проверяет остатки, обновляет через Сопост"""
-    scheduler.add_job(gs_service.check_quantity_flag, 'interval', minutes=20, coalesce=True)
-    """Выгрузка данных по обороту"""
-    scheduler.add_job(gs_service.actualize_avg_orders_data_in_table, 'cron', hour=9, minute=30)
-    scheduler.add_job(gs_service.turnover_of_goods, 'cron', hour=1, minute=55)
-
-    """Смотрим состояние заголовков текущих дней"""
-    scheduler.add_job(gs_service.check_headers, 'interval', minutes=30, coalesce=True)
-
-    """актуализация остатков по регионам в таблице MAIN"""
-    scheduler.add_job(gs_service.get_actually_data_by_qty, 'interval', minutes=5, coalesce=True)
-
-    # Start the scheduler
+    logger.info("Запуск приложений")
     scheduler.start()
-
-    # Keep the event loop running indefinitely
-    event = asyncio.Event()
-    await event.wait()
+    with contextlib.suppress(KeyboardInterrupt, SystemExit):
+        await asyncio.Event().wait()
 
 
 if __name__ == "__main__":

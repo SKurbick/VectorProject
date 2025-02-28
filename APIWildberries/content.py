@@ -1,13 +1,14 @@
 import asyncio
 import json
 import time
-from pprint import pprint
 
 import aiohttp
 
 from utils import add_data_for_nm_ids, add_data_from_warehouse, process_string
 
 import requests
+
+from logger import app_logger as logger
 
 
 class Content:
@@ -53,14 +54,14 @@ class ListOfCardsContent:
                 for i in range(10):
                     response = requests.post(url, headers=self.headers, json=json_obj)
                     if response.status_code >= 400:
-                        print("[ERROR]", response.status_code, f"попытка {i}")
-                        print("ожидание 1 минута")
+                        logger.info(f"[ERROR]  {response.status_code} попытка {i}")
+                        logger.info("ожидание 1 минута")
                         time.sleep(60)
                     else:
                         break
             except Exception as e:
                 time.sleep(60)
-                print(e)
+                logger.info(e)
                 continue
             request_wb = response.json()
             for card in request_wb["cards"]:
@@ -105,7 +106,7 @@ class ListOfCardsContent:
                     break
 
             if request_wb["cursor"]["total"] < limit or len(nm_ids_list_for_edit) == 0:
-                print("total: ", request_wb["cursor"]["total"])
+                logger.info(f"total: {request_wb['cursor']['total']}")
                 break
 
             else:
@@ -120,13 +121,13 @@ class ListOfCardsContent:
         if add_data_in_db is True:
             add_data_for_nm_ids(nm_ids_data_for_database)
             add_data_from_warehouse(data_for_warehouse)
-        print("get_list_of_cards")
+        logger.info("get_list_of_cards")
         # pprint(card_result_for_match)
         if len(nm_ids_list_for_edit) > 0:
-            print("if len(nm_ids_list_for_edit) > 0:")
-            print(f"нет карточек по этим артикулам в кабинете {account}:", nm_ids_list_for_edit)
+            logger.info("if len(nm_ids_list_for_edit) > 0:")
+            logger.info(f"нет карточек по этим артикулам в кабинете {account}: {nm_ids_list_for_edit}")
             if only_edits_data is False:
-                print("if only_edits_data is False:")
+                logger.info("if only_edits_data is False:")
                 for nm_id in nm_ids_list_for_edit:
                     card_result_for_match[nm_id] = {
                         "Артикул": nm_id,
@@ -148,11 +149,10 @@ class ListOfCardsContent:
         url = self.update_url.format("update")
 
         response = requests.post(url=url, headers=self.headers, json=data)
-        print("size edit result:", response.json())
+        logger.info(f"size edit result: {response.json()}")
         time.sleep(2)
         if False is response.json()["error"]:
             return True
 
         # {'data': {'id': 38529453, 'alreadyExists': True}, 'error': False, 'errorText': 'Task already exists'}
         # {'data': {}, 'error': False, 'errorText': '', 'additionalErrors': {}}
-

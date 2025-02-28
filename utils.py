@@ -2,7 +2,7 @@ import datetime
 import json
 import time
 from collections import ChainMap
-from pprint import pprint
+from logger import app_logger as logger
 import re
 import math
 
@@ -108,8 +108,8 @@ def total_revenue_for_week(date_dict: dict, revenue_result):
     monday_key = datetime.datetime.strptime(date_dict["second_last_monday"], "%d-%m-%Y").strftime("%d.%m")
     sunday_key = datetime.datetime.strptime(date_dict["last_sunday"], "%d-%m-%Y").strftime("%d.%m")
     revenue_date_key = f"{monday_key}-{sunday_key}"
-    print(revenue_date_key)
-    print(monday_key)
+    logger.info(revenue_date_key)
+    logger.info(monday_key)
     # dates_key =
     nm_ids_total = {}
     for nm_id, revenue_data in revenue_result.items():

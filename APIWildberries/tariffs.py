@@ -1,6 +1,6 @@
 import datetime
 import time
-from pprint import pprint
+from logger import app_logger as logger
 
 import requests
 
@@ -23,9 +23,9 @@ class CommissionTariffs:
         result_commission_data = {}
         response = requests.get(url, headers=self.headers)
         if response.status_code != 200:
-            print(response.json())
+            logger.info(response.json())
         if response.status_code == 429:
-            print("превысил лимит запросов, ограничение запроса в 1 минуту. Сервис упал в сон на 1 минуту")
+            logger.info("превысил лимит запросов, ограничение запроса в 1 минуту. Сервис упал в сон на 1 минуту")
             time.sleep(60)
             response = requests.get(url, headers=self.headers)
 

@@ -1,6 +1,7 @@
 import time
 
 import requests
+from logger import app_logger as logger
 
 
 class Wildberries:
@@ -82,15 +83,15 @@ class LeftoversMarketplace:
         url = self.url.format(f"{warehouse_id}")
         for start in range(0, len(edit_barcodes_list), step):
             barcodes_part = edit_barcodes_list[start: start + step]
-            print(barcodes_part)
+            logger.info(barcodes_part)
             json_data = {
                 "stocks": barcodes_part
             }
             response = requests.put(url=url, headers=self.headers, json=json_data)
             if response.status_code > 399:
-                print("Запрос на изменение остатков:", response.json())
+                logger.info(f"Запрос на изменение остатков: {response.json()}")
             else:
-                print("Запрос на изменение остатков. Код:", response.status_code)
+                logger.info(f"Запрос на изменение остатков. Код: {response.status_code}", )
 
 
 class WarehouseMarketplaceWB:
@@ -115,6 +116,6 @@ class WarehouseMarketplaceWB:
                         break
 
             except Exception as e:
-                print(e)
+                logger.exception(e)
 
         return response.json()
