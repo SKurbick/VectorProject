@@ -234,11 +234,11 @@ async def actualize_avg_orders_data_in_table():
 @scheduler.scheduled_job(CronTrigger(hour=1, minute=55, timezone=pytz.timezone('Europe/Moscow')))
 @log_job
 async def turnover_of_goods():
-    """Выгрузка данных по обороту"""
-    logger.info("Запуск : Выгрузка данных по обороту")
+    """Актуализация данных по обороту в БД"""
+    logger.info("Запуск : Актуализация данных по обороту в БД")
     gs_service = gs_service_for_schedule_connection()
     await gs_service.turnover_of_goods()
-    logger.info("Завершение : Выгрузка данных по обороту")
+    logger.info("Завершение :  Актуализация данных по обороту в БД")
 
 
 @scheduler.scheduled_job(IntervalTrigger(minutes=30), coalesce=True)
