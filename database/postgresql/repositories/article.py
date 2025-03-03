@@ -1,4 +1,5 @@
 import asyncpg
+from logger import app_logger as logger
 
 
 class ArticleTable:
@@ -10,7 +11,7 @@ class ArticleTable:
     async def check_nm_ids(self, account: str, nm_ids: list):
         """Возвращает артикулы которых нет в таблице article"""
         nm_ids_str = ', '.join(f"({nm_id})" for nm_id in nm_ids)
-        print("check_nm_ids",nm_ids_str)
+        logger.info(f"check_nm_ids  : {nm_ids_str}")
         query = f"""
         SELECT nm_id
         FROM (VALUES {nm_ids_str}) AS input(nm_id)
@@ -29,7 +30,7 @@ class ArticleTable:
             article_data = [(nm_id, data[nm_id]['account'], data[nm_id]['vendor_code'], data[nm_id]['wild'])
                             for nm_id in filter_nm_ids]
 
-            print(article_data)
+            logger.info(article_data)
             # Пакетная вставка в vendor_mapping
             vendor_mapping_query = """
             INSERT INTO article (nm_id, account, vendor_code, local_vendor_code)

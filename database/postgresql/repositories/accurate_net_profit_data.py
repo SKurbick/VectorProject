@@ -1,5 +1,5 @@
 import datetime
-from pprint import pprint
+from logger import app_logger as logger
 
 
 class AccurateNetProfitTable:
@@ -56,7 +56,7 @@ class AccurateNetProfitTable:
                     # Add to the dictionary
                     subtractions_orders_result[nm_id] = subtraction_result
                 except KeyError as e:
-                    print(e, "Key Error", "update_net_profit_data")
+                    logger.info(f"Key Error {e} update_net_profit_data")
                     # Skip this nm_id if any key is missing
                     continue
             # Запрос для добавления или обновления данных
@@ -84,7 +84,7 @@ class AccurateNetProfitTable:
                     data_for_add_db.append(data_tuple)
                 except KeyError as e:
                     # Skip this nm_id if any key is missing
-                    print(e, "Key Error", "update_net_profit_data")
+                    logger.info(f"Key Error {e} update_net_profit_data")
                     continue
 
             # Разбиваем данные на пакеты

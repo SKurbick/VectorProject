@@ -1,6 +1,7 @@
 import asyncio
 
 import aiohttp
+from logger import app_logger as logger
 
 
 class Statistic:
@@ -17,15 +18,15 @@ class Statistic:
         params = {
             "dateFrom": date
         }
-        print("get_supplies_data")
+        logger.info("get_supplies_data")
         for _ in range(10):
             async with aiohttp.ClientSession() as session:
                 async with session.get(url=url, params=params, headers=self.headers) as response:
                     response_json = await response.json()
                     if response.status == 200:
-                        print("get_supplies_data, 200")
+                        logger.info("get_supplies_data, 200")
                         return response_json
-                    print("[ERROR] status code", response.status, response_json, "sleep 36 sec")
+                    logger.error(f"[ERROR] status code {response.status}, {response_json}, sleep 36 sec")
                     await asyncio.sleep(36)
 
     async def get_orders_data(self, date):
@@ -34,13 +35,13 @@ class Statistic:
             "dateFrom": date,
             "flag": 1
         }
-        print("get_orders_data")
+        logger.info("get_orders_data")
         for _ in range(10):
             async with aiohttp.ClientSession() as session:
                 async with session.get(url=url, params=params, headers=self.headers) as response:
                     response_json = await response.json()
                     if response.status == 200:
-                        print("get_supplies_data, 200")
+                        logger.info("get_supplies_data, 200")
                         return response_json
-                    print("[ERROR] status code", response.status, response_json, "sleep 36 sec")
+                    logger.info(f"[ERROR] status code {response.status}, {response_json}, sleep 36 sec")
                     await asyncio.sleep(36)

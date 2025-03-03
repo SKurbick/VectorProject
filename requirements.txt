@@ -8,3 +8,4 @@ asyncpg~=0.29.0
 structlog~=24.4.0
 apscheduler
 pydantic
+loguru==0.7.3

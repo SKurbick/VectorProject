@@ -1,5 +1,5 @@
 import datetime
-
+from logger import app_logger as logger
 
 class AccurateNetProfitPCTable:
     def __init__(self, db):
@@ -29,7 +29,7 @@ class AccurateNetProfitPCTable:
                     net_profit_data.append((nm_id, net_profit, date, time, orders_count))
 
                 except KeyError as e:
-                    print(f"KeyError (add_new_article_net_profit_data) {e}")
+                    logger.exception(f"KeyError (add_new_article_net_profit_data) {e}")
             net_profit_query = """
             INSERT INTO accurate_npd_purchase_calculation (article_id, net_profit, date, time, orders)
             VALUES ($1, $2, $3, $4, $5) ;

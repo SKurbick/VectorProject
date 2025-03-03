@@ -1,7 +1,7 @@
 import asyncio
 import json
 import time
-from pprint import pprint
+from logger import app_logger as logger
 
 import aiohttp
 import requests
@@ -32,8 +32,8 @@ class ListOfGoodsPricesAndDiscounts:
         url = self.url.format("filter")
         nm_ids = [*filter_nm_ids]
         nm_ids_list = {}
-        print("попали в функцию get_log_for_nm_ids")
-        print("filter_nm_ids len:", len(filter_nm_ids))
+        logger.info("попали в функцию get_log_for_nm_ids")
+        logger.info(f"filter_nm_ids len: {len(filter_nm_ids)}")
         offset = 0
         limit = 1000
         while True:
@@ -50,8 +50,8 @@ class ListOfGoodsPricesAndDiscounts:
                             break
                     except Exception as e:
                         time.sleep(30)
-                        print(e)
-                        print(f"Ошибка на просмотре цены и скидки по артикулам. Попытка {i}")
+                        logger.exception(e)
+                        logger.error(f"Ошибка на просмотре цены и скидки по артикулам. Попытка {i}")
 
             try:
                 for card in response.json()["data"]["listGoods"]:
@@ -63,15 +63,15 @@ class ListOfGoodsPricesAndDiscounts:
                             }
                         nm_ids.remove(card["nmID"])
             except Exception as e:
-                print(e)
+                logger.exception(e)
                 break
 
             if len(nm_ids) == 0:
                 break
             else:
                 offset += limit
-        print("НЕВАЛИДНЫЕ АРТИКУЛЫ get_log_for_nm_ids")
-        pprint(nm_ids)
+        logger.info("НЕВАЛИДНЫЕ АРТИКУЛЫ get_log_for_nm_ids")
+        logger.info(nm_ids)
         return nm_ids_list
 
     async def get_log_for_nm_ids_async(self, filter_nm_ids, account=None) -> dict:
@@ -79,7 +79,7 @@ class ListOfGoodsPricesAndDiscounts:
         url = self.url.format("filter")
         nm_ids = [*filter_nm_ids]
         nm_ids_list = {}
-        print("В функции get_log_for_nm_ids")
+        logger.info("В функции get_log_for_nm_ids")
         offset = 0
         limit = 1000
         while True:
@@ -108,27 +108,28 @@ class ListOfGoodsPricesAndDiscounts:
                             elif len(response_result) == 0:
                                 break
                             elif response.status == 429:
-                                print(nm_ids)
-                                print("попытка:", i, "sleep 10 sec")
+                                logger.info(nm_ids)
+                                logger.info(f"попытка: {i} sleep 10 sec")
                                 await asyncio.sleep(10)
                                 continue
                             else:
                                 break
-                except (aiohttp.ClientError, aiohttp.ClientResponseError, aiohttp.ConnectionTimeoutError, asyncio.TimeoutError) as e:
-                    print("[ERROR] func -get_log_for_nm_ids_async", e, "sleep 36 sec")
+                except (aiohttp.ClientError, aiohttp.ClientResponseError, aiohttp.ConnectionTimeoutError,
+                        asyncio.TimeoutError) as e:
+                    logger.exception(f"[ERROR] func -get_log_for_nm_ids_async {e} sleep 36 sec")
                     await asyncio.sleep(36)
 
-            print("Дошел до условия прерывания бесконечного цикла")
-            print("offset", offset)
+            logger.info("Дошел до условия прерывания бесконечного цикла")
+            logger.info(f"offset {offset}")
             if len(nm_ids) == 0 or i == 9 or "data" not in response_result or response_result['data'] is None or \
                     response_result["data"]["listGoods"] is None or len(response_result["data"]["listGoods"]) == 0:
-                print("прерывание бесконечного цикла")
+                logger.info("прерывание бесконечного цикла")
                 # для того что бы прервать бесконечный цикл
                 break
             else:  # пагинация
                 offset += limit
         if len(nm_ids) != 0:
-            print(f"в запросе просмотра цен есть невалидные артикулы -> {account}:", nm_ids)
+            logger.info(f"в запросе просмотра цен есть невалидные артикулы -> {account}: {nm_ids}")
         return nm_ids_list
 
     def add_new_price_and_discount(self, data: list, step=1000):
@@ -138,15 +139,15 @@ class ListOfGoodsPricesAndDiscounts:
             for _ in range(10):
                 try:
                     response = requests.post(url=url, headers=self.headers, json={"data": butch_data})
-                    print("Артикулы на изменение цены:", butch_data)
-                    print("price and discount edit result:", response.json())
+                    logger.info(f"Артикулы на изменение цены: {butch_data}")
+                    logger.info(f"price and discount edit result: {response.json()}")
                     time.sleep(2)
                     if (response.status_code in (200, 208) or response.json()['errorText'] in
                             ("Task already exists", "No goods for process")):
                         break
 
                 except (Exception, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
-                    print(e)
+                    logger.exception(e)
                     time.sleep(63)
 
     # def add_new_price_and_discount_async(self, data: list, step=1000):
@@ -162,14 +163,14 @@ class ListOfGoodsPricesAndDiscounts:
     #                         break
     #
     #             except:
-            # response = requests.post(url=url, headers=self.headers, json={"data": butch_data})
-            #     print("Артикулы на изменение цены:", butch_data)
-            #     print("price and discount edit result:", response.json())
-            #     time.sleep(2)
-            #     if (response.status_code in (200, 208) or response.json()['errorText'] in
-            #             ("Task already exists", "No goods for process")):
-            #         break
-            #
-            # except (Exception, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
-            #     print(e)
-            #     time.sleep(63)
+    # response = requests.post(url=url, headers=self.headers, json={"data": butch_data})
+    #     print("Артикулы на изменение цены:", butch_data)
+    #     print("price and discount edit result:", response.json())
+    #     time.sleep(2)
+    #     if (response.status_code in (200, 208) or response.json()['errorText'] in
+    #             ("Task already exists", "No goods for process")):
+    #         break
+    #
+    # except (Exception, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
+    #     print(e)
+    #     time.sleep(63)
