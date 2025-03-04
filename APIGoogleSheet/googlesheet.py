@@ -890,6 +890,58 @@ class GoogleSheetServiceRevenue:
 
             return False
 
+    @retry_on_quota_exceeded_async()
+    async def add_data_to_count_list(self, data_json):
+        # сначала мы добавляем новые nmId которых нет в листе "Количество заказов"
+        nm_ids_list = list(data_json.keys())
+
+        existing_data = self.sheet.get_all_records()
+        existing_articles = {row['Артикул'] for row in existing_data}
+
+        # Собираем все отсутствующие артикулы
+        missing_articles = [article for article in nm_ids_list if article not in existing_articles]
+
+        # Добавляем все отсутствующие артикулы одним запросом
+        if missing_articles:
+            self.sheet.append_rows([[article] for article in missing_articles])
+
+        # на всякий пожарный, что бы гугл не ныл на спам запросов
+        await asyncio.sleep(10)
+
+        data = self.sheet.get_all_records(expected_headers=[])
+        df = pd.DataFrame(data)
+
+        # Преобразуем данные из словаря в DataFrame
+        json_df = pd.DataFrame.from_dict(data_json, orient='index')
+
+        # Преобразуем все значения в json_df в типы данных, которые могут быть сериализованы в JSON
+        json_df = json_df.astype(object).where(pd.notnull(json_df), None)
+
+        # Обновите данные в основном DataFrame на основе "Артикул"
+        for index, row in json_df.iterrows():
+            matching_rows = df[df["Артикул"] == index].index
+            for idx in matching_rows:
+                for column in row.index:
+                    if column in df.columns and (pd.isna(df.at[idx, column]) or df.at[idx, column] == ""):
+                        df.at[idx, column] = row[column]
+
+        # Обновите Google Таблицу только для измененных строк
+        updates = []
+        headers = df.columns.tolist()
+        for index, row in json_df.iterrows():
+            matching_rows = df[df["Артикул"] == index].index
+            for idx in matching_rows:
+                row_number = idx + 2  # +2 потому что индексация в Google Таблицах начинается с 1, а первая строка - заголовки
+                for column in row.index:
+                    if column in headers:
+                        # +1 потому что индексация в Google Таблицах начинается с 1
+                        column_index = headers.index(column) + 1
+                        column_letter = column_index_to_letter(column_index)
+                        updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
+
+        self.sheet.batch_update(updates)
+
+        logger.info("Проверка и добавление завершены")
     def update_revenue_rows(self, data_json):
         data = self.sheet.get_all_records(expected_headers=[])
         df = pd.DataFrame(data)
