@@ -145,7 +145,6 @@ class ServiceGoogleSheet:
                 # self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_orders)
                 # logger.info("Данные по количеству заказов актуализированы")
 
-
     async def add_revenue_for_new_nm_ids(self, lk_articles: dict):
         """ Добавление выручки по новым артикулам за 7 последних дней (сегодняшний не учитывается)"""
         logger.info("Смотрим новые артикулы для добавления выручки")
@@ -510,6 +509,7 @@ class ServiceGoogleSheet:
             gs_connect = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet=self.sheet)
             lk_articles = gs_connect.create_lk_articles_list()
             result_updates_rows = {}
+            nm_ids_photo = {}
             for account, articles in lk_articles.items():
                 token = get_wb_tokens()[account.capitalize()]
                 wb_api_content = ListOfCardsContent(token=token)
@@ -548,6 +548,7 @@ class ServiceGoogleSheet:
                             width=int(i['Текущая\nШирина (см)']), )
                         # добавляем результат вычислений в итоговые данные
                         i["Логистика от склада WB до ПВЗ"] = result_log_value
+                    nm_ids_photo[int(i["Артикул"])] = i.pop("Фото")
 
                 # barcodes_quantity_result = []
                 # for warehouse_id in warehouses.get_account_warehouse():
@@ -575,6 +576,8 @@ class ServiceGoogleSheet:
                 result_updates_rows.update(merge_json_data)
                 """обновляем данные по артикулам"""
             gs_connect.update_rows(data_json=result_updates_rows)
+            if len(nm_ids_photo) > 0:
+                self.gs_connect.add_photo(nm_ids_photo)
 
     async def get_actually_virtual_qty(self, account, data: dict, token):
         articles_qty_data = {}

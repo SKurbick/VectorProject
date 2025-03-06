@@ -80,15 +80,15 @@ class ListOfCardsContent:
                             "vendor_code": card["vendorCode"],
                             "account": account
                         }
-                        if only_edits_data is False:
-                            photo = "НЕТ"
-                            if "photos" in card:
-                                photo = card["photos"][0]["tm"]
+                        # if only_edits_data is False:
+                        photo = "НЕТ"
+                        if "photos" in card:
+                            photo = card["photos"][0]["tm"]
 
-                            card_result_for_match[card["nmID"]].update({
-                                "Фото": photo,
-                                # для таблицы будет использоваться последний баркод из списка
-                            })
+                        card_result_for_match[card["nmID"]].update({
+                            "Фото": photo,
+                            # для таблицы будет использоваться последний баркод из списка
+                        })
                         # добавляем данные по размерам в БД
                         nm_ids_data_for_database[str(card["nmID"])] = {
                             "sizes": card["sizes"],
