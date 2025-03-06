@@ -549,7 +549,7 @@ class ServiceGoogleSheet:
                         # добавляем результат вычислений в итоговые данные
                         i["Логистика от склада WB до ПВЗ"] = result_log_value
                     try:
-                        nm_ids_photo[int(i["Артикул"])] = i.pop("Фото", "НЕТ")
+                        nm_ids_photo[int(i["Артикул"])] = {"Фото": i.pop("Фото", "НЕТ")}
                     except KeyError as e:
                         logger.error(f"KeyError {e}")
                 # barcodes_quantity_result = []
@@ -579,7 +579,7 @@ class ServiceGoogleSheet:
                 """обновляем данные по артикулам"""
             gs_connect.update_rows(data_json=result_updates_rows)
             if len(nm_ids_photo) > 0:
-                self.gs_connect.add_photo(nm_ids_photo)
+                await self.gs_connect.add_data_to_count_list(nm_ids_photo)
 
     async def get_actually_virtual_qty(self, account, data: dict, token):
         articles_qty_data = {}
