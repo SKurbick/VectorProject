@@ -551,7 +551,7 @@ class ServiceGoogleSheet:
                     try:
                         nm_ids_photo[int(i["Артикул"])] = i.pop("Фото", "НЕТ")
                     except KeyError as e:
-                        logger.error(e, "KeyError")
+                        logger.error(f"KeyError {e}")
                 # barcodes_quantity_result = []
                 # for warehouse_id in warehouses.get_account_warehouse():
                 #     bqs_result = barcodes_quantity.get_amount_from_warehouses(
