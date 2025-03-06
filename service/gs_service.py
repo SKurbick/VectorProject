@@ -548,7 +548,7 @@ class ServiceGoogleSheet:
                             width=int(i['Текущая\nШирина (см)']), )
                         # добавляем результат вычислений в итоговые данные
                         i["Логистика от склада WB до ПВЗ"] = result_log_value
-                    nm_ids_photo[int(i["Артикул"])] = i.pop("Фото")
+                    nm_ids_photo[int(i["Артикул"])] = i.pop("Фото", "НЕТ")
 
                 # barcodes_quantity_result = []
                 # for warehouse_id in warehouses.get_account_warehouse():
