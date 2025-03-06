@@ -579,7 +579,8 @@ class ServiceGoogleSheet:
                 """обновляем данные по артикулам"""
             gs_connect.update_rows(data_json=result_updates_rows)
             if len(nm_ids_photo) > 0:
-                await self.gs_connect.add_data_to_count_list(nm_ids_photo)
+                gs_connect_photo = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet="ФОТО")
+                await gs_connect_photo.add_data_to_count_list(nm_ids_photo)
 
     async def get_actually_virtual_qty(self, account, data: dict, token):
         articles_qty_data = {}
