@@ -388,7 +388,7 @@ class GoogleSheet:
             min_qty = row["Минимальный остаток"]
             current_qty = row["ФБС"]
             current_qty_wb = row["ФБО"]
-            status_fbo = row["Признак ФБО"]
+            # status_fbo = row["Признак ФБО"]
             average_day_orders = row["Среднее в день"]
             barcode = row["Баркод"]
             wild = row["wild"]
@@ -405,46 +405,46 @@ class GoogleSheet:
                             )
                             result_data[account]["nm_ids"].append(int(article))
 
-            if bot_status["status_open_close_fbs"]:
-                "собираем артикулы/баркоды формируем запрос на изменение остатков и коррекции ячейки 'Минимальный остаток'"
-                # условия проверки валидности ключевых ячеек
-                if str(current_qty_wb).isdigit() and status_fbo == 'Да' and str(min_qty).isdigit() is True and str(
-                        average_day_orders).isdigit() and str(current_qty).isdigit():
-                    # данные для закрытия ФБС
-                    # если 10% от средних зак. < остатка ВБ складов и тек. остаток > 0 - ТО тек. остаток на 0 и мин. остаток на 0
-                    if subtract_percentage(int(average_day_orders), status_average_orders_percent) < int(
-                            current_qty_wb) and int(current_qty) > 0:
-                        # добавляем nm_id для актуализации информации
-                        if account not in result_data:
-                            result_data[account] = {"qty": [], "nm_ids": []}
-                        result_data[account]["nm_ids"].append(int(article))
-
-                        # мин. остаток будет выставлен на 0 и остаток понижен до 0
-                        if account not in edit_fbc_qty_data:
-                            edit_fbc_qty_data[account] = []
-                        edit_fbc_qty_data[account].append({
-                            "sku": str(barcode),
-                            "amount": 0
-                        })
-                        edit_min_qty[article] = {"Минимальный остаток": 0}
-
-                    # данные для открытия ФБС
-                    # если 10% от средних зак. >= остатка ВБ складов и мин остаток = 0 - ТО мин остаток должен стать 10 и повысить остаток на фбс на 100
-                    if subtract_percentage(int(average_day_orders), status_average_orders_percent) >= int(
-                            current_qty_wb) and int(min_qty) == 0:
-                        # добавляем nm_id для актуализации информации
-                        if account not in result_data:
-                            result_data[account] = {"qty": [], "nm_ids": []}
-                        result_data[account]["nm_ids"].append(int(article))
-
-                        # мин. остаток будет выставлен на 10 и остаток повышен до 100
-                        if account not in edit_fbc_qty_data:
-                            edit_fbc_qty_data[account] = []
-                        edit_min_qty[article] = {"Минимальный остаток": status_min_qty}
-                        edit_fbc_qty_data[account].append({
-                            "sku": str(barcode),
-                            "amount": add_qty
-                        })
+            # if bot_status["status_open_close_fbs"]:
+            #     "собираем артикулы/баркоды формируем запрос на изменение остатков и коррекции ячейки 'Минимальный остаток'"
+            #     # условия проверки валидности ключевых ячеек
+            #     if str(current_qty_wb).isdigit() and status_fbo == 'Да' and str(min_qty).isdigit() is True and str(
+            #             average_day_orders).isdigit() and str(current_qty).isdigit():
+            #         # данные для закрытия ФБС
+            #         # если 10% от средних зак. < остатка ВБ складов и тек. остаток > 0 - ТО тек. остаток на 0 и мин. остаток на 0
+            #         if subtract_percentage(int(average_day_orders), status_average_orders_percent) < int(
+            #                 current_qty_wb) and int(current_qty) > 0:
+            #             # добавляем nm_id для актуализации информации
+            #             if account not in result_data:
+            #                 result_data[account] = {"qty": [], "nm_ids": []}
+            #             result_data[account]["nm_ids"].append(int(article))
+            #
+            #             # мин. остаток будет выставлен на 0 и остаток понижен до 0
+            #             if account not in edit_fbc_qty_data:
+            #                 edit_fbc_qty_data[account] = []
+            #             edit_fbc_qty_data[account].append({
+            #                 "sku": str(barcode),
+            #                 "amount": 0
+            #             })
+            #             edit_min_qty[article] = {"Минимальный остаток": 0}
+            #
+            #         # данные для открытия ФБС
+            #         # если 10% от средних зак. >= остатка ВБ складов и мин остаток = 0 - ТО мин остаток должен стать 10 и повысить остаток на фбс на 100
+            #         if subtract_percentage(int(average_day_orders), status_average_orders_percent) >= int(
+            #                 current_qty_wb) and int(min_qty) == 0:
+            #             # добавляем nm_id для актуализации информации
+            #             if account not in result_data:
+            #                 result_data[account] = {"qty": [], "nm_ids": []}
+            #             result_data[account]["nm_ids"].append(int(article))
+            #
+            #             # мин. остаток будет выставлен на 10 и остаток повышен до 100
+            #             if account not in edit_fbc_qty_data:
+            #                 edit_fbc_qty_data[account] = []
+            #             edit_min_qty[article] = {"Минимальный остаток": status_min_qty}
+            #             edit_fbc_qty_data[account].append({
+            #                 "sku": str(barcode),
+            #                 "amount": add_qty
+            #             })
 
         return {"result_data": result_data, "edit_min_qty": edit_min_qty, "edit_fbc_qty_data": edit_fbc_qty_data}
 
