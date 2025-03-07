@@ -181,16 +181,17 @@ async def get_actually_revenues_orders_and_net_profit_data():
     logger.info("Завершение : Актуализация данных по выручке, заказам и сумме с чистой прибыли")
 
 
-@scheduler.scheduled_job(IntervalTrigger(seconds=800), coalesce=True)
-@log_job
-async def add_actually_data_to_table():
-    """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
-    logger.info(
-        "Запуск : Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
-    gs_service = gs_service_for_schedule_connection()
-    await gs_service.add_actually_data_to_table()
-    logger.info(
-        "Завершение : Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
+# @scheduler.scheduled_job(IntervalTrigger(seconds=800), coalesce=True)
+# @log_job
+# async def add_actually_data_to_table():
+#     """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
+#     logger.info(
+#         "Запуск : Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
+#     gs_service = gs_service_for_schedule_connection()
+#     await gs_service.add_actually_data_to_table()
+#     logger.info(
+#         "Завершение : Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
+# todo: временное решение, раскоментировать после отмашки Альберта
 
 
 @scheduler.scheduled_job(IntervalTrigger(seconds=300), coalesce=True)

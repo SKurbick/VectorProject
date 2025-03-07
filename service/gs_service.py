@@ -520,14 +520,11 @@ class ServiceGoogleSheet:
                 card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=articles, limit=100,
                                                                            only_edits_data=True, add_data_in_db=False,
                                                                            account=account)
-                # todo: временное решение, раскоментировать после отмашки Альберта
 
-                # goods_nm_ids = await wb_api_price_and_discount.get_log_for_nm_ids_async(filter_nm_ids=articles,
-                #                                                                         account=account)
-
+                goods_nm_ids = await wb_api_price_and_discount.get_log_for_nm_ids_async(filter_nm_ids=articles,
+                                                                                        account=account)
                 # объединяем полученные данные
-                # merge_json_data = merge_dicts(goods_nm_ids, card_from_nm_ids_filter)
-                merge_json_data = card_from_nm_ids_filter
+                merge_json_data = merge_dicts(goods_nm_ids, card_from_nm_ids_filter)
 
                 subject_names = set()  # итог всех полученных с карточек предметов
                 # account_barcodes = []
