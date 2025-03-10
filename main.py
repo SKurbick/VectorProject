@@ -181,14 +181,14 @@ async def get_actually_revenues_orders_and_net_profit_data():
     logger.info("Завершение : Актуализация данных по выручке, заказам и сумме с чистой прибыли")
 
 
-@scheduler.scheduled_job(IntervalTrigger(seconds=800), coalesce=True)
+@scheduler.scheduled_job(IntervalTrigger(minutes=6), coalesce=True)
 @log_job
 async def add_actually_data_to_table():
-    """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
+    """Актуализация информации по цене, скидке, габариты, комиссия wb, логистики от склада WB до ПВЗ, фото, баркоду, рейтингу товаров в таблице unit"""
     logger.info(
         "Запуск : Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
     gs_service = gs_service_for_schedule_connection()
-    await gs_service.add_get_actually_data_to_table()
+    await gs_service.add_actually_data_to_table()
     logger.info(
         "Завершение : Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
 
