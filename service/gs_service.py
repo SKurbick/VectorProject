@@ -501,7 +501,13 @@ class ServiceGoogleSheet:
         return False
 
     @staticmethod
-    def __convert_to_dict(data: Dict[str, Any]) -> Dict[str, Any]:
+    def __validate_value(value: str, type_value: type) -> Any:
+        try:
+            return type_value(value)
+        except (ValueError, TypeError):
+            return
+
+    def __convert_to_dict(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Преобразует данные из базы данных в словарь с удобочитаемыми ключами.
         Аргументы:
@@ -510,18 +516,18 @@ class ServiceGoogleSheet:
             dict: Словарь с преобразованными ключами и обработанными значениями
         """
         return {
-            "Артикул": data["article_id"] or None,  # int
-            "Предмет": data["subject_name"] or None,  # str
-            "Скидка %": data["discount"] or None,  # int
-            "Текущая\nДлина (см)": data["length"] or None,  # int
-            "Текущая\nШирина (см)": data["width"] or None,  # int
-            "Текущая\nВысота (см)": data["height"] or None,  # int
-            "Баркод": data["barcode"] or None,  # str
-            "Логистика от склада WB до ПВЗ": float(data["logistic_from_wb_wh_to_opp"]) or None,  # float
-            "Комиссия WB": float(data["commission_wb"]) or None,  # float
-            # "Рейтинг": float(data["rating"]) or None,
-            "wild": data["local_vendor_code"] or None,  # str
-            "Фото": data["photo_link"] or None  # str
+            "Артикул": self.__validate_value(data["article_id"], int),  # int
+            "Предмет": self.__validate_value(data["subject_name"], str),  # str
+            "Скидка %": self.__validate_value(data["discount"], int),  # int
+            "Текущая\nДлина (см)": self.__validate_value(data["length"], int),  # int
+            "Текущая\nШирина (см)": self.__validate_value(data["width"], int),  # int
+            "Текущая\nВысота (см)": self.__validate_value(data["height"], int),  # int
+            "Баркод": self.__validate_value(data["barcode"], str),  # str
+            "Логистика от склада WB до ПВЗ": self.__validate_value(data["logistic_from_wb_wh_to_opp"], float),  # float
+            "Комиссия WB": self.__validate_value(data["commission_wb"], float),  # float
+            "Рейтинг": self.__validate_value(data["rating"], float),  # float
+            "wild": self.__validate_value(data["local_vendor_code"], str),  # str
+            "Фото": self.__validate_value(data["photo_link"], str)  # str
         }
 
     async def get_actually_data_from_db(self, article_ids: Set[int]) -> Dict[int, Dict[str, Any]]:
@@ -595,7 +601,7 @@ class ServiceGoogleSheet:
             if len(photos) > 0:
                 logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице ФОТО")
                 gs_connect_photo = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet,
-                                                            sheet="ФОТО")
+                                               sheet="ФОТО")
                 await gs_connect_photo.add_data_to_count_list(photos)
 
     async def get_actually_virtual_qty(self, account, data: dict, token):
