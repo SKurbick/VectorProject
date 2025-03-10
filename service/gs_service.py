@@ -519,7 +519,7 @@ class ServiceGoogleSheet:
             "Баркод": data["barcode"] or None,  # str
             "Логистика от склада WB до ПВЗ": float(data["logistic_from_wb_wh_to_opp"]) or None,  # float
             "Комиссия WB": float(data["commission_wb"]) or None,  # float
-            "Рейтинг": float(data["rating"]) or None,
+            # "Рейтинг": float(data["rating"]) or None,
             "wild": data["local_vendor_code"] or None,  # str
             "Фото": data["photo_link"] or None  # str
         }
