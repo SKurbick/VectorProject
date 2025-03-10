@@ -199,7 +199,7 @@ class ServiceGoogleSheet:
 
         return all_accounts_new_revenue_data
 
-    async def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
+    async def add_new_data_from_table(self, lk_articles, update_articles_data=False, edit_column_clean=None, only_edits_data=False,
                                       add_data_in_db=True, check_nm_ids_in_db=True):
         """Функция была изменена. Теперь она просто выдает данные на добавления в таблицу, а не добавляет таблицу внутри функции"""
 
@@ -229,7 +229,7 @@ class ServiceGoogleSheet:
                 barcodes_quantity = LeftoversMarketplace(token=token)
                 card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=nm_ids_result, limit=100,
                                                                            only_edits_data=only_edits_data,
-                                                                           account=account)
+                                                                           account=account, update_articles_data=update_articles_data)
                 goods_nm_ids = await wb_api_price_and_discount.get_log_for_nm_ids_async(filter_nm_ids=nm_ids_result,
                                                                                         account=account)
                 commission_traffics = CommissionTariffs(token=token)
@@ -387,7 +387,7 @@ class ServiceGoogleSheet:
         if len(updates_nm_ids_data):
             await asyncio.sleep(5)
             result = await self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
-                                                        only_edits_data=True, add_data_in_db=False,
+                                                        only_edits_data=True, add_data_in_db=False, update_articles_data=True,
                                                         check_nm_ids_in_db=False)
             return result
 

@@ -30,7 +30,7 @@ class ListOfCardsContent:
         }
 
     def get_list_of_cards(self, nm_ids_list: list, limit: int = 1, eng_json_data: bool = False,
-                          only_edits_data=False, add_data_in_db=True, account=None) -> json:
+                          only_edits_data=False, update_articles_data=False, add_data_in_db=True, account=None) -> json:
         """Получение всех карточек  по совпадению с nm_ids_list"""
         nm_ids_list_for_edit = [*nm_ids_list]
         url = self.url.format("list")
@@ -80,15 +80,15 @@ class ListOfCardsContent:
                             "vendor_code": card["vendorCode"],
                             "account": account
                         }
-                        # if only_edits_data is False:
-                        photo = "НЕТ"
-                        if "photos" in card:
-                            photo = card["photos"][0]["tm"]
+                        if update_articles_data is False:
+                            photo = "НЕТ"
+                            if "photos" in card:
+                                photo = card["photos"][0]["tm"]
 
-                        card_result_for_match[card["nmID"]].update({
-                            "Фото": photo,
-                            # для таблицы будет использоваться последний баркод из списка
-                        })
+                            card_result_for_match[card["nmID"]].update({
+                                "Фото": photo,
+                                # для таблицы будет использоваться последний баркод из списка
+                            })
                         # добавляем данные по размерам в БД
                         nm_ids_data_for_database[str(card["nmID"])] = {
                             "sizes": card["sizes"],
