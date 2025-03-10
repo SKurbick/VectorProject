@@ -582,7 +582,7 @@ class ServiceGoogleSheet:
         photos = {k: v for d in photos for k, v in d.items()}
         return article_id_to_update, photos
 
-    async def add_get_actually_data_to_table(self):
+    async def add_actually_data_to_table(self):
         """
         Обновляет данные в гугл-таблице актуальной информацией из базы данных.
         """
