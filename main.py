@@ -125,52 +125,6 @@ async def check_edits_columns():
             retry_to_check_edit_columns = True
 
 
-# async def run_in_executor(func, *args):
-#     loop = asyncio.get_event_loop()
-#     return await loop.run_in_executor(None, func, *args)
-#
-#
-# def schedule_tasks():
-#     gs_service = gs_service_for_schedule_connection()
-#
-#     "Добавляет выручку и сдвигает столбцы с выручкой по необходимости. Условие должно работать  каждые 25 мин"
-#     # schedule.every(25).minutes.do(lambda: asyncio.create_task(gs_service.add_new_day_revenue_to_table())) #  устарел
-#
-#     """Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ"""
-#     schedule.every(800).seconds.do(lambda: asyncio.create_task(gs_service.add_actually_data_to_table()))
-#
-#     """Смотрит в таблицу, оценивает новые nm_ids"""
-#     schedule.every(300).seconds.do(lambda: asyncio.create_task(check_new_nm_ids()))
-#
-#     """Смотрит в таблицу, оценивает изменения"""
-#     schedule.every(250).seconds.do(lambda: asyncio.create_task(check_edits_columns()))
-#
-#     """проверяет остатки, обновляет через Сопост"""
-#     schedule.every(20).minutes.do(lambda: asyncio.create_task(gs_service.check_quantity_flag()))
-#
-#     """актуализация остатков по регионам в таблице MAIN"""
-#     schedule.every(5).minutes.do(lambda: asyncio.create_task(gs_service.get_actually_data_by_qty()))
-#
-#     """Выгрузка данных по обороту"""
-#     schedule.every().day.at("00:01:55").do(lambda: asyncio.create_task(gs_service.turnover_of_goods()))
-#     schedule.every().day.at("09:30:30").do(lambda: asyncio.create_task(gs_service.actualize_avg_orders_data_in_table()))
-#     """Актуализация данных по выручке, заказам и сумме с чистой прибыли"""
-#     schedule.every(6).minutes.do(lambda: asyncio.create_task(gs_service.get_actually_revenues_orders_and_net_profit_data()))
-#     """Смотрим состояние заголовков текущих дней"""
-#     schedule.every(30).minutes.do(lambda: asyncio.create_task(gs_service.check_headers()))
-#
-#
-# async def run_scheduler():
-#     while True:
-#         schedule.run_pending()
-#         await asyncio.sleep(1)
-
-
-# async def main():
-#     schedule_tasks()
-#     await run_scheduler()
-
-
 @scheduler.scheduled_job(IntervalTrigger(minutes=6), coalesce=True)
 @log_job
 async def get_actually_revenues_orders_and_net_profit_data():
