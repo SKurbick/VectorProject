@@ -32,3 +32,4 @@ class DBConfig:
 
 DATABASE = DBConfig()
 settings = Setting()
+
