@@ -525,7 +525,7 @@ class ServiceGoogleSheet:
             "Баркод": self.__validate_value(data["barcode"], str),  # str
             "Логистика от склада WB до ПВЗ": self.__validate_value(data["logistic_from_wb_wh_to_opp"], float),  # float
             "Комиссия WB": self.__validate_value(data["commission_wb"], float),  # float
-            "Рейтинг": self.__validate_value(data["rating"], float),  # float
+            # "Рейтинг": self.__validate_value(data["rating"], float),  # float
             "wild": self.__validate_value(data["local_vendor_code"], str),  # str
             "Фото": self.__validate_value(data["photo_link"], str)  # str
         }
