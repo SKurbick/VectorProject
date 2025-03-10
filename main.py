@@ -188,7 +188,7 @@ async def add_actually_data_to_table():
     logger.info(
         "Запуск : Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
     gs_service = gs_service_for_schedule_connection()
-    await gs_service.add_actually_data_to_table()
+    await gs_service.add_get_actually_data_to_table()
     logger.info(
         "Завершение : Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
 

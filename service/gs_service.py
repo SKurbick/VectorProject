@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import time
 from pprint import pformat
+from typing import Tuple, List, Dict, Any, Set
 
 import gspread.exceptions
 import requests
@@ -199,7 +200,7 @@ class ServiceGoogleSheet:
 
         return all_accounts_new_revenue_data
 
-    async def add_new_data_from_table(self, lk_articles, update_articles_data=False, edit_column_clean=None, only_edits_data=False,
+    async def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
                                       add_data_in_db=True, check_nm_ids_in_db=True):
         """Функция была изменена. Теперь она просто выдает данные на добавления в таблицу, а не добавляет таблицу внутри функции"""
 
@@ -229,7 +230,7 @@ class ServiceGoogleSheet:
                 barcodes_quantity = LeftoversMarketplace(token=token)
                 card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=nm_ids_result, limit=100,
                                                                            only_edits_data=only_edits_data,
-                                                                           account=account, update_articles_data=update_articles_data)
+                                                                           account=account)
                 goods_nm_ids = await wb_api_price_and_discount.get_log_for_nm_ids_async(filter_nm_ids=nm_ids_result,
                                                                                         account=account)
                 commission_traffics = CommissionTariffs(token=token)
@@ -387,7 +388,7 @@ class ServiceGoogleSheet:
         if len(updates_nm_ids_data):
             await asyncio.sleep(5)
             result = await self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
-                                                        only_edits_data=True, add_data_in_db=False, update_articles_data=True,
+                                                        only_edits_data=True, add_data_in_db=False,
                                                         check_nm_ids_in_db=False)
             return result
 
@@ -499,89 +500,103 @@ class ServiceGoogleSheet:
 
         return False
 
+    @staticmethod
+    def __convert_to_dict(data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Преобразует данные из базы данных в словарь с удобочитаемыми ключами.
+        Аргументы:
+            data (dict): Словарь с данными из БД о товаре
+        Возвращает:
+            dict: Словарь с преобразованными ключами и обработанными значениями
+        """
+        return {
+            "Артикул": data["article_id"] or None,  # int
+            "Предмет": data["subject_name"] or None,  # str
+            "Скидка %": data["discount"] or None,  # int
+            "Текущая\nДлина (см)": data["length"] or None,  # int
+            "Текущая\nШирина (см)": data["width"] or None,  # int
+            "Текущая\nВысота (см)": data["height"] or None,  # int
+            "Баркод": data["barcode"] or None,  # str
+            "Логистика от склада WB до ПВЗ": float(data["logistic_from_wb_wh_to_opp"]) or None,  # float
+            "Комиссия WB": float(data["commission_wb"]) or None,  # float
+            "Рейтинг": float(data["rating"]) or None,
+            "wild": data["local_vendor_code"] or None,  # str
+            "Фото": data["photo_link"] or None  # str
+        }
+
+    async def get_actually_data_from_db(self, article_ids: Set[int]) -> Dict[int, Dict[str, Any]]:
+        """
+        Асинхронно получает актуальные данные из базы данных по указанным артикулам.
+        Аргументы:
+            article_ids (set): Множество артикулов, по которым нужно получить данные
+        Возвращает:
+            dict: Словарь, где ключ - артикул товара, значение - данные о товаре в формате словаря
+        """
+        async with Database1() as connection:
+            card_data_result = await connection.fetch(
+                """SELECT cd.*, a.local_vendor_code 
+                   FROM card_data cd 
+                   JOIN article a ON cd.article_id = a.nm_id 
+                   WHERE cd.article_id = ANY($1);""",
+                article_ids)
+            return {data["article_id"]: self.__convert_to_dict(data)
+                    for data in card_data_result}
+
+    async def get_actually_data_to_table_refactor(self) -> tuple[Any]:
+        """
+        Асинхронно собирает актуальные данные из базы данных для всех артикулов из гугл-таблицы.
+        Создает и выполняет асинхронные задачи для каждого аккаунта.
+        Возвращает:
+            list: Список словарей с актуальными данными по артикулам
+        """
+        logger.info("Получение артикулов из гугл-таблицы")
+        lk_articles = self.gs_connect.create_lk_articles_list()
+        tasks = []
+        logger.info("Получение актуальных данных из базы данных")
+        for account, articles in lk_articles.items():
+            task = self.get_actually_data_from_db(set(articles))
+            tasks.append(task)
+        return await asyncio.gather(*tasks)
+
+    @staticmethod
+    def _get_photos_and_filter_empty_value(article_id_to_update: List[Dict[str, Any]]) -> Tuple[
+        Dict[str, Any], Dict[str, Any]]:
+        """
+        Извлекает ссылки на фотографии товаров и удаляет пустые значения из данных.
+        Аргументы:
+            article_id_to_update (list): Список словарей с данными о товарах
+        Возвращает:
+            tuple: (отфильтрованные данные, данные о фотографиях)
+                - отфильтрованные данные - список словарей с данными товаров без пустых значений
+                - данные о фотографиях - список словарей, содержащих только артикулы и ссылки на фото
+        """
+        logger.info("Извлечение ссылок на фотографии товаров")
+        photos = [{k: {"Фото": v.pop('Фото')} for k, v in data.items()} for data in article_id_to_update]
+        logger.info("Удаление пустых значений")
+        for items in article_id_to_update:
+            for k, v in items.items():
+                for key, value in list(v.items()):
+                    if not value:
+                        items[k].pop(key)
+        article_id_to_update = {k: v for d in article_id_to_update for k, v in d.items()}
+        photos = {k: v for d in photos for k, v in d.items()}
+        return article_id_to_update, photos
+
     async def add_actually_data_to_table(self):
+        """
+        Обновляет данные в гугл-таблице актуальной информацией из базы данных.
+        """
         if ServiceGoogleSheet.check_status()['ВКЛ - 1 /ВЫКЛ - 0']:
             logger.info(f"[INFO] {datetime.datetime.now()} актуализируем данные в таблице")
-            """
-            Обновление данных по артикулам в гугл таблицу с WB api.
-            Задумана, чтобы использовать в schedule.
-            """
-            gs_connect = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet=self.sheet)
-            lk_articles = gs_connect.create_lk_articles_list()
-            result_updates_rows = {}
-            nm_ids_photo = {}
-            for account, articles in lk_articles.items():
-                token = get_wb_tokens()[account.capitalize()]
-                wb_api_content = ListOfCardsContent(token=token)
-                wb_api_price_and_discount = ListOfGoodsPricesAndDiscounts(token=token)
-                # warehouses = WarehouseMarketplaceWB(token=token)
-                # barcodes_quantity = LeftoversMarketplace(token=token)
-                commission_traffics = CommissionTariffs(token=token)
-                card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=articles, limit=100,
-                                                                           only_edits_data=True, add_data_in_db=False,
-                                                                           account=account)
-
-                goods_nm_ids = await wb_api_price_and_discount.get_log_for_nm_ids_async(filter_nm_ids=articles,
-                                                                                        account=account)
-                # объединяем полученные данные
-                merge_json_data = merge_dicts(goods_nm_ids, card_from_nm_ids_filter)
-
-                subject_names = set()  # итог всех полученных с карточек предметов
-                # account_barcodes = []
-                current_tariffs_data = commission_traffics.get_tariffs_box_from_marketplace()
-
-                # если мы не получили данные по артикулам, то аккаунт будет пропущен
-                if len(card_from_nm_ids_filter) == 0:
-                    logger.info(f"По токену {account} не получили Артикулы с данными с API WB")
-                    logger.info(f"Артикулы:{articles}")
-                    logger.info(f"Результат с API WB {merge_json_data}")
-                    continue  # пропускаем этот аккаунт
-                for i in merge_json_data.values():
-                    if "wild" in i and i["wild"] != "не найдено":
-                        # account_barcodes.append(i["Баркод"])
-                        subject_names.add(i["Предмет"])  # собираем множество с предметами
-                        result_log_value = calculate_sum_for_logistic(
-                            # на лету считаем "Логистика от склада WB до ПВЗ"
-                            for_one_liter=float(current_tariffs_data["boxDeliveryBase"].replace(',', '.')),
-                            next_liters=float(current_tariffs_data["boxDeliveryLiter"].replace(',', '.')),
-                            height=int(i['Текущая\nВысота (см)']),
-                            length=int(i['Текущая\nДлина (см)']),
-                            width=int(i['Текущая\nШирина (см)']), )
-                        # добавляем результат вычислений в итоговые данные
-                        i["Логистика от склада WB до ПВЗ"] = result_log_value
-                    try:
-                        nm_ids_photo[int(i["Артикул"])] = {"Фото": i.pop("Фото", "НЕТ")}
-                    except KeyError as e:
-                        logger.error(f"KeyError {e}")
-                # barcodes_quantity_result = []
-                # for warehouse_id in warehouses.get_account_warehouse():
-                #     bqs_result = barcodes_quantity.get_amount_from_warehouses(
-                #         warehouse_id=warehouse_id['id'],
-                #         barcodes=account_barcodes)
-                #     barcodes_quantity_result.extend(bqs_result)
-
-                subject_commissions = None
-                try:
-                    # получение комиссии WB
-                    subject_commissions = commission_traffics.get_commission_on_subject(subject_names=subject_names)
-                except (Exception, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
-                    logger.info(f"[ERROR] Запрос получения комиссии по предметам завершился ошибкой: {e}")
-                # добавляем данные в merge_json_data
-                for card in merge_json_data.values():
-                    if subject_commissions is not None:
-                        for sc in subject_commissions.items():
-                            if "Предмет" in card and sc[0] == card["Предмет"]:
-                                card["Комиссия WB"] = sc[1]
-                    # for bq_result in barcodes_quantity_result:
-                    #     if "Баркод" in card and bq_result["Баркод"] == card["Баркод"]:
-                    #         card["ФБС"] = bq_result["остаток"]
-
-                result_updates_rows.update(merge_json_data)
-                """обновляем данные по артикулам"""
-            gs_connect.update_rows(data_json=result_updates_rows)
-            if len(nm_ids_photo) > 0:
-                gs_connect_photo = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet="ФОТО")
-                await gs_connect_photo.add_data_to_count_list(nm_ids_photo)
+            article_id_to_update = await self.get_actually_data_to_table_refactor()
+            article_id_to_update, photos = self._get_photos_and_filter_empty_value(article_id_to_update)
+            logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице")
+            self.gs_connect.update_rows(data_json=article_id_to_update)
+            if len(photos) > 0:
+                logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице ФОТО")
+                gs_connect_photo = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet,
+                                                            sheet="ФОТО")
+                await gs_connect_photo.add_data_to_count_list(photos)
 
     async def get_actually_virtual_qty(self, account, data: dict, token):
         articles_qty_data = {}
