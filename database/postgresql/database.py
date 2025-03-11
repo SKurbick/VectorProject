@@ -62,6 +62,8 @@ class Database1:
         self._host = host
         self._port = port
         self._pool = None
+        self._max_size = 90
+        self._min_size = 5
 
     async def connect(self):
         self._pool = await asyncpg.create_pool(
@@ -70,6 +72,8 @@ class Database1:
             database=self._database,
             host=self._host,
             port=self._port,
+            max_size=self._max_size,
+            min_size=self._min_size
         )
 
     async def close(self):
