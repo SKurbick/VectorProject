@@ -124,27 +124,25 @@ class ServiceGoogleSheet:
                     data_to_update_main[article_id] = {}
                 data_to_update_main[article_id].update({orders_and_np_date_header: sum_value})
 
-            try:
-                self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
-                logger.info("Данные по чп и выручке в Unit актуализированы")
-            except Exception as e:
-                logger.exception(
-                    f"[ERROR] {e} Ошибка при актуализации информации по выручке и чп в main. Повторная попытка 36 sec")
-                await asyncio.sleep(36)
-                self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
-                logger.info("Данные по чп и выручке в Unit актуализированы")
-            #
-            try:
-                await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)
-                logger.info("Данные по количеству заказов актуализированы")
-            except Exception as e:
-                logger.exception(
-                    f"[ERROR] {e} Ошибка при актуализации информации в Количество заказов. Повторная попытка 36 sec")
-                await asyncio.sleep(36)
-                await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)
-
-                # self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_orders)
-                # logger.info("Данные по количеству заказов актуализированы")
+        try:
+            self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
+            logger.info("Данные по чп и выручке в Unit актуализированы")
+        except Exception as e:
+            logger.exception(
+                f"[ERROR] {e} Ошибка при актуализации информации по выручке и чп в main. Повторная попытка 36 sec")
+            await asyncio.sleep(36)
+            self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
+            logger.info("Данные по чп и выручке в Unit актуализированы")
+        #
+        try:
+            await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)
+            logger.info("Данные по количеству заказов актуализированы")
+        except Exception as e:
+            logger.exception(
+                f"[ERROR] {e} Ошибка при актуализации информации в Количество заказов. Повторная попытка 36 sec")
+            await asyncio.sleep(36)
+            await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)
+            logger.info("Данные по количеству заказов актуализированы")
 
     async def add_revenue_for_new_nm_ids(self, lk_articles: dict):
         """ Добавление выручки по новым артикулам за 7 последних дней (сегодняшний не учитывается)"""
