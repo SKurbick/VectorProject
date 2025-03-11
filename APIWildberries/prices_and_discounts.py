@@ -116,7 +116,7 @@ class ListOfGoodsPricesAndDiscounts:
                                 break
                 except (aiohttp.ClientError, aiohttp.ClientResponseError, aiohttp.ConnectionTimeoutError,
                         asyncio.TimeoutError) as e:
-                    logger.exception(f"[ERROR] func -get_log_for_nm_ids_async {e} sleep 36 sec")
+                    logger.error(f"[ERROR] func -get_log_for_nm_ids_async {e} sleep 36 sec")
                     await asyncio.sleep(36)
 
             logger.info("Дошел до условия прерывания бесконечного цикла")

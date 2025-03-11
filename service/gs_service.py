@@ -128,8 +128,8 @@ class ServiceGoogleSheet:
             self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
             logger.info("Данные по чп и выручке в Unit актуализированы")
         except Exception as e:
-            logger.exception(
-                f"[ERROR] {e} Ошибка при актуализации информации по выручке и чп в main. Повторная попытка 36 sec")
+            logger.error(
+                f"{e} Ошибка при актуализации информации по выручке и чп в main. Повторная попытка 36 sec")
             await asyncio.sleep(36)
             self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
             logger.info("Данные по чп и выручке в Unit актуализированы")
@@ -138,8 +138,8 @@ class ServiceGoogleSheet:
             await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)
             logger.info("Данные по количеству заказов актуализированы")
         except Exception as e:
-            logger.exception(
-                f"[ERROR] {e} Ошибка при актуализации информации в Количество заказов. Повторная попытка 36 sec")
+            logger.error(
+                f"{e} Ошибка при актуализации информации в Количество заказов. Повторная попытка 36 sec")
             await asyncio.sleep(36)
             await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)
             logger.info("Данные по количеству заказов актуализированы")
@@ -478,7 +478,7 @@ class ServiceGoogleSheet:
                                                nm_ids_table_data=nm_ids_table_data)
 
             except asyncio.TimeoutError as e:
-                logger.exception(f"[ERROR] {e}")
+                logger.error(f"[ERROR] {e}")
                 logger.info("повторная попытка: Актуализируем данные в бд таблицы accurate_net_profit_data")
                 await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=current_time,
                                                nm_ids_table_data=nm_ids_table_data)
@@ -493,7 +493,7 @@ class ServiceGoogleSheet:
                                            spreadsheet="UNIT 2.0 (tested)", sheet="ВКЛ/ВЫКЛ Бот")
                 return sheet_status.check_status_service_sheet()
             except gspread.exceptions.APIError as e:
-                logger.exception(f"попытка {i} {e} следующая попытка через 75 секунд")
+                logger.error(f"попытка {i} {e} следующая попытка через 75 секунд")
                 time.sleep(75)
 
         return False
@@ -717,7 +717,7 @@ class ServiceGoogleSheet:
                                 if cd not in articles_qty_wb[article]:
                                     articles_qty_wb[article].update({cd: ""})
                     except KeyError as e:
-                        logger.exception(e)
+                        logger.error(e)
                         logger.info(account)
                         logger.info(qty_data)
         return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}

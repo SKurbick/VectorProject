@@ -23,7 +23,7 @@ def retry_on_quota_exceeded_async(max_retries=10, delay=60):
                 try:
                     return await func(*args, **kwargs)
                 except gspread.exceptions.APIError as e:
-                    logger.exception(e)
+                    logger.error(e)
                     logger.error(f"Async sleep {delay} sec [сработал декоратор]")
                     await asyncio.sleep(delay)
                     retries += 1
@@ -45,8 +45,7 @@ class GoogleSheet:
                 self.sheet = spreadsheet.worksheet(sheet)
                 break
             except (gspread.exceptions.APIError, requests.exceptions.ConnectionError) as e:
-                logger.info(datetime.now())
-                logger.exception(e)
+                logger.error(e)
                 logger.info("time sleep 60 sec")
                 time.sleep(60)
 
@@ -470,7 +469,7 @@ class GoogleSheet:
                 sheet.append_rows(updates)
                 break
             except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
-                logger.exception(f"[ERROR] {e}")
+                logger.error(f"{e}")
                 time.sleep(63)
 
     @retry_on_quota_exceeded_async()
@@ -694,7 +693,7 @@ class GoogleSheet:
         try:
             self.sheet.batch_update(updates)
         except Exception as e:
-            logger.exception(f'Error during batch update: {e}')
+            logger.error(f'Error during batch update: {e}')
 
     @retry_on_quota_exceeded_async()
     async def update_qty_by_reg(self, update_data):
@@ -746,7 +745,7 @@ class GoogleSheetServiceRevenue:
                 break
             except (gspread.exceptions.APIError, requests.exceptions.ConnectionError) as e:
                 logger.info(datetime.now())
-                logger.exception(e)
+                logger.error(e)
                 logger.info("time sleep 60 sec")
                 time.sleep(60)
 
