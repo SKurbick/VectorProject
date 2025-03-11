@@ -64,6 +64,8 @@ class Database1:
         self._pool = None
         self._max_size = 90
         self._min_size = 5
+        self._timeout = 300
+        self._command_timeout = 250
 
     async def connect(self):
         self._pool = await asyncpg.create_pool(
@@ -73,7 +75,9 @@ class Database1:
             host=self._host,
             port=self._port,
             max_size=self._max_size,
-            min_size=self._min_size
+            min_size=self._min_size,
+            timeout=self._timeout,
+            command_timeout=self._command_timeout
         )
 
     async def close(self):
