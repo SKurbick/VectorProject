@@ -4,6 +4,8 @@ import datetime
 from loguru import logger as loguru_logger
 from functools import wraps
 
+from notification import telegram
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = os.path.join(BASE_DIR, "logging")
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -58,7 +60,15 @@ def log_job(func):
                 loguru_logger.info(f"Задача '{job_name}' завершена успешно")
                 return result
             except Exception as e:
-                loguru_logger.exception(f"Ошибка в задаче '{job_name}': {e}")
+                loguru_logger.error(f"Ошибка в задаче '{job_name}': {e}")
+                record = {"time": datetime.datetime.now().strftime("%Y-%m-%d at %H:%M:%S"), "level": "ERROR",
+                          "name": func.__module__, "function": func.__name__,
+                          "line": inspect.currentframe().f_back.f_lineno, "message": str(e), }
+                error_message = (
+                    f"VectorProject: <b><u>{job_name.upper()}</u></b> | {record['time']} | {record['level']} | {record['name']}:"
+                    f" {record['function']}:{record['line']} - {record['message']}"
+                )
+                await telegram(error_message)
                 raise
             finally:
                 loguru_logger.remove(sink_id)

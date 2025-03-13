@@ -21,6 +21,9 @@ class Setting:
     PC_SHEET: str = os.getenv("PC_SHEET")
     PC_SPREADSHEET: str = os.getenv("PC_SPREADSHEET")
 
+    TELEGRAM_TOKEN: str = os.getenv("TELEGRAM_TOKEN")
+    TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID")
+
 
 class DBConfig:
     DB_USER: str = os.getenv('DB_USER')
@@ -32,4 +35,3 @@ class DBConfig:
 
 DATABASE = DBConfig()
 settings = Setting()
-
