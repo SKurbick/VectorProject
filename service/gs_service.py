@@ -1084,7 +1084,7 @@ class ServiceGoogleSheet:
                         )
                 except KeyError as e:
                     error_article.append(article)
-                    logger.exception(f"[ERROR] KeyError {e}")
+                    logger.error(f" KeyError {e}")
             # await inventory_turnover_by_reg.update_orders(data=data_to_update)
             logger.info("Данные по заказам ФБО обновлено в бд таблицы 'inventory_turnover_by_reg'")
 
@@ -1145,8 +1145,6 @@ class ServiceGoogleSheet:
                     (article, district, search_date_format, data['supply_qty'], data['supply_count'])
                 )
 
-        # print(prepare_data_for_db)
-        # print(len(result_dict_data))
         logger.info(prepare_data_for_db)
         async with Database1() as connection:
             inventory_turnover_by_reg = InventoryTurnoverByRegTable(db=connection)
@@ -1239,9 +1237,3 @@ class ServiceGoogleSheet:
         # актуализируем данные в таблице
         await self.gs_connect.update_qty_by_reg(update_data=avg_data_by_orders)
         logger.info("Усредненные данные по заказам со складов\регионов актуализированы в Таблице")
-
-    # async def test(self):
-    #     async with Database1() as connection:
-    #         accurate_test = AccurateNetProfitTable(db=connection)
-    #         await accurate_test.add_new_article_net_profit_data(None, None, None, None)
-    #         print("end test")
