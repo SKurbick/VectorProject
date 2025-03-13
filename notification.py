@@ -12,7 +12,7 @@ async def telegram(message):
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=120)) as session:
         if len(message) < 4095:
             params = {"chat_id": f"{chat_id}", "text": message, "parse_mode": 'HTML'}
-            async with session.get(url, params=params, ssl=False) as response:
+            async with session.get(url, params=params) as response:
                 await response.read()
         else:
             for n, x in enumerate(range(0, len(message), 4095), 1):
