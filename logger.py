@@ -1,3 +1,4 @@
+import asyncio
 import os
 import inspect
 import datetime
@@ -9,6 +10,17 @@ from notification import telegram
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = os.path.join(BASE_DIR, "logging")
 os.makedirs(LOG_DIR, exist_ok=True)
+
+
+async def telegram_sink(message):
+    record = message.record
+    if record["level"].name in ("EXCEPTION",):
+        error_message = (
+            f"VectorProject: <b><u>{record['name'].upper()}</u></b> | "
+            f"{record['time'].strftime('%Y-%m-%d at %H:%M:%S')} | {record['level'].name} | "
+            f"{record['name']}:{record['function']}:{record['line']} - {record['message'].replace('<', '').replace('>', '')}"
+        )
+        await telegram(error_message)
 
 
 def get_logger():
@@ -30,6 +42,7 @@ def get_logger():
         level="DEBUG",
         enqueue=True,
     )
+    loguru_logger.add(telegram_sink, level="ERROR")
     return loguru_logger
 
 
@@ -52,7 +65,6 @@ def log_job(func):
             level="INFO",
             filter=filter_func
         )
-
         with loguru_logger.contextualize(job=job_name):
             loguru_logger.info(f"Начало выполнения задачи '{job_name}' в файле {job_file} (время: {timestamp})")
             try:
@@ -61,14 +73,6 @@ def log_job(func):
                 return result
             except Exception as e:
                 loguru_logger.error(f"Ошибка в задаче '{job_name}': {e}")
-                record = {"time": datetime.datetime.now().strftime("%Y-%m-%d at %H:%M:%S"), "level": "ERROR",
-                          "name": func.__module__, "function": func.__name__,
-                          "line": inspect.currentframe().f_back.f_lineno, "message": str(e), }
-                error_message = (
-                    f"VectorProject: <b><u>{job_name.upper()}</u></b> | {record['time']} | {record['level']} | {record['name']}:"
-                    f" {record['function']}:{record['line']} - {record['message']}"
-                )
-                await telegram(error_message)
                 raise
             finally:
                 loguru_logger.remove(sink_id)
