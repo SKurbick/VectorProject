@@ -10,7 +10,7 @@ from service.gs_service import ServiceGoogleSheet
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from APIGoogleSheet.googlesheet import GoogleSheet, GoogleSheetServiceRevenue, PCGoogleSheet
+from APIGoogleSheet.googlesheet import GoogleSheet, GoogleSheetServiceRevenue
 
 scheduler = AsyncIOScheduler(job_defaults={'misfire_grace_time': 1000, 'max_instances': 1})
 
@@ -109,7 +109,7 @@ async def check_edits_columns():
 
                     edit_nm_ids_data = await service_gs_table.change_cards_and_tables_data(
                         edit_data_from_table=edit_data_from_table)
-                    if len(edit_nm_ids_data) > 0:
+                    if len(edit_nm_ids_data) > 0:  # актуализация данных в гугл таблице
                         gs_connection().update_rows(data_json=edit_nm_ids_data,
                                                     edit_column_clean={"price_discount": statuses['Цены/Скидки'],
                                                                        "dimensions": statuses['Габариты'],
