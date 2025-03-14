@@ -253,8 +253,12 @@ class ServiceGoogleSheet:
                             width=int(i['Текущая\nШирина (см)']), )
                         # добавляем результат вычислений в итоговые данные
                         i["Логистика от склада WB до ПВЗ"] = result_log_value
+
                     if only_edits_data is False:
-                        nm_ids_photo[int(i["Артикул"])] = i.pop("Фото")
+                        try:
+                            nm_ids_photo[int(i["Артикул"])] = i.pop("Фото")
+                        except KeyError as e:
+                            logger.info(f"не получено фото из массива")
 
                 # собираем остатки со складов продавца
                 barcodes_quantity_result = []
