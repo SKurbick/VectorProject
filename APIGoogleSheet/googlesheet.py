@@ -226,8 +226,8 @@ class GoogleSheet:
             if pd.isna(article) or pd.isna(article) or article.strip() == '' or article.strip() == '':
                 continue
             # Пропуск если данных по артикулу нет в бд (нужен для подтягивания валидно вилда)
-            # if str(article) not in db_nm_ids_data.keys() or "vendorCode" not in db_nm_ids_data[str(article)]:
-            #     continue
+            if str(article) not in db_nm_ids_data.keys() or "vendorCode" not in db_nm_ids_data[str(article)]:
+                continue
 
             # Создание словаря для текущего артикула
             article_dict = {
