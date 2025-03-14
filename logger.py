@@ -1,26 +1,12 @@
-import asyncio
 import os
 import inspect
 import datetime
 from loguru import logger as loguru_logger
 from functools import wraps
 
-from notification import telegram
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = os.path.join(BASE_DIR, "logging")
 os.makedirs(LOG_DIR, exist_ok=True)
-
-
-async def telegram_sink(message):
-    record = message.record
-    if record["level"].name in ("EXCEPTION",):
-        error_message = (
-            f"VectorProject: <b><u>{record['name'].upper()}</u></b> | "
-            f"{record['time'].strftime('%Y-%m-%d at %H:%M:%S')} | {record['level'].name} | "
-            f"{record['name']}:{record['function']}:{record['line']} - {record['message'].replace('<', '').replace('>', '')}"
-        )
-        await telegram(error_message)
 
 
 def get_logger():
@@ -42,7 +28,6 @@ def get_logger():
         level="DEBUG",
         enqueue=True,
     )
-    loguru_logger.add(telegram_sink, level="ERROR")
     return loguru_logger
 
 

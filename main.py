@@ -1,9 +1,11 @@
 import asyncio
 import datetime
 import contextlib
-
+import html
 import pytz
+from apscheduler.events import EVENT_JOB_ERROR
 
+from notification import telegram
 from settings import settings
 from logger import app_logger as logger, log_job
 from service.gs_service import ServiceGoogleSheet
@@ -215,8 +217,25 @@ async def get_actually_data_by_qty():
     logger.info("Завершение : актуализация остатков по регионам в таблице MAIN")
 
 
+def job_error_listener(event):
+    job = scheduler.get_job(event.job_id)
+    if job:
+        job_name = job.name if getattr(job, "name", None) else job.func.__name__
+    else:
+        job_name = event.job_id
+
+    error_message = (
+        f"VectorProject: <b><u>{html.escape(str(job_name.upper()))}</u></b>  "
+        f"{datetime.datetime.now().strftime('%Y-%m-%d at %H:%M:%S')}  ERROR  "
+        f"{html.escape(str(job_name))} - Exception: {html.escape(str(event.exception))}\n"
+        f"Traceback:<blockquote expandable>{html.escape(str(event.traceback))}</blockquote>"
+    )
+    asyncio.create_task(telegram(error_message))
+
+
 async def main():
     logger.info("Запуск приложений")
+    scheduler.add_listener(job_error_listener, EVENT_JOB_ERROR)
     scheduler.start()
     with contextlib.suppress(KeyboardInterrupt, SystemExit):
         await asyncio.Event().wait()
