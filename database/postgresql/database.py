@@ -63,7 +63,7 @@ class Database1:
         self._port = port
         self._pool = None
         self._max_size = 90
-        self._min_size = 5
+        self._min_size = 30
         self._timeout = 300
         self._command_timeout = 250
 
