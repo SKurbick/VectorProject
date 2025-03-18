@@ -541,15 +541,16 @@ class ServiceGoogleSheet:
         Возвращает:
             dict: Словарь, где ключ - артикул товара, значение - данные о товаре в формате словаря
         """
-        async with Database1() as connection:
-            card_data_result = await connection.fetch(
-                """SELECT cd.*, a.local_vendor_code 
-                   FROM card_data cd 
-                   JOIN article a ON cd.article_id = a.nm_id 
-                   WHERE cd.article_id = ANY($1);""",
-                article_ids)
-            return {data["article_id"]: self.__convert_to_dict(data)
-                    for data in card_data_result}
+        async with Database1() as db:
+            async with db.acquire() as conn:
+                card_data_result = await conn.fetch(
+                    """SELECT cd.*, a.local_vendor_code 
+                       FROM card_data cd 
+                       JOIN article a ON cd.article_id = a.nm_id 
+                       WHERE cd.article_id = ANY($1);""",
+                    article_ids)
+                return {data["article_id"]: self.__convert_to_dict(data)
+                        for data in card_data_result}
 
     async def get_actually_data_to_table_refactor(self) -> tuple[Any]:
         """

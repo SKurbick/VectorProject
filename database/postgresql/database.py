@@ -1,6 +1,7 @@
 import asyncpg
 from contextlib import asynccontextmanager
 from settings import DATABASE
+from logger import app_logger as logger
 
 
 class Database:
@@ -68,6 +69,7 @@ class Database1:
         self._command_timeout = 250
 
     async def connect(self):
+        logger.info("Connecting to database...")
         self._pool = await asyncpg.create_pool(
             user=self._user,
             password=self._password,
