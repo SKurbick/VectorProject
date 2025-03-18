@@ -27,6 +27,7 @@ from settings import get_wb_tokens
 from settings import Setting
 from utils import add_orders_data, calculate_sum_for_logistic, merge_dicts, validate_data, add_nm_ids_in_db, \
     get_last_weeks_dates, create_valid_data_from_db
+from database.postgresql.repositories.card_data import CardData
 
 from database.postgresql.database import Database1
 from settings import settings
@@ -533,7 +534,7 @@ class ServiceGoogleSheet:
             "Фото": self.__validate_value(data["photo_link"], str)  # str
         }
 
-    async def get_actually_data_from_db(self, article_ids: Set[int]) -> Dict[int, Dict[str, Any]]:
+    async def get_actually_data_from_db(self, db: Database1, article_ids: Set[int]) -> Dict[int, Dict[str, Any]]:
         """
         Асинхронно получает актуальные данные из базы данных по указанным артикулам.
         Аргументы:
@@ -541,18 +542,10 @@ class ServiceGoogleSheet:
         Возвращает:
             dict: Словарь, где ключ - артикул товара, значение - данные о товаре в формате словаря
         """
-        async with Database1() as db:
-            async with db.acquire() as conn:
-                card_data_result = await conn.fetch(
-                    """SELECT cd.*, a.local_vendor_code 
-                       FROM card_data cd 
-                       JOIN article a ON cd.article_id = a.nm_id 
-                       WHERE cd.article_id = ANY($1);""",
-                    article_ids)
-                return {data["article_id"]: self.__convert_to_dict(data)
-                        for data in card_data_result}
+        card_data_result = await CardData(db).get_actually_all_information(article_ids)
+        return {data["article_id"]: self.__convert_to_dict(data) for data in card_data_result}
 
-    async def get_actually_data_to_table_refactor(self) -> tuple[Any]:
+    async def get_actually_data_to_table_refactor(self, db: Database1) -> tuple[Any]:
         """
         Асинхронно собирает актуальные данные из базы данных для всех артикулов из гугл-таблицы.
         Создает и выполняет асинхронные задачи для каждого аккаунта.
@@ -564,7 +557,7 @@ class ServiceGoogleSheet:
         tasks = []
         logger.info("Получение актуальных данных из базы данных")
         for account, articles in lk_articles.items():
-            task = self.get_actually_data_from_db(set(articles))
+            task = self.get_actually_data_from_db(db, set(articles))
             tasks.append(task)
         return await asyncio.gather(*tasks)
 
@@ -592,13 +585,13 @@ class ServiceGoogleSheet:
         photos = {k: v for d in photos for k, v in d.items()}
         return article_id_to_update, photos
 
-    async def add_actually_data_to_table(self):
+    async def add_actually_data_to_table(self, db: Database1):
         """
         Обновляет данные в гугл-таблице актуальной информацией из базы данных.
         """
         if ServiceGoogleSheet.check_status()['ВКЛ - 1 /ВЫКЛ - 0']:
             logger.info(f"[INFO] {datetime.datetime.now()} актуализируем данные в таблице")
-            article_id_to_update = await self.get_actually_data_to_table_refactor()
+            article_id_to_update = await self.get_actually_data_to_table_refactor(db)
             article_id_to_update, photos = self._get_photos_and_filter_empty_value(article_id_to_update)
             logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице")
             self.gs_connect.update_rows(data_json=article_id_to_update)

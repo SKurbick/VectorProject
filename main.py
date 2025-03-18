@@ -5,6 +5,7 @@ import html
 import pytz
 from apscheduler.events import EVENT_JOB_ERROR
 
+from database.postgresql.database import Database1
 from notification import telegram
 from settings import settings
 from logger import app_logger as logger, log_job
@@ -144,7 +145,8 @@ async def add_actually_data_to_table():
     logger.info(
         "Запуск : Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
     gs_service = gs_service_for_schedule_connection()
-    await gs_service.add_actually_data_to_table()
+    async with Database1() as db:
+        await gs_service.add_actually_data_to_table(db=db)
     logger.info(
         "Завершение : Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
 
