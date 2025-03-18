@@ -2,6 +2,8 @@ import datetime
 import json
 import time
 from collections import ChainMap
+
+from database.postgresql.repositories.article import ArticleTable
 from logger import app_logger as logger
 import re
 import math
@@ -21,6 +23,7 @@ async def create_valid_data_from_db(data):
             result_data[article] = {federal_district: {"quantity": quantity, "supply_qty": supply_qty}}
 
     return result_data
+
 
 def merge_dicts(d1, d2):
     result = {}
@@ -139,8 +142,9 @@ def total_revenue_for_week(date_dict: dict, revenue_result):
     return {revenue_date_key: nm_ids_total}
 
 
-def validate_data(data: dict):
-    nm_ids_db_data = get_data_for_nm_ids()
+async def validate_data(db, data: dict):
+    # nm_ids_db_data = get_data_for_nm_ids()
+    nm_ids_db_data = await ArticleTable(db).get_all_nm_ids()
     """Редактирует и возвращает валидные данные для API WB"""
     result_valid_data = {}
     for nm_id, edit_data in data.items():

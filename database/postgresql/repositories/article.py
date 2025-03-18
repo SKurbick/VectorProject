@@ -59,3 +59,11 @@ class ArticleTable:
                     article_data[i] = (nm_id, account, new_vendor_code, wild)
 
             await self.db.executemany(vendor_mapping_query, article_data)
+
+    async def get_all_nm_ids(self):
+        query = """
+        SELECT *
+        FROM article;
+        """
+        nm_ids = await self.db.fetch(query)
+        return {str(data['nm_id']): dict(data) for data in nm_ids}

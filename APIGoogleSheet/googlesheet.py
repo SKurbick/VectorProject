@@ -9,6 +9,8 @@ from gspread.utils import rowcol_to_a1
 import gspread
 import requests
 from gspread import Client, service_account
+
+from database.postgresql.repositories.article import ArticleTable
 from utils import get_nm_ids_in_db, column_index_to_letter, get_data_for_nm_ids, subtract_percentage, can_be_int
 import pandas as pd
 
@@ -203,72 +205,53 @@ class GoogleSheet:
         logger.info("Данные успешно обновлены.")
         return True
 
-    def get_edit_data(self, dimension_status, price_and_discount_status, qty_status):
-        db_nm_ids_data = get_data_for_nm_ids()
+    @staticmethod
+    def get_article_dict(service_google_sheet, row, row_article):
+        article_dict = {'wild': row_article["vendor_code"],
+                        'Чистая прибыль 1ед.': row['Чистая прибыль 1ед.'].replace('\xa0', '')}
+        if service_google_sheet["Цены/Скидки"] and str(row['Чистая прибыль 1ед.'].replace('\xa0', '')).lstrip(
+                '-').isdigit():
+            article_dict["price_discount"] = \
+                {'Установить новую цену': row['Установить новую цену'].replace('\xa0', ''),
+                 'Установить новую скидку %': row['Установить новую скидку %'].replace('\xa0', '')}
+        if service_google_sheet["Габариты"]:
+            article_dict["dimensions"] = {'Новая\nДлина (см)': row['Новая\nДлина (см)'].replace('\xa0', ''),
+                                          'Новая\nШирина (см)': row['Новая\nШирина (см)'].replace('\xa0', ''),
+                                          'Новая\nВысота (см)': row['Новая\nВысота (см)'].replace('\xa0', '')}
+        return article_dict
+
+    @staticmethod
+    def update_result_qty_edit_data(service_google_sheet, result_qty_edit_data, account, row):
+        if service_google_sheet["Остаток"]:
+            if account not in result_qty_edit_data:
+                result_qty_edit_data[account] = {"stocks": [], "nm_ids": []}
+            if str(row["Новый остаток"]).isdigit():
+                result_qty_edit_data[account]["stocks"].append(
+                    {"sku": row["Баркод"], "amount": int(row["Новый остаток"].replace('\xa0', ''))}, )
+                # nm_id нам будет нужен для функции обновления данных почему в список?
+                result_qty_edit_data[account]["nm_ids"].append(int(row["Артикул"]))
+
+    async def get_edit_data(self, db, service_google_sheet):
         """
         Получает данные с запросом на изменение с таблицы
         """
+        db_nm_ids_data = await ArticleTable(db).get_all_nm_ids()
         data = self.sheet.get_all_values()
-
-        # Преобразуйте данные в DataFrame
         df = pd.DataFrame(data[1:], columns=data[0])
-
-        # Определите индексы столбцов по их названиям
-        header_indices = {header: df.columns.get_loc(header) for header in df.columns}
-
-        # Инициализация пустого словаря для результата
         result_nm_ids_data = {}
         result_qty_edit_data = {}
-        # Перебор строк DataFrame
         for index, row in df.iterrows():
-            article = row['Артикул']
+            article: str = row['Артикул']
             account = str(row['ЛК']).capitalize()
-            # Пропуск строки, если "ЛК" или "Артикул" пустые
-            if pd.isna(article) or pd.isna(article) or article.strip() == '' or article.strip() == '':
+            if any([not article.isdigit(), not account.strip(), article not in db_nm_ids_data.keys(),
+                    "vendor_code" not in db_nm_ids_data[article]]):
                 continue
-            # Пропуск если данных по артикулу нет в бд (нужен для подтягивания валидно вилда)
-            if str(article) not in db_nm_ids_data.keys() or "vendorCode" not in db_nm_ids_data[str(article)]:
-                continue
-
-            # Создание словаря для текущего артикула
-            article_dict = {
-                # подтягиваем wild с БД
-                'wild': db_nm_ids_data[str(article)]["vendorCode"],
-                'Чистая прибыль 1ед.': row['Чистая прибыль 1ед.'].replace('\xa0', '')
-            }
-            if price_and_discount_status:
-                # пропуск если невалидное значение ЧП
-                if str(row['Чистая прибыль 1ед.'].replace('\xa0', '')).lstrip('-').isdigit():
-                    article_dict.update(
-                        {"price_discount": {'Установить новую цену': row['Установить новую цену'].replace('\xa0', ''),
-                                            'Установить новую скидку %': row['Установить новую скидку %'].replace(
-                                                '\xa0',
-                                                '')}})
-            if dimension_status:
-                article_dict.update({"dimensions": {
-                    'Новая\nДлина (см)': row['Новая\nДлина (см)'].replace('\xa0', ''),
-                    'Новая\nШирина (см)': row['Новая\nШирина (см)'].replace('\xa0', ''),
-                    'Новая\nВысота (см)': row['Новая\nВысота (см)'].replace('\xa0', '')}})
-
-            if qty_status:
-                if account not in result_qty_edit_data:
-                    result_qty_edit_data[account] = {"stocks": [], "nm_ids": []}
-                if str(row["Новый остаток"]).isdigit():
-                    result_qty_edit_data[account]["stocks"].append(
-                        {
-                            "sku": row["Баркод"],
-                            "amount": int(row["Новый остаток"].replace('\xa0', ''))
-                        },
-                    )
-                    # nm_id нам будет нужен для функции обновления данных
-                    result_qty_edit_data[account]["nm_ids"].append(int(row["Артикул"]))
-
+            article_dict = self.get_article_dict(service_google_sheet, row, db_nm_ids_data[article])
+            self.update_result_qty_edit_data(service_google_sheet, result_qty_edit_data, account, row)
             if account not in result_nm_ids_data:
                 result_nm_ids_data[account] = {}
-            # Добавление словаря в результирующий словарь
             result_nm_ids_data[account][article] = article_dict
 
-        # возвращаем словарь
         return {"nm_ids_edit_data": result_nm_ids_data, "qty_edit_data": result_qty_edit_data}
 
     def create_lk_articles_list(self):
@@ -995,6 +978,7 @@ class GoogleSheetServiceRevenue:
         self.sheet.batch_update(updates)
 
         logger.info("Проверка и добавление завершены")
+
     def update_revenue_rows(self, data_json):
         data = self.sheet.get_all_records(expected_headers=[])
         df = pd.DataFrame(data)

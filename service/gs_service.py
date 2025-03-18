@@ -27,6 +27,7 @@ from settings import get_wb_tokens
 from settings import Setting
 from utils import add_orders_data, calculate_sum_for_logistic, merge_dicts, validate_data, add_nm_ids_in_db, \
     get_last_weeks_dates, create_valid_data_from_db
+from database.postgresql.repositories.card_data import CardData
 
 from database.postgresql.database import Database1
 from settings import settings
@@ -44,6 +45,7 @@ class ServiceGoogleSheet:
         self.sheet = sheet
         self.spreadsheet = spreadsheet
         self.creds_json = creds_json
+        self.db = db
 
     async def check_headers(self):
         start = datetime.datetime.now()
@@ -308,7 +310,7 @@ class ServiceGoogleSheet:
 
         return result_nm_ids_data
 
-    async def change_cards_and_tables_data(self, edit_data_from_table):
+    async def change_cards_and_tables_data(self, db, edit_data_from_table):
         sheet_statuses = ServiceGoogleSheet.check_status()
         net_profit_status = sheet_statuses['Отрицательная \nЧП']
         price_discount_edit_status = sheet_statuses['Цены/Скидки']
@@ -319,7 +321,7 @@ class ServiceGoogleSheet:
 
         logger.info("Получил данные по ячейкам на изменение товара")
         for account, nm_ids_data in edit_data_from_table["nm_ids_edit_data"].items():
-            valid_data_result = validate_data(nm_ids_data)
+            valid_data_result = await validate_data(db, nm_ids_data)
             token = get_wb_tokens()[account.capitalize()]
             warehouses = WarehouseMarketplaceWB(token=token)
             warehouses_qty_edit = LeftoversMarketplace(token=token)
@@ -492,7 +494,7 @@ class ServiceGoogleSheet:
         for i in range(10):
             try:
                 sheet_status = GoogleSheet(creds_json="creds.json",
-                                           spreadsheet="UNIT 2.0 (tested)", sheet="ВКЛ/ВЫКЛ Бот")
+                                           spreadsheet="Тестирование. Возвраты на ПВЗ", sheet="ВКЛ/ВЫКЛ Бот")
                 return sheet_status.check_status_service_sheet()
             except gspread.exceptions.APIError as e:
                 logger.exception(f"попытка {i} {e} следующая попытка через 75 секунд")
@@ -524,7 +526,7 @@ class ServiceGoogleSheet:
             "Фото": data["photo_link"] or None  # str
         }
 
-    async def get_actually_data_from_db(self, article_ids: Set[int]) -> Dict[int, Dict[str, Any]]:
+    async def get_actually_data_from_db(self, db: Database1, article_ids: Set[int]) -> Dict[int, Dict[str, Any]]:
         """
         Асинхронно получает актуальные данные из базы данных по указанным артикулам.
         Аргументы:
@@ -532,15 +534,10 @@ class ServiceGoogleSheet:
         Возвращает:
             dict: Словарь, где ключ - артикул товара, значение - данные о товаре в формате словаря
         """
-        async with Database1() as connection:
-            card_data_result = await connection.fetch(
-                """SELECT cd.*, a.local_vendor_code 
-                   FROM card_data cd 
-                   JOIN article a ON cd.article_id = a.nm_id 
-                   WHERE cd.article_id = ANY($1);""",
-                article_ids)
-            return {data["article_id"]: self.__convert_to_dict(data)
-                    for data in card_data_result}
+        # TODO Решить вопрос с подключением.
+        card_data_result = await CardData(db).get_actual_information_to_db(article_ids)
+        return {data["article_id"]: self.__convert_to_dict(data)
+                for data in card_data_result}
 
     async def get_actually_data_to_table_refactor(self) -> tuple[Any]:
         """
@@ -595,7 +592,7 @@ class ServiceGoogleSheet:
             if len(photos) > 0:
                 logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице ФОТО")
                 gs_connect_photo = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet,
-                                                            sheet="ФОТО")
+                                               sheet="ФОТО")
                 await gs_connect_photo.add_data_to_count_list(photos)
 
     async def get_actually_virtual_qty(self, account, data: dict, token):
