@@ -231,11 +231,10 @@ class GoogleSheet:
                 # nm_id нам будет нужен для функции обновления данных почему в список?
                 result_qty_edit_data[account]["nm_ids"].append(int(row["Артикул"]))
 
-    async def get_edit_data(self, db, service_google_sheet):
+    async def get_edit_data(self, db_nm_ids_data, service_google_sheet):
         """
         Получает данные с запросом на изменение с таблицы
         """
-        db_nm_ids_data = await ArticleTable(db).get_all_nm_ids()
         data = self.sheet.get_all_values()
         df = pd.DataFrame(data[1:], columns=data[0])
         result_nm_ids_data = {}
@@ -1094,6 +1093,26 @@ class PCGoogleSheet:
             if lk.upper() not in lk_articles_dict:
                 lk_articles_dict[lk.upper()] = {}
             lk_articles_dict[lk.upper()].update({article: profit})
+        return lk_articles_dict
+
+    def create_lk_articles_list(self):
+        """Создает словарь из ключей кабинета и его Артикулов"""
+        data = self.sheet.get_all_records()
+        df = pd.DataFrame(data)
+        lk_articles_dict = {}
+        for index, row in df.iterrows():
+
+            article = row['Артикул']
+            lk = row['ЛК'].upper()
+            # Пропускаем строки с пустыми значениями в столбце "ЛК" "Артикул"
+            if pd.isna(lk) or lk == "":
+                continue
+            if pd.isna(article) or article == "":
+                continue
+
+            if lk.upper() not in lk_articles_dict:
+                lk_articles_dict[lk.upper()] = []
+            lk_articles_dict[lk.upper()].append(article)
         return lk_articles_dict
 
     def shift_orders_header(self, day):

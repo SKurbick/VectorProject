@@ -67,3 +67,18 @@ class ArticleTable:
         """
         nm_ids = await self.db.fetch(query)
         return {str(data['nm_id']): dict(data) for data in nm_ids}
+
+    async def update_article_data(self, data):
+        query = """
+        INSERT INTO article (nm_id, account, local_vendor_code, vendor_code)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (nm_id) DO UPDATE
+        SET account = EXCLUDED.account,
+            local_vendor_code = EXCLUDED.local_vendor_code,
+            vendor_code = EXCLUDED.vendor_code
+        WHERE NOT EXISTS (
+            SELECT 1 FROM article 
+            WHERE account = $2 AND vendor_code = $4
+        );
+        """
+        await self.db.executemany(query, data)
