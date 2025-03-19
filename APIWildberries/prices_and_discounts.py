@@ -143,7 +143,7 @@ class ListOfGoodsPricesAndDiscounts:
                     logger.info(f"price and discount edit result: {response.json()}")
                     time.sleep(2)
                     if (response.status_code in (200, 208) or response.json()['errorText'] in
-                            ("Task already exists", "No goods for process")):
+                            ("Task already exists", "No goods for process", "The specified prices and discounts are already set")):
                         break
 
                 except (Exception, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
