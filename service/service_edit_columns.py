@@ -90,7 +90,7 @@ async def check_new_nm_ids():
         logger.info("СЕРВИС ОТКЛЮЧЕН (0)")
 
 
-async def check_edits_columns():
+async def check_edits_columns(db: Database1):
     logger.info("смотрим retry_to_check_edit_columns")
     service_google_sheet = ServiceGoogleSheet.check_status()
     if service_google_sheet['ВКЛ - 1 /ВЫКЛ - 0']:
@@ -99,23 +99,22 @@ async def check_edits_columns():
             if (service_google_sheet["Остаток"] or service_google_sheet["Цены/Скидки"]
                     or service_google_sheet["Габариты"]):
                 logger.info("СЕРВИС РЕДАКТИРОВАНИЯ АКТИВЕН. Оцениваем ячейки по изменениям товара")
-                async with Database1() as db:
-                    db_nm_ids_data = await ArticleTable(db).get_all_nm_ids()
-                    edit_data_from_table = await gs_connect.get_edit_data(db_nm_ids_data, service_google_sheet)
-                    if edit_data_from_table:
-                        service_gs_table = ServiceGoogleSheet(
-                            token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
+                db_nm_ids_data = await ArticleTable(db).get_all_nm_ids()
+                edit_data_from_table = await gs_connect.get_edit_data(db_nm_ids_data, service_google_sheet)
+                if edit_data_from_table:
+                    service_gs_table = ServiceGoogleSheet(
+                        token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
 
-                        edit_nm_ids_data = await service_gs_table.change_cards_and_tables_data(
-                            db_nm_ids_data=db_nm_ids_data,
-                            edit_data_from_table=edit_data_from_table)
-                        if edit_nm_ids_data:
-                            gs_connect.update_rows(data_json=edit_nm_ids_data,
-                                                   edit_column_clean={
-                                                       "price_discount": service_google_sheet['Цены/Скидки'],
-                                                       "dimensions": service_google_sheet['Габариты'],
-                                                       "qty": service_google_sheet["Остаток"]})
-                            return create_lk_articles(edit_nm_ids_data)
+                    edit_nm_ids_data = await service_gs_table.change_cards_and_tables_data(
+                        db_nm_ids_data=db_nm_ids_data,
+                        edit_data_from_table=edit_data_from_table)
+                    if edit_nm_ids_data:
+                        gs_connect.update_rows(data_json=edit_nm_ids_data,
+                                               edit_column_clean={
+                                                   "price_discount": service_google_sheet['Цены/Скидки'],
+                                                   "dimensions": service_google_sheet['Габариты'],
+                                                   "qty": service_google_sheet["Остаток"]})
+                        return create_lk_articles(edit_nm_ids_data)
 
             else:
                 logger.info("Сервис заблокирован на изменения: (Цены/Скидки, Остаток, Габариты)")

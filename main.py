@@ -1,6 +1,8 @@
 import pytz
 import asyncio
 import contextlib
+
+from database.postgresql.database import Database1
 from logger import app_logger as logger, log_job
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -37,14 +39,15 @@ async def job_check_edits_columns_and_add_actually_data_to_table():
                 "Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
     gs_service = gs_service_for_schedule_connection()
     service = Service()
-    await gs_service.add_actually_data_to_table()
-    logger.info("Завершение :"
-                "Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
-    logger.info("Запуск : Смотрит в таблицу, оценивает изменения")
-    result = await check_edits_columns()
-    if result:
-        logger.info("Завершение : Внесение изменений в таблицу")
-        await service.actualize_card_data_in_db(result)
+    async with Database1() as db:
+        await gs_service.add_actually_data_to_table(db=db)
+        logger.info("Завершение :"
+                    "Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
+        logger.info("Запуск : Смотрит в таблицу, оценивает изменения")
+        result = await check_edits_columns(db=db)
+        if result:
+            logger.info("Завершение : Внесение изменений в таблицу")
+            await service.actualize_card_data_in_db(result)
 
 
 @scheduler.scheduled_job(IntervalTrigger(minutes=20), coalesce=True)
