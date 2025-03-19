@@ -51,11 +51,13 @@ class ListOfCardsContent:
         while True:
             count += 1
             try:
-                for i in range(10):
+                for i in range(5):
                     response = requests.post(url, headers=self.headers, json=json_obj)
                     if response.status_code >= 400:
-                        logger.info(f"[ERROR]  {response.status_code} попытка {i}")
+                        logger.info(f"[ERROR] {account}  {response.status_code} попытка {i}")
                         logger.info("ожидание 1 минута")
+                        if i == 4:
+                            return card_result_for_match
                         time.sleep(60)
                     else:
                         break
