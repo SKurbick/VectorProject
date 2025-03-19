@@ -20,6 +20,7 @@ class Setting:
     TOKENS_FILE_NAME: str = os.getenv("TOKENS_FILE_NAME")
     PC_SHEET: str = os.getenv("PC_SHEET")
     PC_SPREADSHEET: str = os.getenv("PC_SPREADSHEET")
+    TOKEN_TEST: str = os.getenv("TOKEN_TEST")
 
     TELEGRAM_TOKEN: str = os.getenv("TELEGRAM_TOKEN")
     TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID")
