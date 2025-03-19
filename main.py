@@ -1,21 +1,20 @@
+import html
 import pytz
 import asyncio
 import contextlib
-import html
-import pytz
-from apscheduler.events import EVENT_JOB_ERROR
-
-from database.postgresql.database import Database1
 from notification import telegram
-from settings import settings
+from logger import app_logger as logger, log_job
 
 from database.postgresql.database import Database1
-from logger import app_logger as logger, log_job
+
+from apscheduler.events import EVENT_JOB_ERROR
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from service.service_edit_columns import check_new_nm_ids, check_edits_columns, gs_service_for_schedule_connection
+
 from service.service_update_db import Service
+from service.service_edit_columns import check_new_nm_ids, check_edits_columns, gs_service_for_schedule_connection
+
 
 scheduler = AsyncIOScheduler(job_defaults={'misfire_grace_time': 1000, 'max_instances': 1})
 
