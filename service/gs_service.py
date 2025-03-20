@@ -290,11 +290,11 @@ class ServiceGoogleSheet:
                 if add_data_in_db is True:
                     """добавляем артикулы в БД"""
                     add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
-        if nm_ids_photo:
+        if len(nm_ids_photo) > 0:
             self.gs_connect.add_photo(nm_ids_photo)
 
         # добавляем данные артикулов в psql в таблицу article
-        if result_nm_ids_data:
+        if len(result_nm_ids_data) > 0:
             # db = self.database()
             try:
                 async with Database1() as connection:
@@ -311,7 +311,7 @@ class ServiceGoogleSheet:
 
         return result_nm_ids_data
 
-    async def change_cards_and_tables_data(self, db_nm_ids_data, edit_data_from_table):
+    async def change_cards_and_tables_data(self, edit_data_from_table):
         sheet_statuses = ServiceGoogleSheet.check_status()
         net_profit_status = sheet_statuses['Отрицательная \nЧП']
         price_discount_edit_status = sheet_statuses['Цены/Скидки']
@@ -322,7 +322,7 @@ class ServiceGoogleSheet:
 
         logger.info("Получил данные по ячейкам на изменение товара")
         for account, nm_ids_data in edit_data_from_table["nm_ids_edit_data"].items():
-            valid_data_result = await validate_data(db_nm_ids_data, nm_ids_data)
+            valid_data_result = validate_data(nm_ids_data)
             token = get_wb_tokens()[account.capitalize()]
             warehouses = WarehouseMarketplaceWB(token=token)
             warehouses_qty_edit = LeftoversMarketplace(token=token)
@@ -338,47 +338,62 @@ class ServiceGoogleSheet:
                 quantity_edit_data = []
                 for nm_id, data in valid_data_result.items():
                     # статус на изменение цены\скидки должен быть активным
-                    if ("price_discount" in data and price_discount_edit_status and
-                            (data['net_profit'] >= 0 or net_profit_status)):
-                        price_discount_data.append({"nmID": nm_id, **data["price_discount"]})
+                    if "price_discount" in data and price_discount_edit_status:
+                        # если "Чистая прибыль" > выходит больше 0 или если статус редактирование по
+                        # отрицательному ЧП стоит 1,то артикул, с запросом на изменение цены или скидки, будет добавлен
+                        if data['net_profit'] >= 0 or net_profit_status:
+                            price_discount_data.append(
+                                {
+                                    "nmID": nm_id,
+                                    **data["price_discount"]
+                                }
+                            )
                     # статус на изменение габаритов должен быть активным (вкл/выкл бот)
-                    if "dimensions" in data and dimensions_edit_status:
-                        size_edit_data.append({"nmID": nm_id, "vendorCode": data["vendorCode"],
-                                               "sizes": data["sizes"], "dimensions": data["dimensions"]})
+                    if "sizes" and "dimensions" in data and dimensions_edit_status:
+                        size_edit_data.append(
+                            {
+                                "nmID": nm_id,
+                                "vendorCode": data["vendorCode"],
+                                "sizes": data["sizes"],
+                                "dimensions": data["dimensions"]
+                            }
+                        )
+
                 """запрос на изменение цены и/или скидки по артикулу"""
-                if price_discount_data:
+                if len(price_discount_data) > 0:
                     wb_api_price_and_discount.add_new_price_and_discount(price_discount_data)
                     edit_column_clean["price_discount"] = True
 
                 """Запрос на изменение габаритов товара по артикулу и vendorCode (wild)"""
-                if size_edit_data:
+                if len(size_edit_data) > 0:
                     wb_api_content.size_edit(size_edit_data)
                     edit_column_clean["dimensions"] = True
                 """Перезаписываем данные в таблице после их изменений на WB"""
                 nm_ids_result = [int(nm_ids_str) for nm_ids_str in valid_data_result.keys()]
                 updates_nm_ids_data.update({account: nm_ids_result})
 
-            if (account in edit_data_from_table["qty_edit_data"] and
-                    (len(edit_data_from_table["qty_edit_data"][account]["stocks"]) > 0 and quantity_edit_status)):
-                "изменение остатков на всех складах продавца"
-                logger.info("изменение остатков на всех складах продавца")
-                for warehouse in warehouses.get_account_warehouse():
-                    warehouses_qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse["id"],
-                                                                    edit_barcodes_list=
-                                                                    edit_data_from_table["qty_edit_data"][
-                                                                        account]["stocks"])
-                edit_column_clean["qty"] = True
-                # добавляем артикул для обновления данных
-                if account not in updates_nm_ids_data:
-                    updates_nm_ids_data[account] = []
-                updates_nm_ids_data[account].extend(edit_data_from_table["qty_edit_data"][account]["nm_ids"])
+            if account in edit_data_from_table["qty_edit_data"]:
+                if len(edit_data_from_table["qty_edit_data"][account]["stocks"]) > 0 and quantity_edit_status:
+                    "изменение остатков на всех складах продавца"
+                    logger.info("изменение остатков на всех складах продавца")
+                    for warehouse in warehouses.get_account_warehouse():
+                        warehouses_qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse["id"],
+                                                                        edit_barcodes_list=
+                                                                        edit_data_from_table["qty_edit_data"][
+                                                                            account]["stocks"])
+                    edit_column_clean["qty"] = True
+                    # добавляем артикул для обновления данных
+                    if account not in updates_nm_ids_data:
+                        updates_nm_ids_data[account] = []
+                    updates_nm_ids_data[account].extend(edit_data_from_table["qty_edit_data"][account]["nm_ids"])
 
         # если хоть по одному артикулу данные будут валидны...
-        if updates_nm_ids_data:
+        if len(updates_nm_ids_data):
             await asyncio.sleep(5)
-            return await self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
-                                                      only_edits_data=True, add_data_in_db=False,
-                                                      check_nm_ids_in_db=False)
+            result = await self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
+                                                        only_edits_data=True, add_data_in_db=False,
+                                                        check_nm_ids_in_db=False)
+            return result
 
         return updates_nm_ids_data
 
