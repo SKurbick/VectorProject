@@ -125,25 +125,27 @@ class ServiceGoogleSheet:
                     data_to_update_main[article_id] = {}
                 data_to_update_main[article_id].update({orders_and_np_date_header: sum_value})
 
-        try:
-            self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
-            logger.info("Данные по чп и выручке в Unit актуализированы")
-        except Exception as e:
-            logger.error(
-                f"{e} Ошибка при актуализации информации по выручке и чп в main. Повторная попытка 36 sec")
-            await asyncio.sleep(36)
-            self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
-            logger.info("Данные по чп и выручке в Unit актуализированы")
-        #
-        try:
-            await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)
-            logger.info("Данные по количеству заказов актуализированы")
-        except Exception as e:
-            logger.error(
-                f"{e} Ошибка при актуализации информации в Количество заказов. Повторная попытка 36 sec")
-            await asyncio.sleep(36)
-            await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)
-            logger.info("Данные по количеству заказов актуализированы")
+            try:
+                self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
+                logger.info("Данные по чп и выручке в Unit актуализированы")
+            except Exception as e:
+                logger.exception(
+                    f"[ERROR] {e} Ошибка при актуализации информации по выручке и чп в main. Повторная попытка 36 sec")
+                await asyncio.sleep(36)
+                self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
+                logger.info("Данные по чп и выручке в Unit актуализированы")
+            #
+            try:
+                await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)
+                logger.info("Данные по количеству заказов актуализированы")
+            except Exception as e:
+                logger.exception(
+                    f"[ERROR] {e} Ошибка при актуализации информации в Количество заказов. Повторная попытка 36 sec")
+                await asyncio.sleep(36)
+                await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)
+
+                # self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_orders)
+                # logger.info("Данные по количеству заказов актуализированы")
 
     async def add_revenue_for_new_nm_ids(self, lk_articles: dict):
         """ Добавление выручки по новым артикулам за 7 последних дней (сегодняшний не учитывается)"""
@@ -254,12 +256,8 @@ class ServiceGoogleSheet:
                             width=int(i['Текущая\nШирина (см)']), )
                         # добавляем результат вычислений в итоговые данные
                         i["Логистика от склада WB до ПВЗ"] = result_log_value
-
                     if only_edits_data is False:
-                        try:
-                            nm_ids_photo[int(i["Артикул"])] = i.pop("Фото")
-                        except KeyError as e:
-                            logger.info(f"не получено фото из массива")
+                        nm_ids_photo[int(i["Артикул"])] = i.pop("Фото")
 
                 # собираем остатки со складов продавца
                 barcodes_quantity_result = []
@@ -290,16 +288,15 @@ class ServiceGoogleSheet:
                 if add_data_in_db is True:
                     """добавляем артикулы в БД"""
                     add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
-        if len(nm_ids_photo) > 0:
+        if nm_ids_photo:
             self.gs_connect.add_photo(nm_ids_photo)
 
         # добавляем данные артикулов в psql в таблицу article
-        if len(result_nm_ids_data) > 0:
+        if result_nm_ids_data:
             # db = self.database()
             try:
                 async with Database1() as connection:
                     psql_article = ArticleTable(db=connection)
-
                     # ограничение функции: добавляет данные в psql, но только если их не было в бд json
                     filter_nm_ids = await psql_article.check_nm_ids(account="None", nm_ids=filter_nm_ids_data)
                     if filter_nm_ids:
@@ -311,7 +308,7 @@ class ServiceGoogleSheet:
 
         return result_nm_ids_data
 
-    async def change_cards_and_tables_data(self, edit_data_from_table):
+    async def change_cards_and_tables_data(self, db_nm_ids_data, edit_data_from_table):
         sheet_statuses = ServiceGoogleSheet.check_status()
         net_profit_status = sheet_statuses['Отрицательная \nЧП']
         price_discount_edit_status = sheet_statuses['Цены/Скидки']
@@ -322,7 +319,7 @@ class ServiceGoogleSheet:
 
         logger.info("Получил данные по ячейкам на изменение товара")
         for account, nm_ids_data in edit_data_from_table["nm_ids_edit_data"].items():
-            valid_data_result = validate_data(nm_ids_data)
+            valid_data_result = await validate_data(db_nm_ids_data, nm_ids_data)
             token = get_wb_tokens()[account.capitalize()]
             warehouses = WarehouseMarketplaceWB(token=token)
             warehouses_qty_edit = LeftoversMarketplace(token=token)
@@ -338,62 +335,47 @@ class ServiceGoogleSheet:
                 quantity_edit_data = []
                 for nm_id, data in valid_data_result.items():
                     # статус на изменение цены\скидки должен быть активным
-                    if "price_discount" in data and price_discount_edit_status:
-                        # если "Чистая прибыль" > выходит больше 0 или если статус редактирование по
-                        # отрицательному ЧП стоит 1,то артикул, с запросом на изменение цены или скидки, будет добавлен
-                        if data['net_profit'] >= 0 or net_profit_status:
-                            price_discount_data.append(
-                                {
-                                    "nmID": nm_id,
-                                    **data["price_discount"]
-                                }
-                            )
+                    if ("price_discount" in data and price_discount_edit_status and
+                            (data['net_profit'] >= 0 or net_profit_status)):
+                        price_discount_data.append({"nmID": nm_id, **data["price_discount"]})
                     # статус на изменение габаритов должен быть активным (вкл/выкл бот)
-                    if "sizes" and "dimensions" in data and dimensions_edit_status:
-                        size_edit_data.append(
-                            {
-                                "nmID": nm_id,
-                                "vendorCode": data["vendorCode"],
-                                "sizes": data["sizes"],
-                                "dimensions": data["dimensions"]
-                            }
-                        )
-
+                    if "dimensions" in data and dimensions_edit_status:
+                        size_edit_data.append({"nmID": nm_id, "vendorCode": data["vendorCode"],
+                                               "sizes": data["sizes"], "dimensions": data["dimensions"]})
                 """запрос на изменение цены и/или скидки по артикулу"""
-                if len(price_discount_data) > 0:
+                if price_discount_data:
                     wb_api_price_and_discount.add_new_price_and_discount(price_discount_data)
                     edit_column_clean["price_discount"] = True
 
                 """Запрос на изменение габаритов товара по артикулу и vendorCode (wild)"""
-                if len(size_edit_data) > 0:
+                if size_edit_data:
                     wb_api_content.size_edit(size_edit_data)
                     edit_column_clean["dimensions"] = True
                 """Перезаписываем данные в таблице после их изменений на WB"""
                 nm_ids_result = [int(nm_ids_str) for nm_ids_str in valid_data_result.keys()]
                 updates_nm_ids_data.update({account: nm_ids_result})
 
-            if account in edit_data_from_table["qty_edit_data"]:
-                if len(edit_data_from_table["qty_edit_data"][account]["stocks"]) > 0 and quantity_edit_status:
-                    "изменение остатков на всех складах продавца"
-                    logger.info("изменение остатков на всех складах продавца")
-                    for warehouse in warehouses.get_account_warehouse():
-                        warehouses_qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse["id"],
-                                                                        edit_barcodes_list=
-                                                                        edit_data_from_table["qty_edit_data"][
-                                                                            account]["stocks"])
-                    edit_column_clean["qty"] = True
-                    # добавляем артикул для обновления данных
-                    if account not in updates_nm_ids_data:
-                        updates_nm_ids_data[account] = []
-                    updates_nm_ids_data[account].extend(edit_data_from_table["qty_edit_data"][account]["nm_ids"])
+            if (account in edit_data_from_table["qty_edit_data"] and
+                    (len(edit_data_from_table["qty_edit_data"][account]["stocks"]) > 0 and quantity_edit_status)):
+                "изменение остатков на всех складах продавца"
+                logger.info("изменение остатков на всех складах продавца")
+                for warehouse in warehouses.get_account_warehouse():
+                    warehouses_qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse["id"],
+                                                                    edit_barcodes_list=
+                                                                    edit_data_from_table["qty_edit_data"][
+                                                                        account]["stocks"])
+                edit_column_clean["qty"] = True
+                # добавляем артикул для обновления данных
+                if account not in updates_nm_ids_data:
+                    updates_nm_ids_data[account] = []
+                updates_nm_ids_data[account].extend(edit_data_from_table["qty_edit_data"][account]["nm_ids"])
 
         # если хоть по одному артикулу данные будут валидны...
-        if len(updates_nm_ids_data):
+        if updates_nm_ids_data:
             await asyncio.sleep(5)
-            result = await self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
-                                                        only_edits_data=True, add_data_in_db=False,
-                                                        check_nm_ids_in_db=False)
-            return result
+            return await self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
+                                                      only_edits_data=True, add_data_in_db=False,
+                                                      check_nm_ids_in_db=False)
 
         return updates_nm_ids_data
 
@@ -483,7 +465,7 @@ class ServiceGoogleSheet:
                                                nm_ids_table_data=nm_ids_table_data)
 
             except asyncio.TimeoutError as e:
-                logger.error(f"[ERROR] {e}")
+                logger.exception(f"[ERROR] {e}")
                 logger.info("повторная попытка: Актуализируем данные в бд таблицы accurate_net_profit_data")
                 await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=current_time,
                                                nm_ids_table_data=nm_ids_table_data)
@@ -495,22 +477,16 @@ class ServiceGoogleSheet:
         for i in range(10):
             try:
                 sheet_status = GoogleSheet(creds_json="creds.json",
-                                           spreadsheet="UNIT 2.0 (tested)", sheet="ВКЛ/ВЫКЛ Бот")
+                                           spreadsheet="Тестирование. Возвраты на ПВЗ", sheet="ВКЛ/ВЫКЛ Бот")
                 return sheet_status.check_status_service_sheet()
             except gspread.exceptions.APIError as e:
-                logger.error(f"попытка {i} {e} следующая попытка через 75 секунд")
+                logger.exception(f"попытка {i} {e} следующая попытка через 75 секунд")
                 time.sleep(75)
 
         return False
 
     @staticmethod
-    def __validate_value(value: str, type_value: type) -> Any:
-        try:
-            return type_value(value)
-        except (ValueError, TypeError):
-            return
-
-    def __convert_to_dict(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def __convert_to_dict(data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Преобразует данные из базы данных в словарь с удобочитаемыми ключами.
         Аргументы:
@@ -519,19 +495,18 @@ class ServiceGoogleSheet:
             dict: Словарь с преобразованными ключами и обработанными значениями
         """
         return {
-            "Артикул": self.__validate_value(data["article_id"], int),  # int
-            "Предмет": self.__validate_value(data["subject_name"], str),  # str
-            "Скидка %": self.__validate_value(data["discount"], int),  # int
-            "Текущая\nДлина (см)": self.__validate_value(data["length"], int),  # int
-            "Текущая\nШирина (см)": self.__validate_value(data["width"], int),  # int
-            "Текущая\nВысота (см)": self.__validate_value(data["height"], int),  # int
-            "Баркод": self.__validate_value(data["barcode"], str),  # str
-            "Логистика от склада WB до ПВЗ": self.__validate_value(data["logistic_from_wb_wh_to_opp"], float),  # float
-            "Комиссия WB": self.__validate_value(data["commission_wb"], float),  # float
-            "Цена на WB без скидки": self.__validate_value(data["price"], float),  # float
-            # "Рейтинг": self.__validate_value(data["rating"], float),  # float
-            "wild": self.__validate_value(data["local_vendor_code"], str),  # str
-            "Фото": self.__validate_value(data["photo_link"], str)  # str
+            "Артикул": data["article_id"] or None,  # int
+            "Предмет": data["subject_name"] or None,  # str
+            "Скидка %": data["discount"] or None,  # int
+            "Текущая\nДлина (см)": data["length"] or None,  # int
+            "Текущая\nШирина (см)": data["width"] or None,  # int
+            "Текущая\nВысота (см)": data["height"] or None,  # int
+            "Баркод": data["barcode"] or None,  # str
+            "Логистика от склада WB до ПВЗ": float(data["logistic_from_wb_wh_to_opp"]) or None,  # float
+            "Комиссия WB": float(data["commission_wb"]) or None,  # float
+            "Рейтинг": float(data["rating"]) or None,
+            "wild": data["local_vendor_code"] or None,  # str
+            "Фото": data["photo_link"] or None  # str
         }
 
     async def get_actually_data_from_db(self, db: Database1, article_ids: Set[int]) -> Dict[int, Dict[str, Any]]:
@@ -542,8 +517,9 @@ class ServiceGoogleSheet:
         Возвращает:
             dict: Словарь, где ключ - артикул товара, значение - данные о товаре в формате словаря
         """
-        card_data_result = await CardData(db).get_actually_all_information(article_ids)
-        return {data["article_id"]: self.__convert_to_dict(data) for data in card_data_result}
+        card_data_result = await CardData(db).get_actual_information_to_db(article_ids)
+        return {data["article_id"]: self.__convert_to_dict(data)
+                for data in card_data_result}
 
     async def get_actually_data_to_table_refactor(self, db: Database1) -> tuple[Any]:
         """
@@ -591,13 +567,14 @@ class ServiceGoogleSheet:
         """
         if ServiceGoogleSheet.check_status()['ВКЛ - 1 /ВЫКЛ - 0']:
             logger.info(f"[INFO] {datetime.datetime.now()} актуализируем данные в таблице")
-            article_id_to_update = await self.get_actually_data_to_table_refactor(db)
+            article_id_to_update = await self.get_actually_data_to_table_refactor(db=db)
             article_id_to_update, photos = self._get_photos_and_filter_empty_value(article_id_to_update)
             logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице")
             self.gs_connect.update_rows(data_json=article_id_to_update)
             if len(photos) > 0:
                 logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице ФОТО")
-                gs_connect_photo = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet="ФОТО")
+                gs_connect_photo = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet,
+                                               sheet="ФОТО")
                 await gs_connect_photo.add_data_to_count_list(photos)
 
     async def get_actually_virtual_qty(self, account, data: dict, token):
@@ -714,7 +691,7 @@ class ServiceGoogleSheet:
                                 if cd not in articles_qty_wb[article]:
                                     articles_qty_wb[article].update({cd: ""})
                     except KeyError as e:
-                        logger.error(e)
+                        logger.exception(e)
                         logger.info(account)
                         logger.info(qty_data)
         return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}
@@ -953,7 +930,7 @@ class ServiceGoogleSheet:
             statistic = Statistic(token=token)
             task_by_supplies = asyncio.create_task(statistic.get_supplies_data(date=yesterday))
             task_by_qty = asyncio.create_task(
-                self.get_qty_data_by_account_for_turnover(account=account,token=token, data=data, warehouses_info=warehouses_info))
+                self.get_qty_data_by_account_for_turnover(token=token, data=data, warehouses_info=warehouses_info))
             tasks_by_qty.append(task_by_qty)
             tasks_by_supplies.append(task_by_supplies)
 
@@ -1005,7 +982,7 @@ class ServiceGoogleSheet:
             await inventory_turnover_by_reg.update_stock_balances(yesterday, ready_qty_data, plus_supply)
         logger.info("[INFO] Завершили актуализацию остатков")
 
-    async def get_qty_data_by_account_for_turnover(self,account, token, data, warehouses_info):
+    async def get_qty_data_by_account_for_turnover(self, token, data, warehouses_info):
         wh_analytics = AnalyticsWarehouseLimits(token=token)
 
         barcodes_set = set(data.keys())  # баркоды по аккаунту с таблицы
@@ -1016,46 +993,40 @@ class ServiceGoogleSheet:
 
         if task_id is not None and len(wb_warehouse_qty) > 0:
             if wb_warehouse_qty:  # собираем остатки со складов WB
-
                 for qty_data in wb_warehouse_qty:
-                    try:  # почему-то начал отображать в данные по артикулам без ключа barcode
+                    if qty_data['barcode'] in barcodes_set:
+                        barcode = qty_data['barcode']
+                        article = data[barcode]
+                        articles_qty_wb[article] = {
+                            # "ФБО": qty_data['quantityWarehousesFull'],
+                            "barcode": barcode
+                        }
+                        warehouses = qty_data['warehouses']
 
-                        if qty_data['barcode'] in barcodes_set:
-                            barcode = qty_data['barcode']
-                            article = data[barcode]
-                            articles_qty_wb[article] = {
-                                # "ФБО": qty_data['quantityWarehousesFull'],
-                                "barcode": barcode
-                            }
-                            warehouses = qty_data['warehouses']
+                        if len(warehouses) > 0:
+                            for wh_data in warehouses:
+                                warehouse_name = wh_data["warehouseName"]
+                                if warehouse_name in warehouses_info:
+                                    region_name_by_warehouse = warehouses_info[warehouse_name]
+                                    # по задумке должен суммировать остатки всех закрепленных регионов к складам
+                                    if region_name_by_warehouse not in articles_qty_wb[article]:
+                                        articles_qty_wb[article][region_name_by_warehouse] = 0
+                                    articles_qty_wb[article][region_name_by_warehouse] += wh_data["quantity"]
 
-                            if len(warehouses) > 0:
-                                for wh_data in warehouses:
-                                    warehouse_name = wh_data["warehouseName"]
-                                    if warehouse_name in warehouses_info:
-                                        region_name_by_warehouse = warehouses_info[warehouse_name]
-                                        # по задумке должен суммировать остатки всех закрепленных регионов к складам
-                                        if region_name_by_warehouse not in articles_qty_wb[article]:
-                                            articles_qty_wb[article][region_name_by_warehouse] = 0
-                                        articles_qty_wb[article][region_name_by_warehouse] += wh_data["quantity"]
+                                else:
+                                    if warehouse_name not in untracked_warehouses:
+                                        untracked_warehouses[warehouse_name] = 0
+                                    untracked_warehouses[warehouse_name] += wh_data["quantity"]
 
-                                    else:
-                                        if warehouse_name not in untracked_warehouses:
-                                            untracked_warehouses[warehouse_name] = 0
-                                        untracked_warehouses[warehouse_name] += wh_data["quantity"]
+                        clean_data = {"Центральный": "",
+                                      "Южный": "",
+                                      "Северо-Кавказский": "",
+                                      "Приволжский": ""}
 
-                            clean_data = {"Центральный": "",
-                                          "Южный": "",
-                                          "Северо-Кавказский": "",
-                                          "Приволжский": ""}
+                        for cd in clean_data:
+                            if cd not in articles_qty_wb[article]:
+                                articles_qty_wb[article][cd] = 0
 
-                            for cd in clean_data:
-                                if cd not in articles_qty_wb[article]:
-                                    articles_qty_wb[article][cd] = 0
-                    except KeyError as e:
-                        logger.error(e)
-                        logger.info(account)
-                        logger.info(qty_data)
         return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}
 
     async def find_out_orders_by_balances(self):
@@ -1087,7 +1058,7 @@ class ServiceGoogleSheet:
                         )
                 except KeyError as e:
                     error_article.append(article)
-                    logger.error(f" KeyError {e}")
+                    logger.exception(f"[ERROR] KeyError {e}")
             # await inventory_turnover_by_reg.update_orders(data=data_to_update)
             logger.info("Данные по заказам ФБО обновлено в бд таблицы 'inventory_turnover_by_reg'")
 
@@ -1148,6 +1119,8 @@ class ServiceGoogleSheet:
                     (article, district, search_date_format, data['supply_qty'], data['supply_count'])
                 )
 
+        # print(prepare_data_for_db)
+        # print(len(result_dict_data))
         logger.info(prepare_data_for_db)
         async with Database1() as connection:
             inventory_turnover_by_reg = InventoryTurnoverByRegTable(db=connection)
@@ -1240,3 +1213,9 @@ class ServiceGoogleSheet:
         # актуализируем данные в таблице
         await self.gs_connect.update_qty_by_reg(update_data=avg_data_by_orders)
         logger.info("Усредненные данные по заказам со складов\регионов актуализированы в Таблице")
+
+    # async def test(self):
+    #     async with Database1() as connection:
+    #         accurate_test = AccurateNetProfitTable(db=connection)
+    #         await accurate_test.add_new_article_net_profit_data(None, None, None, None)
+    #         print("end test")

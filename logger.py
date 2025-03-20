@@ -50,6 +50,7 @@ def log_job(func):
             level="INFO",
             filter=filter_func
         )
+
         with loguru_logger.contextualize(job=job_name):
             loguru_logger.info(f"Начало выполнения задачи '{job_name}' в файле {job_file} (время: {timestamp})")
             try:
@@ -57,7 +58,7 @@ def log_job(func):
                 loguru_logger.info(f"Задача '{job_name}' завершена успешно")
                 return result
             except Exception as e:
-                loguru_logger.error(f"Ошибка в задаче '{job_name}': {e}")
+                loguru_logger.exception(f"Ошибка в задаче '{job_name}': {e}")
                 raise
             finally:
                 loguru_logger.remove(sink_id)

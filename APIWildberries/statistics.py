@@ -37,15 +37,11 @@ class Statistic:
         }
         logger.info("get_orders_data")
         for _ in range(10):
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url=url, params=params, headers=self.headers) as response:
-                        response_json = await response.json()
-                        if response.status == 200:
-                            logger.info("get_supplies_data, 200")
-                            return response_json
-                        logger.warning(f" status code {response.status}, {response_json}, sleep 36 sec")
-                        await asyncio.sleep(36)
-            except aiohttp.http_exceptions.TransferEncodingError as e:
-                logger.warning(f" TransferEncodingError | sleep 36 sec")
-                await asyncio.sleep(36)
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url=url, params=params, headers=self.headers) as response:
+                    response_json = await response.json()
+                    if response.status == 200:
+                        logger.info("get_supplies_data, 200")
+                        return response_json
+                    logger.info(f"[ERROR] status code {response.status}, {response_json}, sleep 36 sec")
+                    await asyncio.sleep(36)
