@@ -480,7 +480,7 @@ class ServiceGoogleSheet:
         for i in range(10):
             try:
                 sheet_status = GoogleSheet(creds_json="creds.json",
-                                           spreadsheet="Тестирование. Возвраты на ПВЗ", sheet="ВКЛ/ВЫКЛ Бот")
+                                           spreadsheet="UNIT 2.0 (tested)", sheet="ВКЛ/ВЫКЛ Бот")
                 return sheet_status.check_status_service_sheet()
             except gspread.exceptions.APIError as e:
                 logger.error(f"попытка {i} {e} следующая попытка через 75 секунд")
