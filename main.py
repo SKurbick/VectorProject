@@ -132,4 +132,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(job_check_edits_columns_and_add_actually_data_to_table())
+    asyncio.run(main())
