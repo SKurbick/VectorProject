@@ -8,6 +8,6 @@ async def telegram(message):
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     params = {"chat_id": f"{chat_id}", "text": message, "parse_mode": 'HTML'}
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=120)) as session:
-        async with session.get(url, params=params, ssl=False) as response:
+        async with session.get(url, params=params) as response:
             await response.text()
             print("telegram", response)
