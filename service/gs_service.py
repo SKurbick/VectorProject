@@ -608,12 +608,10 @@ class ServiceGoogleSheet:
 
         if ServiceGoogleSheet.check_status()['ВКЛ - 1 /ВЫКЛ - 0']:
             logger.info(f"[INFO] {datetime.datetime.now()} актуализируем данные по остаткам в таблице")
-
             gs_connect_main = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet=self.sheet)
             lk_articles = await gs_connect_main.create_lk_barcodes_articles()
             gs_connect_warehouses_info = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet,
                                                      sheet="Склады ИНФ")
-
             # словарь с регионом и группой складов
             warehouses_info = await gs_connect_warehouses_info.get_warehouses_info()
             logger.info(f"warehouse_info : {warehouses_info}")
@@ -665,44 +663,140 @@ class ServiceGoogleSheet:
 
         if task_id is not None and len(wb_warehouse_qty) > 0:
             if wb_warehouse_qty:  # собираем остатки со складов WB
-                for qty_data in wb_warehouse_qty:
-                    try:  # почему-то начал отображать в данные по артикулам без ключа barcode
-                        if qty_data['barcode'] in barcodes_set:
-                            barcode = qty_data['barcode']
-                            article = data[barcode]
-                            articles_qty_wb[article] = {
-                                "ФБО": qty_data['quantityWarehousesFull'],
-                            }
-                            warehouses = qty_data['warehouses']
+                if "quantityWarehousesFull" not in wb_warehouse_qty[0]:
+                    return self.get_articles_qty_wb_new_method(account=account, barcodes_set=barcodes_set, wb_warehouse_qty=wb_warehouse_qty,
+                                                               warehouses_info=warehouses_info, data=data)
+                return self.get_articles_qty_wb(account=account, barcodes_set=barcodes_set, wb_warehouse_qty=wb_warehouse_qty,
+                                                warehouses_info=warehouses_info, data=data)
+                # for qty_data in wb_warehouse_qty:
+                #     try:  # почему-то начал отображать в данные по артикулам без ключа barcode
+                #         if qty_data['barcode'] in barcodes_set:
+                #             barcode = qty_data['barcode']
+                #             article = data[barcode]
+                #             articles_qty_wb[article] = {
+                #                 "ФБО": qty_data['quantityWarehousesFull'],
+                #             }
+                #             warehouses = qty_data['warehouses']
+                #
+                #             if len(warehouses) > 0:
+                #                 for wh_data in warehouses:
+                #                     warehouse_name = wh_data["warehouseName"]
+                #
+                #                     if warehouse_name in warehouses_info:
+                #                         region_name_by_warehouse = warehouses_info[warehouse_name]
+                #                         # по задумке должен суммировать остатки всех закрепленных регионов к складам
+                #                         if region_name_by_warehouse not in articles_qty_wb[article]:
+                #                             articles_qty_wb[article][region_name_by_warehouse] = 0
+                #                         articles_qty_wb[article][region_name_by_warehouse] += wh_data["quantity"]
+                #
+                #                     else:
+                #                         if warehouse_name not in untracked_warehouses:
+                #                             untracked_warehouses[warehouse_name] = 0
+                #                         untracked_warehouses[warehouse_name] += wh_data["quantity"]
+                #
+                #             clean_data = {"Центральный": "",
+                #                           "Южный": "",
+                #                           "Северо-Кавказский": "",
+                #                           "Приволжский": ""}
+                #
+                #             for cd in clean_data:
+                #                 if cd not in articles_qty_wb[article]:
+                #                     articles_qty_wb[article].update({cd: ""})
+                #     except KeyError as e:
+                #         logger.error(e)
+                #         logger.info(account)
+                #         logger.info(qty_data)
+        return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}
 
-                            if len(warehouses) > 0:
-                                for wh_data in warehouses:
-                                    warehouse_name = wh_data["warehouseName"]
+    @staticmethod
+    def get_articles_qty_wb(wb_warehouse_qty, barcodes_set, data, warehouses_info, account):
+        articles_qty_wb = {}
+        untracked_warehouses = {}
+        for qty_data in wb_warehouse_qty:
+            try:  # почему-то начал отображать в данные по артикулам без ключа barcode
+                if qty_data['barcode'] in barcodes_set:
+                    barcode = qty_data['barcode']
+                    article = data[barcode]
+                    articles_qty_wb[article] = {
+                        "ФБО": qty_data['quantityWarehousesFull'],
+                    }
+                    warehouses = qty_data['warehouses']
 
-                                    if warehouse_name in warehouses_info:
-                                        region_name_by_warehouse = warehouses_info[warehouse_name]
-                                        # по задумке должен суммировать остатки всех закрепленных регионов к складам
-                                        if region_name_by_warehouse not in articles_qty_wb[article]:
-                                            articles_qty_wb[article][region_name_by_warehouse] = 0
-                                        articles_qty_wb[article][region_name_by_warehouse] += wh_data["quantity"]
+                    if len(warehouses) > 0:
+                        for wh_data in warehouses:
+                            warehouse_name = wh_data["warehouseName"]
 
-                                    else:
-                                        if warehouse_name not in untracked_warehouses:
-                                            untracked_warehouses[warehouse_name] = 0
-                                        untracked_warehouses[warehouse_name] += wh_data["quantity"]
+                            if warehouse_name in warehouses_info:
+                                region_name_by_warehouse = warehouses_info[warehouse_name]
+                                # по задумке должен суммировать остатки всех закрепленных регионов к складам
+                                if region_name_by_warehouse not in articles_qty_wb[article]:
+                                    articles_qty_wb[article][region_name_by_warehouse] = 0
+                                articles_qty_wb[article][region_name_by_warehouse] += wh_data["quantity"]
 
-                            clean_data = {"Центральный": "",
-                                          "Южный": "",
-                                          "Северо-Кавказский": "",
-                                          "Приволжский": ""}
+                            else:
+                                if warehouse_name not in untracked_warehouses:
+                                    untracked_warehouses[warehouse_name] = 0
+                                untracked_warehouses[warehouse_name] += wh_data["quantity"]
 
-                            for cd in clean_data:
-                                if cd not in articles_qty_wb[article]:
-                                    articles_qty_wb[article].update({cd: ""})
-                    except KeyError as e:
-                        logger.error(e)
-                        logger.info(account)
-                        logger.info(qty_data)
+                    clean_data = {"Центральный": "",
+                                  "Южный": "",
+                                  "Северо-Кавказский": "",
+                                  "Приволжский": ""}
+
+                    for cd in clean_data:
+                        if cd not in articles_qty_wb[article]:
+                            articles_qty_wb[article].update({cd: ""})
+            except KeyError as e:
+                logger.error(e)
+                logger.info(account)
+                logger.info(qty_data)
+
+        return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}
+
+    @staticmethod
+    def get_articles_qty_wb_new_method(wb_warehouse_qty, barcodes_set, data, warehouses_info, account):
+
+        articles_qty_wb = {}
+        untracked_warehouses = {}
+        for qty_data in wb_warehouse_qty:
+            try:  # почему-то начал отображать в данные по артикулам без ключа barcode
+                if qty_data['barcode'] in barcodes_set:
+                    barcode = qty_data['barcode']
+                    article = data[barcode]
+                    articles_qty_wb[article] = {
+                        "ФБО": 0,
+                        "Центральный": "",
+                        "Южный": "",
+                        "Северо-Кавказский": "",
+                        "Приволжский": ""
+                    }
+                    warehouses = qty_data['warehouses']
+
+                    if len(warehouses) > 1:
+                        for wh_data in warehouses:
+                            warehouse_name = wh_data["warehouseName"]
+                            if warehouse_name == "Всего находится на складах":
+                                articles_qty_wb[article]['ФБО'] += wh_data['quantity']
+
+                            if warehouse_name in warehouses_info:
+                                region_name_by_warehouse = warehouses_info[wh_data["warehouseName"]]
+
+                                if articles_qty_wb[article][region_name_by_warehouse] == "":
+                                    articles_qty_wb[article][region_name_by_warehouse] = 0
+                                articles_qty_wb[article][region_name_by_warehouse] += wh_data["quantity"]
+
+                            else:
+                                # сбор данных по остаткам складов которые не отслеживаются по регионам
+                                if warehouse_name in ("Всего находится на складах", "В пути возвраты на склад WB",
+                                                      "В пути до получателей"):
+                                    continue
+                                if warehouse_name not in untracked_warehouses:
+                                    untracked_warehouses[warehouse_name] = 0
+                                untracked_warehouses[warehouse_name] += wh_data["quantity"]
+            except KeyError as e:
+                logger.error(e)
+                logger.info(account)
+                logger.info(qty_data)
         return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}
 
     async def check_quantity_flag(self):
@@ -939,7 +1033,7 @@ class ServiceGoogleSheet:
             statistic = Statistic(token=token)
             task_by_supplies = asyncio.create_task(statistic.get_supplies_data(date=yesterday))
             task_by_qty = asyncio.create_task(
-                self.get_qty_data_by_account_for_turnover(account=account,token=token, data=data, warehouses_info=warehouses_info))
+                self.get_qty_data_by_account_for_turnover(account=account, token=token, data=data, warehouses_info=warehouses_info))
             tasks_by_qty.append(task_by_qty)
             tasks_by_supplies.append(task_by_supplies)
 
@@ -991,7 +1085,7 @@ class ServiceGoogleSheet:
             await inventory_turnover_by_reg.update_stock_balances(yesterday, ready_qty_data, plus_supply)
         logger.info("[INFO] Завершили актуализацию остатков")
 
-    async def get_qty_data_by_account_for_turnover(self,account, token, data, warehouses_info):
+    async def get_qty_data_by_account_for_turnover(self, account, token, data, warehouses_info):
         wh_analytics = AnalyticsWarehouseLimits(token=token)
 
         barcodes_set = set(data.keys())  # баркоды по аккаунту с таблицы

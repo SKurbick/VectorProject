@@ -124,7 +124,7 @@ def job_error_listener(event):
 
 
 async def main():
-    logger.info("Запуск приложений")
+    logger.info("Запуск приложения 🦋")
     scheduler.add_listener(job_error_listener, EVENT_JOB_ERROR)
     scheduler.start()
     with contextlib.suppress(KeyboardInterrupt, SystemExit):
