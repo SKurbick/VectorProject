@@ -91,7 +91,6 @@ async def check_new_nm_ids():
 
 
 async def check_edits_columns(db: Database1):
-    logger.info("смотрим retry_to_check_edit_columns")
     service_google_sheet = ServiceGoogleSheet.check_status()
     if service_google_sheet['ВКЛ - 1 /ВЫКЛ - 0']:
         try:
