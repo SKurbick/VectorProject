@@ -367,7 +367,7 @@ class GoogleSheet:
         edit_min_qty = {}
         for index, row in df.iterrows():
             article = row["Артикул"]
-            account = str(row["ЛК"])
+            account = str(row["ЛК"].capitalize())
             min_qty = row["Минимальный остаток"]
             current_qty = row["ФБС"]
             current_qty_wb = row["ФБО"]

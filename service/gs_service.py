@@ -782,7 +782,7 @@ class ServiceGoogleSheet:
                 sopost_data = GoogleSheetSopostTable().wild_quantity()
                 nm_ids_for_update_data = {}
                 if len(low_limit_qty_data["result_data"]) > 0 or len(low_limit_qty_data["edit_fbc_qty_data"]) > 0:
-                    logger.info("Есть остатки ниже установленного флага")
+                    logger.info(f"Есть остатки ниже установленного флага: {low_limit_qty_data}")
                     for account, edit_data in low_limit_qty_data["result_data"].items():
                         update_qty_data = []
                         token = get_wb_tokens()[account.capitalize()]
