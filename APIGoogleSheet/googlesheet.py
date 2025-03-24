@@ -241,8 +241,10 @@ class GoogleSheet:
         for index, row in df.iterrows():
             article = row['Артикул']
             account = str(row['ЛК']).capitalize()
-            if any([not article.isdigit(), not account.strip(), article not in db_nm_ids_data.keys(),
-                    "vendor_code" not in db_nm_ids_data[article]]):
+            # if any([not article.isdigit(), not account.strip(), article not in db_nm_ids_data.keys(),
+            #         "vendor_code" not in db_nm_ids_data[article]]):
+            #     continue
+            if not article.isdigit() or not account.strip() or article not in db_nm_ids_data or "vendor_code" not in db_nm_ids_data[article]:
                 continue
             article_dict = self.get_article_dict(service_google_sheet, row, db_nm_ids_data[article])
             self.update_result_qty_edit_data(service_google_sheet, result_qty_edit_data, account, row)
