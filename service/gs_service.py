@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 import time
-from pprint import pformat
+from pprint import pformat, pprint
 from typing import Tuple, List, Dict, Any, Set
 
 import gspread.exceptions
@@ -761,72 +761,58 @@ class ServiceGoogleSheet:
     async def check_quantity_flag(self):
         logger.info("Проверка остатков по лимитам из столбца 'Минимальный остаток'")
         status = ServiceGoogleSheet.check_status()
-        status_limit_edit = status["Добавить если"]
-        status_open_close_fbs = status["ОТКРЫТИЕ/ЗАКРЫТИЕ ФБС"]
-        status_min_qty = status['минимальный\nостаток']
-        add_qty = status['повышение\n остатков']
-        status_average_orders_percent = status['среднее арифм. \nот заказов (%)']
+        status_limit_edit = int(status["Добавить если"])
         status_off_on_service = bool(int(status["ВКЛ - 1 /ВЫКЛ - 0"]))
-        bot_status = {"status_min_qty": bool(int(status_min_qty)),
-                      "status_open_close_fbs": bool(int(status_open_close_fbs))}
-        logger.info(bot_status)
+        logger.info(status_limit_edit)
         # если сервис включен
-        if status_off_on_service:
-            # если включены флаги на изменение остатков
-            if bot_status["status_min_qty"] or bot_status["status_open_close_fbs"]:
-                low_limit_qty_data = self.gs_connect.get_data_quantity_limit(status_min_qty=status_min_qty,
-                                                                             add_qty=add_qty,
-                                                                             status_average_orders_percent=status_average_orders_percent,
-                                                                             bot_status=bot_status)
+        if status_off_on_service and status_limit_edit:  # если включены флаги на изменение остатков
+            low_limit_qty_data = self.gs_connect.get_data_quantity_limit()
+            pprint(low_limit_qty_data)
+            sopost_data = GoogleSheetSopostTable().wild_quantity()
+            pprint(sopost_data)
+            nm_ids_for_update_data = {}
+            if len(low_limit_qty_data) > 0:
+                logger.info(f"Есть остатки ниже установленного флага: {low_limit_qty_data}")
+                for account, edit_data in low_limit_qty_data.items():
+                    update_qty_data = []
+                    token = get_wb_tokens()[account.capitalize()]
+                    warehouses = WarehouseMarketplaceWB(token=token).get_account_warehouse()
+                    qty_edit = LeftoversMarketplace(token=token)
 
-                sopost_data = GoogleSheetSopostTable().wild_quantity()
-                nm_ids_for_update_data = {}
-                if len(low_limit_qty_data["result_data"]) > 0 or len(low_limit_qty_data["edit_fbc_qty_data"]) > 0:
-                    logger.info(f"Есть остатки ниже установленного флага: {low_limit_qty_data}")
-                    for account, edit_data in low_limit_qty_data["result_data"].items():
-                        update_qty_data = []
-                        token = get_wb_tokens()[account.capitalize()]
-                        warehouses = WarehouseMarketplaceWB(token=token).get_account_warehouse()
-                        qty_edit = LeftoversMarketplace(token=token)
+                    if len(edit_data["qty"]) > 0:
+                        for qty_data in edit_data["qty"]:
+                            add_qty = str(sopost_data[qty_data["wild"]]).replace("\xa0", "")
+                            if add_qty.isdigit() and int(add_qty) != 0:
+                                update_qty_data.append(
+                                    {
+                                        "sku": qty_data["sku"],
+                                        "amount": int(add_qty)
+                                    }
+                                )
+                    print(account)
+                    pprint(update_qty_data)
+                    if len(update_qty_data):
+                        for warehouse_id in warehouses:
+                            qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse_id["id"],
+                                                                 edit_barcodes_list=update_qty_data)
 
-                        if len(edit_data["qty"]) > 0:
-                            for qty_data in edit_data["qty"]:
-                                if str(sopost_data[qty_data["wild"]]).isdigit() and int(
-                                        sopost_data[qty_data["wild"]]) != 0:
-                                    update_qty_data.append(
-                                        {
-                                            "sku": qty_data["sku"],
-                                            "amount": int(sopost_data[qty_data["wild"]])
-                                        }
-                                    )
+                        if account not in nm_ids_for_update_data:
+                            nm_ids_for_update_data[account] = []
+                        logger.info("nm_ids_for_update_data")
+                        logger.info(nm_ids_for_update_data)
+                        nm_ids_for_update_data[account].extend(low_limit_qty_data[account]['nm_ids'])
+            if len(nm_ids_for_update_data) > 0:
+                logger.info(nm_ids_for_update_data)
+                nm_ids_data_json = await self.add_new_data_from_table(lk_articles=nm_ids_for_update_data,
+                                                                      only_edits_data=True, add_data_in_db=False,
+                                                                      check_nm_ids_in_db=False)
+                # if len(low_limit_qty_data["edit_min_qty"]) > 0:
+                #     logger.info(low_limit_qty_data["edit_min_qty"])
+                #     nm_ids_data_json = merge_dicts(nm_ids_data_json, low_limit_qty_data["edit_min_qty"])
 
-                        # добавляет баркоды с новыми остатками для запроса на изменение остатков
-                        if account in low_limit_qty_data["edit_fbc_qty_data"] and len(
-                                low_limit_qty_data["edit_fbc_qty_data"][account]) > 0:
-                            update_qty_data.extend(low_limit_qty_data["edit_fbc_qty_data"][account])
-
-                        if len(update_qty_data):
-                            for warehouse_id in warehouses:
-                                qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse_id["id"],
-                                                                     edit_barcodes_list=update_qty_data)
-
-                            if account not in nm_ids_for_update_data:
-                                nm_ids_for_update_data[account] = []
-                            logger.info("nm_ids_for_update_data")
-                            logger.info(nm_ids_for_update_data)
-                            nm_ids_for_update_data[account].extend(low_limit_qty_data["result_data"][account]['nm_ids'])
-                if len(nm_ids_for_update_data) > 0:
-                    logger.info(nm_ids_for_update_data)
-                    nm_ids_data_json = await self.add_new_data_from_table(lk_articles=nm_ids_for_update_data,
-                                                                          only_edits_data=True, add_data_in_db=False,
-                                                                          check_nm_ids_in_db=False)
-                    if len(low_limit_qty_data["edit_min_qty"]) > 0:
-                        logger.info(low_limit_qty_data["edit_min_qty"])
-                        nm_ids_data_json = merge_dicts(nm_ids_data_json, low_limit_qty_data["edit_min_qty"])
-
-                    self.gs_connect.update_rows(data_json=nm_ids_data_json,
-                                                edit_column_clean={"qty": False, "price_discount": False,
-                                                                   "dimensions": False})
+                self.gs_connect.update_rows(data_json=nm_ids_data_json,
+                                            edit_column_clean={"qty": False, "price_discount": False,
+                                                               "dimensions": False})
 
     async def add_orders_data_in_table(self):
         from utils import get_order_data_from_database
