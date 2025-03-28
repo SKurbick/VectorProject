@@ -9,7 +9,7 @@ from gspread.utils import rowcol_to_a1
 import gspread
 import requests
 from gspread import Client, service_account
-from utils import get_nm_ids_in_db, column_index_to_letter, get_data_for_nm_ids, subtract_percentage, can_be_int
+from utils import get_nm_ids_in_db, column_index_to_letter, can_be_int
 import pandas as pd
 
 from logger import app_logger as logger
@@ -23,7 +23,7 @@ def retry_on_quota_exceeded_async(max_retries=10, delay=60):
                 try:
                     return await func(*args, **kwargs)
                 except gspread.exceptions.APIError as e:
-                    logger.exception(e)
+                    logger.error(e)
                     logger.error(f"Async sleep {delay} sec [сработал декоратор]")
                     await asyncio.sleep(delay)
                     retries += 1
@@ -45,8 +45,7 @@ class GoogleSheet:
                 self.sheet = spreadsheet.worksheet(sheet)
                 break
             except (gspread.exceptions.APIError, requests.exceptions.ConnectionError) as e:
-                logger.info(datetime.now())
-                logger.exception(e)
+                logger.error(e)
                 logger.info("time sleep 60 sec")
                 time.sleep(60)
 
@@ -146,7 +145,7 @@ class GoogleSheet:
         try:
             json_df = json_df.drop(["vendor_code", "account"], axis=1)
         except KeyError as e:
-            logger.exception(f"[func:update_rows] {e} 'vendor_code', 'account'")
+            logger.error(f"[func:update_rows] {e} 'vendor_code', 'account'")
         # Преобразуем все значения в json_df в типы данных, которые могут быть сериализованы в JSON
         json_df = json_df.astype(object).where(pd.notnull(json_df), None)
         # Обновите данные в основном DataFrame на основе "Артикул"
@@ -203,8 +202,33 @@ class GoogleSheet:
         logger.info("Данные успешно обновлены.")
         return True
 
-    def get_edit_data(self, dimension_status, price_and_discount_status, qty_status):
-        db_nm_ids_data = get_data_for_nm_ids()
+    @staticmethod
+    def get_article_dict(service_google_sheet, row, row_article):
+        article_dict = {'wild': row_article["vendor_code"],
+                        'Чистая прибыль 1ед.': row['Чистая прибыль 1ед.'].replace('\xa0', '')}
+        if service_google_sheet["Цены/Скидки"] and str(row['Чистая прибыль 1ед.'].replace('\xa0', '')).lstrip(
+                '-').isdigit():
+            article_dict["price_discount"] = \
+                {'Установить новую цену': row['Установить новую цену'].replace('\xa0', ''),
+                 'Установить новую скидку %': row['Установить новую скидку %'].replace('\xa0', '')}
+        if service_google_sheet["Габариты"]:
+            article_dict["dimensions"] = {'Новая\nДлина (см)': row['Новая\nДлина (см)'].replace('\xa0', ''),
+                                          'Новая\nШирина (см)': row['Новая\nШирина (см)'].replace('\xa0', ''),
+                                          'Новая\nВысота (см)': row['Новая\nВысота (см)'].replace('\xa0', '')}
+        return article_dict
+
+    @staticmethod
+    def update_result_qty_edit_data(service_google_sheet, result_qty_edit_data, account, row):
+        if service_google_sheet["Остаток"]:
+            if account not in result_qty_edit_data:
+                result_qty_edit_data[account] = {"stocks": [], "nm_ids": []}
+            if str(row["Новый остаток"]).isdigit():
+                result_qty_edit_data[account]["stocks"].append(
+                    {"sku": row["Баркод"], "amount": int(row["Новый остаток"].replace('\xa0', ''))}, )
+                # nm_id нам будет нужен для функции обновления данных почему в список?
+                result_qty_edit_data[account]["nm_ids"].append(int(row["Артикул"]))
+
+    async def get_edit_data(self, db_nm_ids_data, service_google_sheet):
         """
         Получает данные с запросом на изменение с таблицы
         """
@@ -212,63 +236,22 @@ class GoogleSheet:
 
         # Преобразуйте данные в DataFrame
         df = pd.DataFrame(data[1:], columns=data[0])
-
-        # Определите индексы столбцов по их названиям
-        header_indices = {header: df.columns.get_loc(header) for header in df.columns}
-
-        # Инициализация пустого словаря для результата
         result_nm_ids_data = {}
         result_qty_edit_data = {}
-        # Перебор строк DataFrame
         for index, row in df.iterrows():
             article = row['Артикул']
             account = str(row['ЛК']).capitalize()
-            # Пропуск строки, если "ЛК" или "Артикул" пустые
-            if pd.isna(article) or pd.isna(article) or article.strip() == '' or article.strip() == '':
+            # if any([not article.isdigit(), not account.strip(), article not in db_nm_ids_data.keys(),
+            #         "vendor_code" not in db_nm_ids_data[article]]):
+            #     continue
+            if not article.isdigit() or not account.strip() or article not in db_nm_ids_data or "vendor_code" not in db_nm_ids_data[article]:
                 continue
-            # Пропуск если данных по артикулу нет в бд (нужен для подтягивания валидно вилда)
-            if str(article) not in db_nm_ids_data.keys() or "vendorCode" not in db_nm_ids_data[str(article)]:
-                continue
-
-            # Создание словаря для текущего артикула
-            article_dict = {
-                # подтягиваем wild с БД
-                'wild': db_nm_ids_data[str(article)]["vendorCode"],
-                'Чистая прибыль 1ед.': row['Чистая прибыль 1ед.'].replace('\xa0', '')
-            }
-            if price_and_discount_status:
-                # пропуск если невалидное значение ЧП
-                if str(row['Чистая прибыль 1ед.'].replace('\xa0', '')).lstrip('-').isdigit():
-                    article_dict.update(
-                        {"price_discount": {'Установить новую цену': row['Установить новую цену'].replace('\xa0', ''),
-                                            'Установить новую скидку %': row['Установить новую скидку %'].replace(
-                                                '\xa0',
-                                                '')}})
-            if dimension_status:
-                article_dict.update({"dimensions": {
-                    'Новая\nДлина (см)': row['Новая\nДлина (см)'].replace('\xa0', ''),
-                    'Новая\nШирина (см)': row['Новая\nШирина (см)'].replace('\xa0', ''),
-                    'Новая\nВысота (см)': row['Новая\nВысота (см)'].replace('\xa0', '')}})
-
-            if qty_status:
-                if account not in result_qty_edit_data:
-                    result_qty_edit_data[account] = {"stocks": [], "nm_ids": []}
-                if str(row["Новый остаток"]).isdigit():
-                    result_qty_edit_data[account]["stocks"].append(
-                        {
-                            "sku": row["Баркод"],
-                            "amount": int(row["Новый остаток"].replace('\xa0', ''))
-                        },
-                    )
-                    # nm_id нам будет нужен для функции обновления данных
-                    result_qty_edit_data[account]["nm_ids"].append(int(row["Артикул"]))
-
+            article_dict = self.get_article_dict(service_google_sheet, row, db_nm_ids_data[article])
+            self.update_result_qty_edit_data(service_google_sheet, result_qty_edit_data, account, row)
             if account not in result_nm_ids_data:
                 result_nm_ids_data[account] = {}
-            # Добавление словаря в результирующий словарь
             result_nm_ids_data[account][article] = article_dict
 
-        # возвращаем словарь
         return {"nm_ids_edit_data": result_nm_ids_data, "qty_edit_data": result_qty_edit_data}
 
     def create_lk_articles_list(self):
@@ -375,78 +358,31 @@ class GoogleSheet:
         result.update(dict(zip(second_header_values, second_data_values)))
         return result
 
-    def get_data_quantity_limit(self, status_min_qty, add_qty, status_average_orders_percent, bot_status):
+    def get_data_quantity_limit(self):
         """Проверяем остатки и лимит по остаткам"""
         data = self.sheet.get_all_records()
         df = pd.DataFrame(data)
         result_data = {}
-        edit_fbc_qty_data = {}
-        edit_min_qty = {}
         for index, row in df.iterrows():
             article = row["Артикул"]
-            account = str(row["ЛК"])
+            account = str(row["ЛК"].capitalize())
             min_qty = row["Минимальный остаток"]
             current_qty = row["ФБС"]
-            current_qty_wb = row["ФБО"]
-            # status_fbo = row["Признак ФБО"]
-            average_day_orders = row["Среднее в день"]
             barcode = row["Баркод"]
             wild = row["wild"]
 
-            if bot_status["status_min_qty"]:
-                if str(article).isdigit():
-                    if str(min_qty).isdigit() and int(min_qty) != 0:
-                        if int(min_qty) >= int(current_qty):
-                            if account not in result_data:
-                                result_data[account] = {"qty": [], "nm_ids": []}
-                            result_data[account]["qty"].append(
-                                {"wild": wild,
-                                 "sku": str(barcode)}
-                            )
-                            result_data[account]["nm_ids"].append(int(article))
+            if str(article).isdigit():
+                if str(min_qty).isdigit() and int(min_qty) != 0:
+                    if int(min_qty) >= int(current_qty):
+                        if account not in result_data:
+                            result_data[account] = {"qty": [], "nm_ids": []}
+                        result_data[account]["qty"].append(
+                            {"wild": wild,
+                             "sku": str(barcode)}
+                        )
+                        result_data[account]["nm_ids"].append(int(article))
 
-            # if bot_status["status_open_close_fbs"]:
-            #     "собираем артикулы/баркоды формируем запрос на изменение остатков и коррекции ячейки 'Минимальный остаток'"
-            #     # условия проверки валидности ключевых ячеек
-            #     if str(current_qty_wb).isdigit() and status_fbo == 'Да' and str(min_qty).isdigit() is True and str(
-            #             average_day_orders).isdigit() and str(current_qty).isdigit():
-            #         # данные для закрытия ФБС
-            #         # если 10% от средних зак. < остатка ВБ складов и тек. остаток > 0 - ТО тек. остаток на 0 и мин. остаток на 0
-            #         if subtract_percentage(int(average_day_orders), status_average_orders_percent) < int(
-            #                 current_qty_wb) and int(current_qty) > 0:
-            #             # добавляем nm_id для актуализации информации
-            #             if account not in result_data:
-            #                 result_data[account] = {"qty": [], "nm_ids": []}
-            #             result_data[account]["nm_ids"].append(int(article))
-            #
-            #             # мин. остаток будет выставлен на 0 и остаток понижен до 0
-            #             if account not in edit_fbc_qty_data:
-            #                 edit_fbc_qty_data[account] = []
-            #             edit_fbc_qty_data[account].append({
-            #                 "sku": str(barcode),
-            #                 "amount": 0
-            #             })
-            #             edit_min_qty[article] = {"Минимальный остаток": 0}
-            #
-            #         # данные для открытия ФБС
-            #         # если 10% от средних зак. >= остатка ВБ складов и мин остаток = 0 - ТО мин остаток должен стать 10 и повысить остаток на фбс на 100
-            #         if subtract_percentage(int(average_day_orders), status_average_orders_percent) >= int(
-            #                 current_qty_wb) and int(min_qty) == 0:
-            #             # добавляем nm_id для актуализации информации
-            #             if account not in result_data:
-            #                 result_data[account] = {"qty": [], "nm_ids": []}
-            #             result_data[account]["nm_ids"].append(int(article))
-            #
-            #             # мин. остаток будет выставлен на 10 и остаток повышен до 100
-            #             if account not in edit_fbc_qty_data:
-            #                 edit_fbc_qty_data[account] = []
-            #             edit_min_qty[article] = {"Минимальный остаток": status_min_qty}
-            #             edit_fbc_qty_data[account].append({
-            #                 "sku": str(barcode),
-            #                 "amount": add_qty
-            #             })
-
-        return {"result_data": result_data, "edit_min_qty": edit_min_qty, "edit_fbc_qty_data": edit_fbc_qty_data}
+        return result_data
 
     def add_photo(self, data_dict):
         for _ in range(10):
@@ -470,7 +406,7 @@ class GoogleSheet:
                 sheet.append_rows(updates)
                 break
             except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
-                logger.exception(f"[ERROR] {e}")
+                logger.error(f"{e}")
                 time.sleep(63)
 
     @retry_on_quota_exceeded_async()
@@ -572,23 +508,23 @@ class GoogleSheet:
         df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
 
         # Сохраняем формулы из столбцов, которые не попадают в диапазон смещения
-        formulas_to_preserve = df_formulas.iloc[:, 110:].values
+        formulas_to_preserve = df_formulas.iloc[:, 115:].values
 
         # Смещение заголовков и содержимого столбцов
-        header_values = df_values.columns[80:110].tolist()  # Индексы столбцов
+        header_values = df_values.columns[85:115].tolist()  # Индексы столбцов
         shifted_header_values = header_values[:29]
         shifted_header_values.insert(0, today)
         # Обновление заголовков
-        df_values.columns = df_values.columns[:80].tolist() + shifted_header_values + df_values.columns[110:].tolist()
+        df_values.columns = df_values.columns[:85].tolist() + shifted_header_values + df_values.columns[115:].tolist()
         df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
         # Смещение содержимого столбцов
-        df_values.iloc[:, 81:110] = df_values.iloc[:, 80:109].values
-        df_values.iloc[:, 72] = ""  # Очистка первого столбца
+        df_values.iloc[:, 86:115] = df_values.iloc[:, 85:114].values
+        df_values.iloc[:, 77] = ""  # Очистка первого столбца
 
         # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
-        df_formulas.iloc[:, 81:110] = df_formulas.iloc[:, 80:109].values
-        df_formulas.iloc[:, 80] = ""  # Очистка первого столбца
-        df_formulas.iloc[:, 110:] = formulas_to_preserve
+        df_formulas.iloc[:, 86:115] = df_formulas.iloc[:, 85:114].values
+        df_formulas.iloc[:, 85] = ""  # Очистка первого столбца
+        df_formulas.iloc[:, 115:] = formulas_to_preserve
 
         # Преобразование обратно в список списков
         updated_values = [df_values.columns.tolist()] + df_values.values.tolist()
@@ -694,7 +630,7 @@ class GoogleSheet:
         try:
             self.sheet.batch_update(updates)
         except Exception as e:
-            logger.exception(f'Error during batch update: {e}')
+            logger.error(f'Error during batch update: {e}')
 
     @retry_on_quota_exceeded_async()
     async def update_qty_by_reg(self, update_data):
@@ -746,7 +682,7 @@ class GoogleSheetServiceRevenue:
                 break
             except (gspread.exceptions.APIError, requests.exceptions.ConnectionError) as e:
                 logger.info(datetime.now())
-                logger.exception(e)
+                logger.error(e)
                 logger.info("time sleep 60 sec")
                 time.sleep(60)
 
@@ -823,9 +759,9 @@ class GoogleSheetServiceRevenue:
 
     def shift_revenue_columns_to_the_left(self, last_day):
         """
-        Сдвигает содержимое столбцов (AJ-AQ) с выручкой влево и добавляет новый день в AQ.
+        Сдвигает содержимое столбцов с выручкой влево и добавляет новый день.
         Функция задумана отрабатывать раз в день.
-        Должна отрабатывать по условию если заголовок AQ это вчерашний день
+        Должна отрабатывать по условию если заголовок это вчерашний день
         """
         all_values = self.sheet.get_all_values()
         all_formulas = self.sheet.get_all_values(value_render_option='FORMULA')
@@ -835,24 +771,24 @@ class GoogleSheetServiceRevenue:
         df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
 
         # Сохраняем формулы из столбцов, которые не попадают в диапазон смещения
-        formulas_to_preserve = df_formulas.iloc[:, 56:].values
+        formulas_to_preserve = df_formulas.iloc[:, 61:].values
         # Смещение заголовков и содержимого столбцов
-        header_values = df_values.columns[48:56].tolist()  # Индексы столбцов
+        header_values = df_values.columns[53:61].tolist()  # Индексы столбцов
 
         shifted_header_values = header_values[1:]
         shifted_header_values.append(last_day)
         # Обновление заголовков
-        df_values.columns = df_values.columns[:48].tolist() + shifted_header_values + df_values.columns[56:].tolist()
+        df_values.columns = df_values.columns[:53].tolist() + shifted_header_values + df_values.columns[61:].tolist()
 
         df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
 
         # Смещение содержимого столбцов
-        df_values.iloc[:, 48:55] = df_values.iloc[:, 49:56].values
+        df_values.iloc[:, 53:60] = df_values.iloc[:, 54:61].values
 
         # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
-        df_formulas.iloc[:, 48:55] = df_formulas.iloc[:, 49:56].values
-        df_formulas.iloc[:, 55] = ""  # Очистка последнего столбца
-        df_formulas.iloc[:, 56:] = formulas_to_preserve
+        df_formulas.iloc[:, 53:60] = df_formulas.iloc[:, 54:61].values
+        df_formulas.iloc[:, 60] = ""  # Очистка последнего столбца
+        df_formulas.iloc[:, 61:] = formulas_to_preserve
 
         # Преобразование обратно в список списков
         updated_values = [df_values.columns.tolist()] + df_values.values.tolist()
@@ -876,26 +812,26 @@ class GoogleSheetServiceRevenue:
         df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
 
         # Сохраняем формулы из столбцов, которые не попадают в диапазон смещения
-        formulas_to_preserve = df_formulas.iloc[:, 60:].values
+        formulas_to_preserve = df_formulas.iloc[:, 65:].values
 
         # Смещение заголовков и содержимого столбцов
 
-        header_values = df_values.columns[56:60].tolist()  # Индексы столбцов
+        header_values = df_values.columns[61:65].tolist()  # Индексы столбцов
         shifted_header_values = header_values[1:]
         shifted_header_values.append(last_week)
 
         # Обновление заголовков
-        df_values.columns = df_values.columns[:56].tolist() + shifted_header_values + df_values.columns[60:].tolist()
+        df_values.columns = df_values.columns[:61].tolist() + shifted_header_values + df_values.columns[65:].tolist()
 
         df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
 
         # Смещение содержимого столбцов
-        df_values.iloc[:, 56:59] = df_values.iloc[:, 57:60].values
+        df_values.iloc[:, 61:64] = df_values.iloc[:, 62:65].values
 
         # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
-        df_formulas.iloc[:, 56:59] = df_formulas.iloc[:, 57:60].values
-        df_formulas.iloc[:, 59] = ""  # Очистка последнего столбца
-        df_formulas.iloc[:, 60:] = formulas_to_preserve
+        df_formulas.iloc[:, 61:64] = df_formulas.iloc[:, 62:65].values
+        df_formulas.iloc[:, 64] = ""  # Очистка последнего столбца
+        df_formulas.iloc[:, 65:] = formulas_to_preserve
 
         # Преобразование обратно в список списков
         updated_values = [df_values.columns.tolist()] + df_values.values.tolist()
@@ -995,6 +931,7 @@ class GoogleSheetServiceRevenue:
         self.sheet.batch_update(updates)
 
         logger.info("Проверка и добавление завершены")
+
     def update_revenue_rows(self, data_json):
         data = self.sheet.get_all_records(expected_headers=[])
         df = pd.DataFrame(data)
@@ -1110,6 +1047,26 @@ class PCGoogleSheet:
             if lk.upper() not in lk_articles_dict:
                 lk_articles_dict[lk.upper()] = {}
             lk_articles_dict[lk.upper()].update({article: profit})
+        return lk_articles_dict
+
+    def create_lk_articles_list(self):
+        """Создает словарь из ключей кабинета и его Артикулов"""
+        data = self.sheet.get_all_records()
+        df = pd.DataFrame(data)
+        lk_articles_dict = {}
+        for index, row in df.iterrows():
+
+            article = row['Артикул']
+            lk = row['ЛК'].upper()
+            # Пропускаем строки с пустыми значениями в столбце "ЛК" "Артикул"
+            if pd.isna(lk) or lk == "":
+                continue
+            if pd.isna(article) or article == "":
+                continue
+
+            if lk.upper() not in lk_articles_dict:
+                lk_articles_dict[lk.upper()] = []
+            lk_articles_dict[lk.upper()].append(article)
         return lk_articles_dict
 
     def shift_orders_header(self, day):

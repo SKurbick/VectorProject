@@ -116,7 +116,7 @@ class ListOfGoodsPricesAndDiscounts:
                                 break
                 except (aiohttp.ClientError, aiohttp.ClientResponseError, aiohttp.ConnectionTimeoutError,
                         asyncio.TimeoutError) as e:
-                    logger.exception(f"[ERROR] func -get_log_for_nm_ids_async {e} sleep 36 sec")
+                    logger.error(f"[ERROR] func -get_log_for_nm_ids_async {e} sleep 36 sec")
                     await asyncio.sleep(36)
 
             logger.info("Дошел до условия прерывания бесконечного цикла")
@@ -143,7 +143,7 @@ class ListOfGoodsPricesAndDiscounts:
                     logger.info(f"price and discount edit result: {response.json()}")
                     time.sleep(2)
                     if (response.status_code in (200, 208) or response.json()['errorText'] in
-                            ("Task already exists", "No goods for process")):
+                            ("Task already exists", "No goods for process", "The specified prices and discounts are already set")):
                         break
 
                 except (Exception, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:

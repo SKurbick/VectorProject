@@ -139,8 +139,7 @@ def total_revenue_for_week(date_dict: dict, revenue_result):
     return {revenue_date_key: nm_ids_total}
 
 
-def validate_data(data: dict):
-    nm_ids_db_data = get_data_for_nm_ids()
+async def validate_data(nm_ids_db_data, data: dict):
     """Редактирует и возвращает валидные данные для API WB"""
     result_valid_data = {}
     for nm_id, edit_data in data.items():
@@ -154,17 +153,16 @@ def validate_data(data: dict):
                 if edit_data["price_discount"]["Установить новую цену"].isdigit():
                     nm_ids_data.setdefault("price_discount", {})["price"] = int(edit_data["price_discount"][
                                                                                     "Установить новую цену"])
-            if "dimensions" in edit_data:
-                if edit_data["dimensions"]['Новая\nВысота (см)'].isdigit() and edit_data["dimensions"][
-                    'Новая\nДлина (см)'].isdigit() and edit_data["dimensions"]['Новая\nШирина (см)'].isdigit():
-                    nm_ids_data.setdefault("dimensions", {})["height"] = int(edit_data["dimensions"][
-                                                                                 'Новая\nВысота (см)'])
-                    nm_ids_data.setdefault("dimensions", {})["length"] = int(edit_data["dimensions"][
-                                                                                 'Новая\nДлина (см)'])
-                    nm_ids_data.setdefault("dimensions", {})["width"] = int(edit_data["dimensions"][
-                                                                                'Новая\nШирина (см)'])
+            if "dimensions" in edit_data and (edit_data["dimensions"]['Новая\nВысота (см)'].isdigit() and edit_data["dimensions"][
+                                'Новая\nДлина (см)'].isdigit() and edit_data["dimensions"]['Новая\nШирина (см)'].isdigit()):
+                nm_ids_data.setdefault("dimensions", {})["height"] = int(edit_data["dimensions"][
+                                                                             'Новая\nВысота (см)'])
+                nm_ids_data.setdefault("dimensions", {})["length"] = int(edit_data["dimensions"][
+                                                                             'Новая\nДлина (см)'])
+                nm_ids_data.setdefault("dimensions", {})["width"] = int(edit_data["dimensions"][
+                                                                            'Новая\nШирина (см)'])
 
-            if len(nm_ids_data) > 0:
+            if nm_ids_data:
                 nm_ids_data["vendorCode"] = edit_data['wild']
                 if "price_discount" in nm_ids_data:
                     nm_ids_data['net_profit'] = int(edit_data['Чистая прибыль 1ед.'].replace(" ", "").replace("₽", ""))
@@ -292,3 +290,17 @@ def can_be_int(value):
         return True
     except (ValueError, TypeError):
         return False
+
+
+
+def process_local_vendor_code(s):
+    # Шаблон для извлечения "wild" и цифр
+    wild_pattern = r'^wild(\d+).*$'
+    word_pattern = r'^[a-zA-Z\s]+$'
+    wild_match = re.match(wild_pattern, s)
+    if wild_match:
+        return f"wild{wild_match.group(1)}"
+    word_match = re.match(word_pattern, s)
+    if word_match:
+        return s
+    return s

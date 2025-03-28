@@ -1,7 +1,8 @@
 import asyncio
 import datetime
 import time
-from pprint import pformat
+from pprint import pformat, pprint
+from typing import Tuple, List, Dict, Any, Set
 
 import gspread.exceptions
 import requests
@@ -26,6 +27,7 @@ from settings import get_wb_tokens
 from settings import Setting
 from utils import add_orders_data, calculate_sum_for_logistic, merge_dicts, validate_data, add_nm_ids_in_db, \
     get_last_weeks_dates, create_valid_data_from_db
+from database.postgresql.repositories.card_data import CardData
 
 from database.postgresql.database import Database1
 from settings import settings
@@ -123,27 +125,25 @@ class ServiceGoogleSheet:
                     data_to_update_main[article_id] = {}
                 data_to_update_main[article_id].update({orders_and_np_date_header: sum_value})
 
-            try:
-                self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
-                logger.info("Данные по чп и выручке в Unit актуализированы")
-            except Exception as e:
-                logger.exception(
-                    f"[ERROR] {e} Ошибка при актуализации информации по выручке и чп в main. Повторная попытка 36 sec")
-                await asyncio.sleep(36)
-                self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
-                logger.info("Данные по чп и выручке в Unit актуализированы")
-            #
-            try:
-                await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)
-                logger.info("Данные по количеству заказов актуализированы")
-            except Exception as e:
-                logger.exception(
-                    f"[ERROR] {e} Ошибка при актуализации информации в Количество заказов. Повторная попытка 36 sec")
-                await asyncio.sleep(36)
-                await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)
-
-                # self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_orders)
-                # logger.info("Данные по количеству заказов актуализированы")
+        try:
+            self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
+            logger.info("Данные по чп и выручке в Unit актуализированы")
+        except Exception as e:
+            logger.error(
+                f"{e} Ошибка при актуализации информации по выручке и чп в main. Повторная попытка 36 sec")
+            await asyncio.sleep(36)
+            self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
+            logger.info("Данные по чп и выручке в Unit актуализированы")
+        #
+        try:
+            await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)
+            logger.info("Данные по количеству заказов актуализированы")
+        except Exception as e:
+            logger.error(
+                f"{e} Ошибка при актуализации информации в Количество заказов. Повторная попытка 36 sec")
+            await asyncio.sleep(36)
+            await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)
+            logger.info("Данные по количеству заказов актуализированы")
 
     async def add_revenue_for_new_nm_ids(self, lk_articles: dict):
         """ Добавление выручки по новым артикулам за 7 последних дней (сегодняшний не учитывается)"""
@@ -199,7 +199,7 @@ class ServiceGoogleSheet:
 
         return all_accounts_new_revenue_data
 
-    async def add_new_data_from_table(self, lk_articles, update_articles_data=False, edit_column_clean=None, only_edits_data=False,
+    async def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
                                       add_data_in_db=True, check_nm_ids_in_db=True):
         """Функция была изменена. Теперь она просто выдает данные на добавления в таблицу, а не добавляет таблицу внутри функции"""
 
@@ -229,7 +229,7 @@ class ServiceGoogleSheet:
                 barcodes_quantity = LeftoversMarketplace(token=token)
                 card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=nm_ids_result, limit=100,
                                                                            only_edits_data=only_edits_data,
-                                                                           account=account, update_articles_data=update_articles_data)
+                                                                           account=account)
                 goods_nm_ids = await wb_api_price_and_discount.get_log_for_nm_ids_async(filter_nm_ids=nm_ids_result,
                                                                                         account=account)
                 commission_traffics = CommissionTariffs(token=token)
@@ -254,8 +254,12 @@ class ServiceGoogleSheet:
                             width=int(i['Текущая\nШирина (см)']), )
                         # добавляем результат вычислений в итоговые данные
                         i["Логистика от склада WB до ПВЗ"] = result_log_value
+
                     if only_edits_data is False:
-                        nm_ids_photo[int(i["Артикул"])] = i.pop("Фото")
+                        try:
+                            nm_ids_photo[int(i["Артикул"])] = i.pop("Фото")
+                        except KeyError as e:
+                            logger.info(f"не получено фото из массива")
 
                 # собираем остатки со складов продавца
                 barcodes_quantity_result = []
@@ -286,11 +290,11 @@ class ServiceGoogleSheet:
                 if add_data_in_db is True:
                     """добавляем артикулы в БД"""
                     add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
-        if len(nm_ids_photo) > 0:
+        if nm_ids_photo:
             self.gs_connect.add_photo(nm_ids_photo)
 
         # добавляем данные артикулов в psql в таблицу article
-        if len(result_nm_ids_data) > 0:
+        if result_nm_ids_data:
             # db = self.database()
             try:
                 async with Database1() as connection:
@@ -307,7 +311,7 @@ class ServiceGoogleSheet:
 
         return result_nm_ids_data
 
-    async def change_cards_and_tables_data(self, edit_data_from_table):
+    async def change_cards_and_tables_data(self, db_nm_ids_data, edit_data_from_table):
         sheet_statuses = ServiceGoogleSheet.check_status()
         net_profit_status = sheet_statuses['Отрицательная \nЧП']
         price_discount_edit_status = sheet_statuses['Цены/Скидки']
@@ -318,7 +322,7 @@ class ServiceGoogleSheet:
 
         logger.info("Получил данные по ячейкам на изменение товара")
         for account, nm_ids_data in edit_data_from_table["nm_ids_edit_data"].items():
-            valid_data_result = validate_data(nm_ids_data)
+            valid_data_result = await validate_data(db_nm_ids_data, nm_ids_data)
             token = get_wb_tokens()[account.capitalize()]
             warehouses = WarehouseMarketplaceWB(token=token)
             warehouses_qty_edit = LeftoversMarketplace(token=token)
@@ -334,62 +338,47 @@ class ServiceGoogleSheet:
                 quantity_edit_data = []
                 for nm_id, data in valid_data_result.items():
                     # статус на изменение цены\скидки должен быть активным
-                    if "price_discount" in data and price_discount_edit_status:
-                        # если "Чистая прибыль" > выходит больше 0 или если статус редактирование по
-                        # отрицательному ЧП стоит 1,то артикул, с запросом на изменение цены или скидки, будет добавлен
-                        if data['net_profit'] >= 0 or net_profit_status:
-                            price_discount_data.append(
-                                {
-                                    "nmID": nm_id,
-                                    **data["price_discount"]
-                                }
-                            )
+                    if ("price_discount" in data and price_discount_edit_status and
+                            (data['net_profit'] >= 0 or net_profit_status)):
+                        price_discount_data.append({"nmID": nm_id, **data["price_discount"]})
                     # статус на изменение габаритов должен быть активным (вкл/выкл бот)
-                    if "sizes" and "dimensions" in data and dimensions_edit_status:
-                        size_edit_data.append(
-                            {
-                                "nmID": nm_id,
-                                "vendorCode": data["vendorCode"],
-                                "sizes": data["sizes"],
-                                "dimensions": data["dimensions"]
-                            }
-                        )
-
+                    if "dimensions" in data and dimensions_edit_status:
+                        size_edit_data.append({"nmID": nm_id, "vendorCode": data["vendorCode"],
+                                               "sizes": data["sizes"], "dimensions": data["dimensions"]})
                 """запрос на изменение цены и/или скидки по артикулу"""
-                if len(price_discount_data) > 0:
+                if price_discount_data:
                     wb_api_price_and_discount.add_new_price_and_discount(price_discount_data)
                     edit_column_clean["price_discount"] = True
 
                 """Запрос на изменение габаритов товара по артикулу и vendorCode (wild)"""
-                if len(size_edit_data) > 0:
+                if size_edit_data:
                     wb_api_content.size_edit(size_edit_data)
                     edit_column_clean["dimensions"] = True
                 """Перезаписываем данные в таблице после их изменений на WB"""
                 nm_ids_result = [int(nm_ids_str) for nm_ids_str in valid_data_result.keys()]
                 updates_nm_ids_data.update({account: nm_ids_result})
 
-            if account in edit_data_from_table["qty_edit_data"]:
-                if len(edit_data_from_table["qty_edit_data"][account]["stocks"]) > 0 and quantity_edit_status:
-                    "изменение остатков на всех складах продавца"
-                    logger.info("изменение остатков на всех складах продавца")
-                    for warehouse in warehouses.get_account_warehouse():
-                        warehouses_qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse["id"],
-                                                                        edit_barcodes_list=
-                                                                        edit_data_from_table["qty_edit_data"][
-                                                                            account]["stocks"])
-                    edit_column_clean["qty"] = True
-                    # добавляем артикул для обновления данных
-                    if account not in updates_nm_ids_data:
-                        updates_nm_ids_data[account] = []
-                    updates_nm_ids_data[account].extend(edit_data_from_table["qty_edit_data"][account]["nm_ids"])
+            if (account in edit_data_from_table["qty_edit_data"] and
+                    (len(edit_data_from_table["qty_edit_data"][account]["stocks"]) > 0 and quantity_edit_status)):
+                "изменение остатков на всех складах продавца"
+                logger.info("изменение остатков на всех складах продавца")
+                for warehouse in warehouses.get_account_warehouse():
+                    warehouses_qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse["id"],
+                                                                    edit_barcodes_list=
+                                                                    edit_data_from_table["qty_edit_data"][
+                                                                        account]["stocks"])
+                edit_column_clean["qty"] = True
+                # добавляем артикул для обновления данных
+                if account not in updates_nm_ids_data:
+                    updates_nm_ids_data[account] = []
+                updates_nm_ids_data[account].extend(edit_data_from_table["qty_edit_data"][account]["nm_ids"])
 
         # если хоть по одному артикулу данные будут валидны...
-        if len(updates_nm_ids_data):
+        if updates_nm_ids_data:
             await asyncio.sleep(5)
-            result = await self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
-                                                        only_edits_data=True, add_data_in_db=False, update_articles_data=True,
-                                                        check_nm_ids_in_db=False)
-            return result
+            return await self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
+                                                      only_edits_data=True, add_data_in_db=False,
+                                                      check_nm_ids_in_db=False)
 
         return updates_nm_ids_data
 
@@ -479,7 +468,7 @@ class ServiceGoogleSheet:
                                                nm_ids_table_data=nm_ids_table_data)
 
             except asyncio.TimeoutError as e:
-                logger.exception(f"[ERROR] {e}")
+                logger.error(f"[ERROR] {e}")
                 logger.info("повторная попытка: Актуализируем данные в бд таблицы accurate_net_profit_data")
                 await self.add_data_in_db_psql(psql_data_update=psql_data_update, net_profit_time=current_time,
                                                nm_ids_table_data=nm_ids_table_data)
@@ -494,94 +483,108 @@ class ServiceGoogleSheet:
                                            spreadsheet="UNIT 2.0 (tested)", sheet="ВКЛ/ВЫКЛ Бот")
                 return sheet_status.check_status_service_sheet()
             except gspread.exceptions.APIError as e:
-                logger.exception(f"попытка {i} {e} следующая попытка через 75 секунд")
+                logger.error(f"попытка {i} {e} следующая попытка через 75 секунд")
                 time.sleep(75)
 
         return False
 
-    async def add_actually_data_to_table(self):
+    @staticmethod
+    def __validate_value(value: str, type_value: type) -> Any:
+        try:
+            return type_value(value)
+        except (ValueError, TypeError):
+            return
+
+    def __convert_to_dict(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Преобразует данные из базы данных в словарь с удобочитаемыми ключами.
+        Аргументы:
+            data (dict): Словарь с данными из БД о товаре
+        Возвращает:
+            dict: Словарь с преобразованными ключами и обработанными значениями
+        """
+        return {
+            "Артикул": self.__validate_value(data["article_id"], int),  # int
+            "Предмет": self.__validate_value(data["subject_name"], str),  # str
+            "Скидка %": self.__validate_value(data["discount"], int),  # int
+            "Текущая\nДлина (см)": self.__validate_value(data["length"], int),  # int
+            "Текущая\nШирина (см)": self.__validate_value(data["width"], int),  # int
+            "Текущая\nВысота (см)": self.__validate_value(data["height"], int),  # int
+            "Баркод": self.__validate_value(data["barcode"], str),  # str
+            "Логистика от склада WB до ПВЗ": self.__validate_value(data["logistic_from_wb_wh_to_opp"], float),  # float
+            "Комиссия WB": self.__validate_value(data["commission_wb"], float),  # float
+            "Цена на WB без скидки": self.__validate_value(data["price"], float),  # float
+            "Рейтинг": self.__validate_value(data["rating"], float),  # float
+            "wild": self.__validate_value(data["local_vendor_code"], str),  # str
+            "Фото": self.__validate_value(data["photo_link"], str)  # str
+        }
+
+    async def get_actually_data_from_db(self, db: Database1, article_ids: Set[int]) -> Dict[int, Dict[str, Any]]:
+        """
+        Асинхронно получает актуальные данные из базы данных по указанным артикулам.
+        Аргументы:
+            article_ids (set): Множество артикулов, по которым нужно получить данные
+        Возвращает:
+            dict: Словарь, где ключ - артикул товара, значение - данные о товаре в формате словаря
+        """
+        card_data_result = await CardData(db).get_actual_information_to_db(article_ids)
+        return {data["article_id"]: self.__convert_to_dict(data)
+                for data in card_data_result}
+
+    async def get_actually_data_to_table_refactor(self, db: Database1) -> tuple[Any]:
+        """
+        Асинхронно собирает актуальные данные из базы данных для всех артикулов из гугл-таблицы.
+        Создает и выполняет асинхронные задачи для каждого аккаунта.
+        Возвращает:
+            list: Список словарей с актуальными данными по артикулам
+        """
+        logger.info("Получение артикулов из гугл-таблицы")
+        lk_articles = self.gs_connect.create_lk_articles_list()
+        tasks = []
+        logger.info("Получение актуальных данных из базы данных")
+        for account, articles in lk_articles.items():
+            task = self.get_actually_data_from_db(db, set(articles))
+            tasks.append(task)
+        return await asyncio.gather(*tasks)
+
+    @staticmethod
+    def _get_photos_and_filter_empty_value(article_id_to_update: List[Dict[str, Any]]) -> Tuple[
+        Dict[str, Any], Dict[str, Any]]:
+        """
+        Извлекает ссылки на фотографии товаров и удаляет пустые значения из данных.
+        Аргументы:
+            article_id_to_update (list): Список словарей с данными о товарах
+        Возвращает:
+            tuple: (отфильтрованные данные, данные о фотографиях)
+                - отфильтрованные данные - список словарей с данными товаров без пустых значений
+                - данные о фотографиях - список словарей, содержащих только артикулы и ссылки на фото
+        """
+        logger.info("Извлечение ссылок на фотографии товаров")
+        photos = [{k: {"Фото": v.pop('Фото')} for k, v in data.items()} for data in article_id_to_update]
+        logger.info("Удаление пустых значений")
+        for items in article_id_to_update:
+            for k, v in items.items():
+                for key, value in list(v.items()):
+                    if not value:
+                        items[k].pop(key)
+        article_id_to_update = {k: v for d in article_id_to_update for k, v in d.items()}
+        photos = {k: v for d in photos for k, v in d.items()}
+        return article_id_to_update, photos
+
+    async def add_actually_data_to_table(self, db: Database1):
+        """
+        Обновляет данные в гугл-таблице актуальной информацией из базы данных.
+        """
         if ServiceGoogleSheet.check_status()['ВКЛ - 1 /ВЫКЛ - 0']:
             logger.info(f"[INFO] {datetime.datetime.now()} актуализируем данные в таблице")
-            """
-            Обновление данных по артикулам в гугл таблицу с WB api.
-            Задумана, чтобы использовать в schedule.
-            """
-            gs_connect = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet=self.sheet)
-            lk_articles = gs_connect.create_lk_articles_list()
-            result_updates_rows = {}
-            nm_ids_photo = {}
-            for account, articles in lk_articles.items():
-                token = get_wb_tokens()[account.capitalize()]
-                wb_api_content = ListOfCardsContent(token=token)
-                wb_api_price_and_discount = ListOfGoodsPricesAndDiscounts(token=token)
-                # warehouses = WarehouseMarketplaceWB(token=token)
-                # barcodes_quantity = LeftoversMarketplace(token=token)
-                commission_traffics = CommissionTariffs(token=token)
-                card_from_nm_ids_filter = wb_api_content.get_list_of_cards(nm_ids_list=articles, limit=100,
-                                                                           only_edits_data=True, add_data_in_db=False,
-                                                                           account=account)
-
-                goods_nm_ids = await wb_api_price_and_discount.get_log_for_nm_ids_async(filter_nm_ids=articles,
-                                                                                        account=account)
-                # объединяем полученные данные
-                merge_json_data = merge_dicts(goods_nm_ids, card_from_nm_ids_filter)
-
-                subject_names = set()  # итог всех полученных с карточек предметов
-                # account_barcodes = []
-                current_tariffs_data = commission_traffics.get_tariffs_box_from_marketplace()
-
-                # если мы не получили данные по артикулам, то аккаунт будет пропущен
-                if len(card_from_nm_ids_filter) == 0:
-                    logger.info(f"По токену {account} не получили Артикулы с данными с API WB")
-                    logger.info(f"Артикулы:{articles}")
-                    logger.info(f"Результат с API WB {merge_json_data}")
-                    continue  # пропускаем этот аккаунт
-                for i in merge_json_data.values():
-                    if "wild" in i and i["wild"] != "не найдено":
-                        # account_barcodes.append(i["Баркод"])
-                        subject_names.add(i["Предмет"])  # собираем множество с предметами
-                        result_log_value = calculate_sum_for_logistic(
-                            # на лету считаем "Логистика от склада WB до ПВЗ"
-                            for_one_liter=float(current_tariffs_data["boxDeliveryBase"].replace(',', '.')),
-                            next_liters=float(current_tariffs_data["boxDeliveryLiter"].replace(',', '.')),
-                            height=int(i['Текущая\nВысота (см)']),
-                            length=int(i['Текущая\nДлина (см)']),
-                            width=int(i['Текущая\nШирина (см)']), )
-                        # добавляем результат вычислений в итоговые данные
-                        i["Логистика от склада WB до ПВЗ"] = result_log_value
-                    try:
-                        nm_ids_photo[int(i["Артикул"])] = {"Фото": i.pop("Фото", "НЕТ")}
-                    except KeyError as e:
-                        logger.error(f"KeyError {e}")
-                # barcodes_quantity_result = []
-                # for warehouse_id in warehouses.get_account_warehouse():
-                #     bqs_result = barcodes_quantity.get_amount_from_warehouses(
-                #         warehouse_id=warehouse_id['id'],
-                #         barcodes=account_barcodes)
-                #     barcodes_quantity_result.extend(bqs_result)
-
-                subject_commissions = None
-                try:
-                    # получение комиссии WB
-                    subject_commissions = commission_traffics.get_commission_on_subject(subject_names=subject_names)
-                except (Exception, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
-                    logger.info(f"[ERROR] Запрос получения комиссии по предметам завершился ошибкой: {e}")
-                # добавляем данные в merge_json_data
-                for card in merge_json_data.values():
-                    if subject_commissions is not None:
-                        for sc in subject_commissions.items():
-                            if "Предмет" in card and sc[0] == card["Предмет"]:
-                                card["Комиссия WB"] = sc[1]
-                    # for bq_result in barcodes_quantity_result:
-                    #     if "Баркод" in card and bq_result["Баркод"] == card["Баркод"]:
-                    #         card["ФБС"] = bq_result["остаток"]
-
-                result_updates_rows.update(merge_json_data)
-                """обновляем данные по артикулам"""
-            gs_connect.update_rows(data_json=result_updates_rows)
-            if len(nm_ids_photo) > 0:
+            article_id_to_update = await self.get_actually_data_to_table_refactor(db=db)
+            article_id_to_update, photos = self._get_photos_and_filter_empty_value(article_id_to_update)
+            logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице")
+            self.gs_connect.update_rows(data_json=article_id_to_update)
+            if len(photos) > 0:
+                logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице ФОТО")
                 gs_connect_photo = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet="ФОТО")
-                await gs_connect_photo.add_data_to_count_list(nm_ids_photo)
+                await gs_connect_photo.add_data_to_count_list(photos)
 
     async def get_actually_virtual_qty(self, account, data: dict, token):
         articles_qty_data = {}
@@ -605,12 +608,10 @@ class ServiceGoogleSheet:
 
         if ServiceGoogleSheet.check_status()['ВКЛ - 1 /ВЫКЛ - 0']:
             logger.info(f"[INFO] {datetime.datetime.now()} актуализируем данные по остаткам в таблице")
-
             gs_connect_main = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet=self.sheet)
             lk_articles = await gs_connect_main.create_lk_barcodes_articles()
             gs_connect_warehouses_info = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet,
                                                      sheet="Склады ИНФ")
-
             # словарь с регионом и группой складов
             warehouses_info = await gs_connect_warehouses_info.get_warehouses_info()
             logger.info(f"warehouse_info : {warehouses_info}")
@@ -662,115 +663,156 @@ class ServiceGoogleSheet:
 
         if task_id is not None and len(wb_warehouse_qty) > 0:
             if wb_warehouse_qty:  # собираем остатки со складов WB
-                for qty_data in wb_warehouse_qty:
-                    try:  # почему-то начал отображать в данные по артикулам без ключа barcode
-                        if qty_data['barcode'] in barcodes_set:
-                            barcode = qty_data['barcode']
-                            article = data[barcode]
-                            articles_qty_wb[article] = {
-                                "ФБО": qty_data['quantityWarehousesFull'],
-                            }
-                            warehouses = qty_data['warehouses']
+                return self.get_articles_qty_wb_new_method(account=account, barcodes_set=barcodes_set, wb_warehouse_qty=wb_warehouse_qty,
+                                                           warehouses_info=warehouses_info, data=data)
+        return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}
 
-                            if len(warehouses) > 0:
-                                for wh_data in warehouses:
-                                    warehouse_name = wh_data["warehouseName"]
+    @staticmethod
+    def get_articles_qty_wb(wb_warehouse_qty, barcodes_set, data, warehouses_info, account):
+        articles_qty_wb = {}
+        untracked_warehouses = {}
+        for qty_data in wb_warehouse_qty:
+            try:  # почему-то начал отображать в данные по артикулам без ключа barcode
+                if qty_data['barcode'] in barcodes_set:
+                    barcode = qty_data['barcode']
+                    article = data[barcode]
+                    articles_qty_wb[article] = {
+                        "ФБО": qty_data['quantityWarehousesFull'],
+                    }
+                    warehouses = qty_data['warehouses']
 
-                                    if warehouse_name in warehouses_info:
-                                        region_name_by_warehouse = warehouses_info[warehouse_name]
-                                        # по задумке должен суммировать остатки всех закрепленных регионов к складам
-                                        if region_name_by_warehouse not in articles_qty_wb[article]:
-                                            articles_qty_wb[article][region_name_by_warehouse] = 0
-                                        articles_qty_wb[article][region_name_by_warehouse] += wh_data["quantity"]
+                    if len(warehouses) > 0:
+                        for wh_data in warehouses:
+                            warehouse_name = wh_data["warehouseName"]
 
-                                    else:
-                                        if warehouse_name not in untracked_warehouses:
-                                            untracked_warehouses[warehouse_name] = 0
-                                        untracked_warehouses[warehouse_name] += wh_data["quantity"]
+                            if warehouse_name in warehouses_info:
+                                region_name_by_warehouse = warehouses_info[warehouse_name]
+                                # по задумке должен суммировать остатки всех закрепленных регионов к складам
+                                if region_name_by_warehouse not in articles_qty_wb[article]:
+                                    articles_qty_wb[article][region_name_by_warehouse] = 0
+                                articles_qty_wb[article][region_name_by_warehouse] += wh_data["quantity"]
 
-                            clean_data = {"Центральный": "",
-                                          "Южный": "",
-                                          "Северо-Кавказский": "",
-                                          "Приволжский": ""}
+                            else:
+                                if warehouse_name not in untracked_warehouses:
+                                    untracked_warehouses[warehouse_name] = 0
+                                untracked_warehouses[warehouse_name] += wh_data["quantity"]
 
-                            for cd in clean_data:
-                                if cd not in articles_qty_wb[article]:
-                                    articles_qty_wb[article].update({cd: ""})
-                    except KeyError as e:
-                        logger.exception(e)
-                        logger.info(account)
-                        logger.info(qty_data)
+                    clean_data = {"Центральный": "",
+                                  "Южный": "",
+                                  "Северо-Кавказский": "",
+                                  "Приволжский": ""}
+
+                    for cd in clean_data:
+                        if cd not in articles_qty_wb[article]:
+                            articles_qty_wb[article].update({cd: ""})
+            except KeyError as e:
+                logger.error(e)
+                logger.info(account)
+                logger.info(qty_data)
+
+        return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}
+
+    @staticmethod
+    def get_articles_qty_wb_new_method(wb_warehouse_qty, barcodes_set, data, warehouses_info, account):
+
+        articles_qty_wb = {}
+        untracked_warehouses = {}
+        for qty_data in wb_warehouse_qty:
+            try:  # почему-то начал отображать в данные по артикулам без ключа barcode
+                if qty_data['barcode'] in barcodes_set:
+                    barcode = qty_data['barcode']
+                    article = data[barcode]
+                    articles_qty_wb[article] = {
+                        "ФБО": 0,
+                        "Центральный": "",
+                        "Южный": "",
+                        "Северо-Кавказский": "",
+                        "Приволжский": ""
+                    }
+                    warehouses = qty_data['warehouses']
+
+                    if len(warehouses) > 1:
+                        for wh_data in warehouses:
+                            warehouse_name = wh_data["warehouseName"]
+                            if warehouse_name == "Всего находится на складах":
+                                articles_qty_wb[article]['ФБО'] += wh_data['quantity']
+
+                            if warehouse_name in warehouses_info:
+                                region_name_by_warehouse = warehouses_info[wh_data["warehouseName"]]
+
+                                if articles_qty_wb[article][region_name_by_warehouse] == "":
+                                    articles_qty_wb[article][region_name_by_warehouse] = 0
+                                articles_qty_wb[article][region_name_by_warehouse] += wh_data["quantity"]
+
+                            else:
+                                # сбор данных по остаткам складов которые не отслеживаются по регионам
+                                if warehouse_name in ("Всего находится на складах", "В пути возвраты на склад WB",
+                                                      "В пути до получателей"):
+                                    continue
+                                if warehouse_name not in untracked_warehouses:
+                                    untracked_warehouses[warehouse_name] = 0
+                                untracked_warehouses[warehouse_name] += wh_data["quantity"]
+            except KeyError as e:
+                logger.error(e)
+                logger.info(account)
+                logger.info(qty_data)
         return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}
 
     async def check_quantity_flag(self):
         logger.info("Проверка остатков по лимитам из столбца 'Минимальный остаток'")
         status = ServiceGoogleSheet.check_status()
-        status_limit_edit = status["Добавить если"]
-        status_open_close_fbs = status["ОТКРЫТИЕ/ЗАКРЫТИЕ ФБС"]
-        status_min_qty = status['минимальный\nостаток']
-        add_qty = status['повышение\n остатков']
-        status_average_orders_percent = status['среднее арифм. \nот заказов (%)']
+        status_limit_edit = int(status["Добавить если"])
         status_off_on_service = bool(int(status["ВКЛ - 1 /ВЫКЛ - 0"]))
-        bot_status = {"status_min_qty": bool(int(status_min_qty)),
-                      "status_open_close_fbs": bool(int(status_open_close_fbs))}
-        logger.info(bot_status)
+        logger.info(status_limit_edit)
         # если сервис включен
-        if status_off_on_service:
-            # если включены флаги на изменение остатков
-            if bot_status["status_min_qty"] or bot_status["status_open_close_fbs"]:
-                low_limit_qty_data = self.gs_connect.get_data_quantity_limit(status_min_qty=status_min_qty,
-                                                                             add_qty=add_qty,
-                                                                             status_average_orders_percent=status_average_orders_percent,
-                                                                             bot_status=bot_status)
+        if status_off_on_service and status_limit_edit:  # если включены флаги на изменение остатков
+            low_limit_qty_data = self.gs_connect.get_data_quantity_limit()
+            pprint(low_limit_qty_data)
+            sopost_data = GoogleSheetSopostTable().wild_quantity()
+            pprint(sopost_data)
+            nm_ids_for_update_data = {}
+            if len(low_limit_qty_data) > 0:
+                logger.info(f"Есть остатки ниже установленного флага: {low_limit_qty_data}")
+                for account, edit_data in low_limit_qty_data.items():
+                    update_qty_data = []
+                    token = get_wb_tokens()[account.capitalize()]
+                    warehouses = WarehouseMarketplaceWB(token=token).get_account_warehouse()
+                    qty_edit = LeftoversMarketplace(token=token)
 
-                sopost_data = GoogleSheetSopostTable().wild_quantity()
-                nm_ids_for_update_data = {}
-                if len(low_limit_qty_data["result_data"]) > 0 or len(low_limit_qty_data["edit_fbc_qty_data"]) > 0:
-                    logger.info("Есть остатки ниже установленного флага")
-                    for account, edit_data in low_limit_qty_data["result_data"].items():
-                        update_qty_data = []
-                        token = get_wb_tokens()[account.capitalize()]
-                        warehouses = WarehouseMarketplaceWB(token=token).get_account_warehouse()
-                        qty_edit = LeftoversMarketplace(token=token)
+                    if len(edit_data["qty"]) > 0:
+                        for qty_data in edit_data["qty"]:
+                            add_qty = str(sopost_data[qty_data["wild"]]).replace("\xa0", "")
+                            if add_qty.isdigit() and int(add_qty) != 0:
+                                update_qty_data.append(
+                                    {
+                                        "sku": qty_data["sku"],
+                                        "amount": int(add_qty)
+                                    }
+                                )
+                    print(account)
+                    pprint(update_qty_data)
+                    if len(update_qty_data):
+                        for warehouse_id in warehouses:
+                            qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse_id["id"],
+                                                                 edit_barcodes_list=update_qty_data)
 
-                        if len(edit_data["qty"]) > 0:
-                            for qty_data in edit_data["qty"]:
-                                if str(sopost_data[qty_data["wild"]]).isdigit() and int(
-                                        sopost_data[qty_data["wild"]]) != 0:
-                                    update_qty_data.append(
-                                        {
-                                            "sku": qty_data["sku"],
-                                            "amount": int(sopost_data[qty_data["wild"]])
-                                        }
-                                    )
+                        if account not in nm_ids_for_update_data:
+                            nm_ids_for_update_data[account] = []
+                        logger.info("nm_ids_for_update_data")
+                        logger.info(nm_ids_for_update_data)
+                        nm_ids_for_update_data[account].extend(low_limit_qty_data[account]['nm_ids'])
+            if len(nm_ids_for_update_data) > 0:
+                logger.info(nm_ids_for_update_data)
+                nm_ids_data_json = await self.add_new_data_from_table(lk_articles=nm_ids_for_update_data,
+                                                                      only_edits_data=True, add_data_in_db=False,
+                                                                      check_nm_ids_in_db=False)
+                # if len(low_limit_qty_data["edit_min_qty"]) > 0:
+                #     logger.info(low_limit_qty_data["edit_min_qty"])
+                #     nm_ids_data_json = merge_dicts(nm_ids_data_json, low_limit_qty_data["edit_min_qty"])
 
-                        # добавляет баркоды с новыми остатками для запроса на изменение остатков
-                        if account in low_limit_qty_data["edit_fbc_qty_data"] and len(
-                                low_limit_qty_data["edit_fbc_qty_data"][account]) > 0:
-                            update_qty_data.extend(low_limit_qty_data["edit_fbc_qty_data"][account])
-
-                        if len(update_qty_data):
-                            for warehouse_id in warehouses:
-                                qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse_id["id"],
-                                                                     edit_barcodes_list=update_qty_data)
-
-                            if account not in nm_ids_for_update_data:
-                                nm_ids_for_update_data[account] = []
-                            logger.info("nm_ids_for_update_data")
-                            logger.info(nm_ids_for_update_data)
-                            nm_ids_for_update_data[account].extend(low_limit_qty_data["result_data"][account]['nm_ids'])
-                if len(nm_ids_for_update_data) > 0:
-                    logger.info(nm_ids_for_update_data)
-                    nm_ids_data_json = await self.add_new_data_from_table(lk_articles=nm_ids_for_update_data,
-                                                                          only_edits_data=True, add_data_in_db=False,
-                                                                          check_nm_ids_in_db=False)
-                    if len(low_limit_qty_data["edit_min_qty"]) > 0:
-                        logger.info(low_limit_qty_data["edit_min_qty"])
-                        nm_ids_data_json = merge_dicts(nm_ids_data_json, low_limit_qty_data["edit_min_qty"])
-
-                    self.gs_connect.update_rows(data_json=nm_ids_data_json,
-                                                edit_column_clean={"qty": False, "price_discount": False,
-                                                                   "dimensions": False})
+                self.gs_connect.update_rows(data_json=nm_ids_data_json,
+                                            edit_column_clean={"qty": False, "price_discount": False,
+                                                               "dimensions": False})
 
     async def add_orders_data_in_table(self):
         from utils import get_order_data_from_database
@@ -936,7 +978,7 @@ class ServiceGoogleSheet:
             statistic = Statistic(token=token)
             task_by_supplies = asyncio.create_task(statistic.get_supplies_data(date=yesterday))
             task_by_qty = asyncio.create_task(
-                self.get_qty_data_by_account_for_turnover(token=token, data=data, warehouses_info=warehouses_info))
+                self.get_qty_data_by_account_for_turnover(account=account, token=token, data=data, warehouses_info=warehouses_info))
             tasks_by_qty.append(task_by_qty)
             tasks_by_supplies.append(task_by_supplies)
 
@@ -988,7 +1030,7 @@ class ServiceGoogleSheet:
             await inventory_turnover_by_reg.update_stock_balances(yesterday, ready_qty_data, plus_supply)
         logger.info("[INFO] Завершили актуализацию остатков")
 
-    async def get_qty_data_by_account_for_turnover(self, token, data, warehouses_info):
+    async def get_qty_data_by_account_for_turnover(self, account, token, data, warehouses_info):
         wh_analytics = AnalyticsWarehouseLimits(token=token)
 
         barcodes_set = set(data.keys())  # баркоды по аккаунту с таблицы
@@ -999,40 +1041,46 @@ class ServiceGoogleSheet:
 
         if task_id is not None and len(wb_warehouse_qty) > 0:
             if wb_warehouse_qty:  # собираем остатки со складов WB
+
                 for qty_data in wb_warehouse_qty:
-                    if qty_data['barcode'] in barcodes_set:
-                        barcode = qty_data['barcode']
-                        article = data[barcode]
-                        articles_qty_wb[article] = {
-                            # "ФБО": qty_data['quantityWarehousesFull'],
-                            "barcode": barcode
-                        }
-                        warehouses = qty_data['warehouses']
+                    try:  # почему-то начал отображать в данные по артикулам без ключа barcode
 
-                        if len(warehouses) > 0:
-                            for wh_data in warehouses:
-                                warehouse_name = wh_data["warehouseName"]
-                                if warehouse_name in warehouses_info:
-                                    region_name_by_warehouse = warehouses_info[warehouse_name]
-                                    # по задумке должен суммировать остатки всех закрепленных регионов к складам
-                                    if region_name_by_warehouse not in articles_qty_wb[article]:
-                                        articles_qty_wb[article][region_name_by_warehouse] = 0
-                                    articles_qty_wb[article][region_name_by_warehouse] += wh_data["quantity"]
+                        if qty_data['barcode'] in barcodes_set:
+                            barcode = qty_data['barcode']
+                            article = data[barcode]
+                            articles_qty_wb[article] = {
+                                # "ФБО": qty_data['quantityWarehousesFull'],
+                                "barcode": barcode
+                            }
+                            warehouses = qty_data['warehouses']
 
-                                else:
-                                    if warehouse_name not in untracked_warehouses:
-                                        untracked_warehouses[warehouse_name] = 0
-                                    untracked_warehouses[warehouse_name] += wh_data["quantity"]
+                            if len(warehouses) > 0:
+                                for wh_data in warehouses:
+                                    warehouse_name = wh_data["warehouseName"]
+                                    if warehouse_name in warehouses_info:
+                                        region_name_by_warehouse = warehouses_info[warehouse_name]
+                                        # по задумке должен суммировать остатки всех закрепленных регионов к складам
+                                        if region_name_by_warehouse not in articles_qty_wb[article]:
+                                            articles_qty_wb[article][region_name_by_warehouse] = 0
+                                        articles_qty_wb[article][region_name_by_warehouse] += wh_data["quantity"]
 
-                        clean_data = {"Центральный": "",
-                                      "Южный": "",
-                                      "Северо-Кавказский": "",
-                                      "Приволжский": ""}
+                                    else:
+                                        if warehouse_name not in untracked_warehouses:
+                                            untracked_warehouses[warehouse_name] = 0
+                                        untracked_warehouses[warehouse_name] += wh_data["quantity"]
 
-                        for cd in clean_data:
-                            if cd not in articles_qty_wb[article]:
-                                articles_qty_wb[article][cd] = 0
+                            clean_data = {"Центральный": "",
+                                          "Южный": "",
+                                          "Северо-Кавказский": "",
+                                          "Приволжский": ""}
 
+                            for cd in clean_data:
+                                if cd not in articles_qty_wb[article]:
+                                    articles_qty_wb[article][cd] = 0
+                    except KeyError as e:
+                        logger.error(e)
+                        logger.info(account)
+                        logger.info(qty_data)
         return {"articles_qty_wb": articles_qty_wb, "untracked_warehouses": untracked_warehouses}
 
     async def find_out_orders_by_balances(self):
@@ -1064,7 +1112,7 @@ class ServiceGoogleSheet:
                         )
                 except KeyError as e:
                     error_article.append(article)
-                    logger.exception(f"[ERROR] KeyError {e}")
+                    logger.error(f" KeyError {e}")
             # await inventory_turnover_by_reg.update_orders(data=data_to_update)
             logger.info("Данные по заказам ФБО обновлено в бд таблицы 'inventory_turnover_by_reg'")
 
@@ -1125,8 +1173,6 @@ class ServiceGoogleSheet:
                     (article, district, search_date_format, data['supply_qty'], data['supply_count'])
                 )
 
-        # print(prepare_data_for_db)
-        # print(len(result_dict_data))
         logger.info(prepare_data_for_db)
         async with Database1() as connection:
             inventory_turnover_by_reg = InventoryTurnoverByRegTable(db=connection)
@@ -1219,9 +1265,3 @@ class ServiceGoogleSheet:
         # актуализируем данные в таблице
         await self.gs_connect.update_qty_by_reg(update_data=avg_data_by_orders)
         logger.info("Усредненные данные по заказам со складов\регионов актуализированы в Таблице")
-
-    # async def test(self):
-    #     async with Database1() as connection:
-    #         accurate_test = AccurateNetProfitTable(db=connection)
-    #         await accurate_test.add_new_article_net_profit_data(None, None, None, None)
-    #         print("end test")
