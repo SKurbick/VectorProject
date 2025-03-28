@@ -103,7 +103,7 @@ async def get_actually_data_by_qty():
     """Актуализация остатков по регионам в таблице MAIN"""
     logger.info("Запуск : актуализация остатков по регионам в таблице MAIN")
     gs_service = gs_service_for_schedule_connection()
-    await gs_service.get_actually_data_by_qty()
+    await gs_service.get_actually_data_by_qty_from_db()
     logger.info("Завершение : актуализация остатков по регионам в таблице MAIN")
 
 

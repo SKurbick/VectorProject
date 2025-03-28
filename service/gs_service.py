@@ -20,6 +20,7 @@ from database.postgresql.models.inventory_turnover_by_reg import QuantityAndSupp
 from database.postgresql.repositories.accurate_net_profit_data import AccurateNetProfitTable
 from database.postgresql.repositories.accurate_npd_purchase_calculation import AccurateNetProfitPCTable
 from database.postgresql.repositories.article import ArticleTable
+from database.postgresql.repositories.current_stocks_quantity import CurrentStocksQuantity
 from database.postgresql.repositories.inventory_turnover_by_reg import InventoryTurnoverByRegTable
 from database.postgresql.repositories.orders_by_federal_district import OrdersByFederalDistrict
 from database.postgresql.repositories.orders_revenues import OrdersRevenuesTable
@@ -605,7 +606,7 @@ class ServiceGoogleSheet:
         return articles_qty_data
 
     async def get_actually_data_by_qty(self):
-
+        """Устаревший: Метод актуализации данных по остаткам"""
         if ServiceGoogleSheet.check_status()['ВКЛ - 1 /ВЫКЛ - 0']:
             logger.info(f"[INFO] {datetime.datetime.now()} актуализируем данные по остаткам в таблице")
             gs_connect_main = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet=self.sheet)
@@ -651,6 +652,21 @@ class ServiceGoogleSheet:
             # update по неотслеживаемым складам для sheet 'Склады ИНФ'
             await gs_connect_warehouses_info.update_untracked_warehouses_quantity(update_data=untracked_warehouses)
             logger.info("Данные по остаткам обновлены в таблице.")
+
+    async def get_actually_data_by_qty_from_db(self):
+        """Актуализация состояния по остаткам из бд"""
+        data_to_gs_update = {}
+        async with Database1() as connection:
+            current_stocks_quantity = await CurrentStocksQuantity(connection).get_all_data()
+            for stocks_data in current_stocks_quantity:
+                article_id = stocks_data['article_id']
+                quantity = '' if stocks_data['quantity'] is None else stocks_data['quantity']
+                quantity_type = stocks_data['quantity_type']
+                if article_id not in data_to_gs_update:
+                    data_to_gs_update[article_id] = {}
+                data_to_gs_update[article_id].update({quantity_type:quantity})
+        pprint(data_to_gs_update)
+        await self.gs_connect.update_qty_by_reg(data_to_gs_update)
 
     async def get_qty_data_by_account(self, account, data, token, warehouses_info):
         wh_analytics = AnalyticsWarehouseLimits(token=token)
