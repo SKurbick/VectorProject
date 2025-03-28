@@ -128,7 +128,7 @@ class AsyncHttpClient:
         for attempt in range(self.retries):
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.request(method, url, timeout=self.timeout,ssl=False, **kwargs) as response:
+                    async with session.request(method, url, timeout=self.timeout, **kwargs) as response:
                         response.raise_for_status()
                         return await response.text()
             except (aiohttp.ClientError, aiohttp.ClientConnectionError) as e:

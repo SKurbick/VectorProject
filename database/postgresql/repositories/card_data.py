@@ -1,5 +1,7 @@
 from typing import Set
 
+import asyncpg
+
 
 class CardData:
     """Таблица card_data
@@ -63,7 +65,7 @@ class CardData:
         """
         return await self.db.fetch(query, article_ids)
 
-    async def get_actually_all_information(self, article_ids: Set[int]):
+    async def get_actual_information_to_db(self, article_ids: Set[int]):
         query = """SELECT cd.*, a.local_vendor_code 
                FROM card_data cd 
                JOIN article a ON cd.article_id = a.nm_id 
