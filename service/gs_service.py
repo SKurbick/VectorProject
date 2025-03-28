@@ -655,6 +655,7 @@ class ServiceGoogleSheet:
 
     async def get_actually_data_by_qty_from_db(self):
         """Актуализация состояния по остаткам из бд"""
+        logger.info("Обновление данных по состоянию остаткам")
         data_to_gs_update = {}
         async with Database1() as connection:
             current_stocks_quantity = await CurrentStocksQuantity(connection).get_all_data()
@@ -664,9 +665,9 @@ class ServiceGoogleSheet:
                 quantity_type = stocks_data['quantity_type']
                 if article_id not in data_to_gs_update:
                     data_to_gs_update[article_id] = {}
-                data_to_gs_update[article_id].update({quantity_type:quantity})
-        pprint(data_to_gs_update)
+                data_to_gs_update[article_id].update({quantity_type: quantity})
         await self.gs_connect.update_qty_by_reg(data_to_gs_update)
+        logger.info("Успешно")
 
     async def get_qty_data_by_account(self, account, data, token, warehouses_info):
         wh_analytics = AnalyticsWarehouseLimits(token=token)
