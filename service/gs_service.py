@@ -1202,7 +1202,7 @@ class ServiceGoogleSheet:
                                                  sheet="Склады ИНФ")
         warehouses_info = await gs_connect_warehouses_info.get_warehouses_info()
 
-        date = str(datetime.datetime.today().date() - datetime.timedelta(days=1))
+        date = str(datetime.datetime.today().date() - datetime.timedelta(days=7))  # вчерашний день
         date_obj = datetime.datetime.strptime(date, "%Y-%m-%d")
 
         tasks = []
@@ -1212,6 +1212,7 @@ class ServiceGoogleSheet:
             tasks.append(task)
 
         together_result = await asyncio.gather(*tasks)
+        # общее содержимое данных ответа ВБ
         results = []
         for t_res in together_result:
             results.extend(t_res)
@@ -1228,16 +1229,19 @@ class ServiceGoogleSheet:
 
                 if article_id not in sum_order_data_by_fbo:
                     sum_order_data_by_fbo[article_id] = {
-                        "federal_district": {},  # количество заказов
+                        "federal_district": {"ФБО": 0},  # количество заказов
                         "barcode": barcode,
                         "date": date_obj,
                         "vendor_code": vendor_code
                     }
+                sum_order_data_by_fbo[article_id]["federal_district"]["ФБО"] += 1  # сумма по заказам ФБО
+
                 if federal_district not in sum_order_data_by_fbo[article_id]["federal_district"]:
                     sum_order_data_by_fbo[article_id]["federal_district"].update({federal_district: 0})
 
-                sum_order_data_by_fbo[article_id]["federal_district"][federal_district] += 1
+                sum_order_data_by_fbo[article_id]["federal_district"][federal_district] += 1  # сумма заказов по отдельным регионам
 
+        pprint(sum_order_data_by_fbo)
         records_data = []
         for article, data in sum_order_data_by_fbo.items():
             for district_name, count in data['federal_district'].items():
