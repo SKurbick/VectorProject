@@ -1267,6 +1267,8 @@ class ServiceGoogleSheet:
                                    "Приволжский": "СВД - П"}
             avg_data_for_update = {}
             for record in avg_data:
+                if record['federal_district'] not in headers_by_district:
+                    continue
                 article_id = record['article_id']
                 avg_header_name = headers_by_district[record['federal_district']]
                 avg_orders_result = record['avg_opd']
