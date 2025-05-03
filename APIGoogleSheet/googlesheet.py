@@ -372,7 +372,7 @@ class GoogleSheet:
             wild = row["wild"]
 
             if str(article).isdigit():
-                if str(min_qty).isdigit() and int(min_qty) != 0:
+                if str(min_qty).isdigit() and int(min_qty) != 0 and str(current_qty).isdigit():
                     if int(min_qty) >= int(current_qty):
                         if account not in result_data:
                             result_data[account] = {"qty": [], "nm_ids": []}
