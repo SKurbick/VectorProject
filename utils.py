@@ -22,6 +22,7 @@ async def create_valid_data_from_db(data):
 
     return result_data
 
+
 def merge_dicts(d1, d2):
     result = {}
     for key in d1.keys() | d2.keys():
@@ -69,10 +70,11 @@ def add_orders_data(revenue_data: dict):  # добавление или обно
         file.truncate()
 
 
-def get_data_for_nm_ids():
-    with open("database.json", "r", encoding='utf-8') as file:
-        nm_ids = json.load(file)
-    return nm_ids["nm_ids_data"]
+# todo deprecated
+# def get_data_for_nm_ids():
+#     with open("database.json", "r", encoding='utf-8') as file:
+#         nm_ids = json.load(file)
+#     return nm_ids["nm_ids_data"]
 
 
 def add_nm_ids_in_db(account, new_nm_ids):
@@ -154,7 +156,7 @@ async def validate_data(nm_ids_db_data, data: dict):
                     nm_ids_data.setdefault("price_discount", {})["price"] = int(edit_data["price_discount"][
                                                                                     "Установить новую цену"])
             if "dimensions" in edit_data and (edit_data["dimensions"]['Новая\nВысота (см)'].isdigit() and edit_data["dimensions"][
-                                'Новая\nДлина (см)'].isdigit() and edit_data["dimensions"]['Новая\nШирина (см)'].isdigit()):
+                'Новая\nДлина (см)'].isdigit() and edit_data["dimensions"]['Новая\nШирина (см)'].isdigit()):
                 nm_ids_data.setdefault("dimensions", {})["height"] = int(edit_data["dimensions"][
                                                                              'Новая\nВысота (см)'])
                 nm_ids_data.setdefault("dimensions", {})["length"] = int(edit_data["dimensions"][
@@ -182,6 +184,7 @@ def get_nm_ids_in_db(account):
     return nm_ids["account_nm_ids"][account]
 
 
+# todo deprecated
 def get_warehouse_data():
     with open("database.json", "r", encoding='utf-8') as file:
         warehouse_data = json.load(file)
@@ -260,14 +263,14 @@ def json_int_key_hook(json_dict):
 
 
 def get_order_data_from_database() -> dict:
-    with open('orders_data.json', 'r+') as file:
+    with open('old_data/orders_data.json', 'r+') as file:
         # Загрузите данные из файла
         database = json.load(file, object_hook=json_int_key_hook)
     return database["nm_ids_orders_data"]
 
 
 def add_orders_data_in_database(orders_data):
-    with open('orders_data.json', 'r+') as file:
+    with open('old_data/orders_data.json', 'r+') as file:
         # Загрузите данные из файла
         database = json.load(file)
         for nm_id, od in orders_data.items():
@@ -290,7 +293,6 @@ def can_be_int(value):
         return True
     except (ValueError, TypeError):
         return False
-
 
 
 def process_local_vendor_code(s):

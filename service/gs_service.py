@@ -188,7 +188,7 @@ class ServiceGoogleSheet:
             else:
                 all_accounts_new_revenue_data.update(res_day["result_data"])
                 """добавляет данные по ежедневной выручке в БД"""
-                add_orders_data(res_day["result_data"])
+                # add_orders_data(res_day["result_data"])
 
         for res_week in results_week_revenue:
             if isinstance(res_week, Exception):
@@ -384,6 +384,7 @@ class ServiceGoogleSheet:
         return updates_nm_ids_data
 
     async def add_new_day_revenue_to_table(self):
+        # todo deprecated method
         start = datetime.datetime.now()
         statuses = ServiceGoogleSheet.check_status()
         if statuses['ВКЛ - 1 /ВЫКЛ - 0']:

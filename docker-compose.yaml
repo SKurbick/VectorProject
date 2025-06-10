@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  vector_project:
+#    build: ./VectorProject
+    build: .
+    container_name: vector_project_container
+    image: vector_project_image
+    volumes:
+      - vector_project_logs:/app/logging
+#      - database_json:/app/database.json
+      - ./database.json:/app/database.json  # файл с хоста → в контейнер
+
+    #    networks:
+#      - vector_db_default  # Сеть с БД
+    environment:
+      - TZ=Europe/Moscow
+
+#networks:
+#  vector_db_default:
+#    external: true
+
+volumes:
+  vector_project_logs:
+#  database_json:
