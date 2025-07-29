@@ -245,15 +245,15 @@ class ServiceGoogleSheet:
                     if "wild" in i and i["wild"] != "не найдено":
                         subject_names.add(i["Предмет"])  # собираем множество с предметами
                         account_barcodes.append(i["Баркод"])
-                        result_log_value = calculate_sum_for_logistic(
-                            # на лету считаем "Логистика от склада WB до ПВЗ"
-                            for_one_liter=float(current_tariffs_data["boxDeliveryBase"].replace(',', '.')),
-                            next_liters=float(current_tariffs_data["boxDeliveryLiter"].replace(',', '.')),
-                            height=int(i['Текущая\nВысота (см)']),
-                            length=int(i['Текущая\nДлина (см)']),
-                            width=int(i['Текущая\nШирина (см)']), )
-                        # добавляем результат вычислений в итоговые данные
-                        i["Логистика от склада WB до ПВЗ"] = result_log_value
+                        # result_log_value = calculate_sum_for_logistic(
+                        #     # на лету считаем "Логистика от склада WB до ПВЗ"
+                        #     for_one_liter=float(current_tariffs_data["boxDeliveryBase"].replace(',', '.')),
+                        #     next_liters=float(current_tariffs_data["boxDeliveryLiter"].replace(',', '.')),
+                        #     height=int(i['Текущая\nВысота (см)']),
+                        #     length=int(i['Текущая\nДлина (см)']),
+                        #     width=int(i['Текущая\nШирина (см)']), )
+                        # # добавляем результат вычислений в итоговые данные
+                        # i["Логистика от склада WB до ПВЗ"] = result_log_value
 
                     if only_edits_data is False:
                         try:
