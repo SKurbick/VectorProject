@@ -111,15 +111,18 @@ class Service:
         for article, data in merge_json_data.items():
             if "local_vendor_code" in data and data["local_vendor_code"] != "не найдено":
                 subject_names.add(data["subject_name"])  # собираем множество с предметами
-                result_log_value = calculate_sum_for_logistic(
-                    # на лету считаем "Логистика от склада WB до ПВЗ"
-                    for_one_liter=float(current_tariffs_data["boxDeliveryBase"].replace(',', '.')),
-                    next_liters=float(current_tariffs_data["boxDeliveryLiter"].replace(',', '.')),
-                    height=int(data['height']),
-                    length=int(data['length']),
-                    width=int(data['width']), )
-                # добавляем результат вычислений в итоговые данные
-                data["logistic_from_wb_wh_to_opp"] = result_log_value
+                try:
+                    result_log_value = calculate_sum_for_logistic(
+                        # на лету считаем "Логистика от склада WB до ПВЗ"
+                        for_one_liter=float(current_tariffs_data["boxDeliveryBase"].replace(',', '.')),
+                        next_liters=float(current_tariffs_data["boxDeliveryLiter"].replace(',', '.')),
+                        height=int(data['height']),
+                        length=int(data['length']),
+                        width=int(data['width']), )
+                    # добавляем результат вычислений в итоговые данные
+                    data["logistic_from_wb_wh_to_opp"] = result_log_value
+                except Exception as e:
+                    logger.info(f"ERROR by calculate_sum_for_logistic : {str(e)}")
             else:
                 logger.info(f"article : {article}, data : {data}")
         # получение комиссии WB
