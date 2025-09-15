@@ -2,6 +2,7 @@ import asyncio
 import json
 import time
 from datetime import datetime
+from typing import List, Dict, Any
 
 import pandas
 from gspread.utils import rowcol_to_a1
@@ -14,6 +15,61 @@ import pandas as pd
 
 from logger import app_logger as logger
 
+def safe_batch_update(
+        sheet: gspread.Worksheet,
+        updates: List[Dict[str, Any]],
+        chunk_size: int = 3000,
+        max_retries: int = 5,
+) -> None:
+    """
+    Безопасное массовое обновление данных в Google Sheets с retry-логикой
+
+    Args:
+        sheet: Объект gspread Worksheet
+        updates: Список словарей с обновлениями формата {'range': 'A1', 'values': [[value]]}
+        chunk_size: Размер chunk'а (по умолчанию 3000)
+        max_retries: Максимальное количество попыток (по умолчанию 5)
+        value_input_option: Опция ввода данных ("USER_ENTERED" или "RAW")
+    """
+    total_updates = len(updates)
+    if total_updates == 0:
+        logger.info("Нет обновлений для выполнения")
+        return
+
+    total_chunks = (total_updates + chunk_size - 1) // chunk_size
+    logger.info(f"Начинаем обновление: {total_updates} ячеек, {total_chunks} chunks")
+
+    for chunk_index in range(0, total_updates, chunk_size):
+        chunk = updates[chunk_index:chunk_index + chunk_size]
+        chunk_number = chunk_index // chunk_size + 1
+
+        for attempt in range(max_retries):
+            try:
+                sheet.batch_update(chunk)
+                logger.info(
+                    f"Успешно обновлен chunk {chunk_number}/{total_chunks} "
+                    f"({len(chunk)} ячеек, всего {min(chunk_index + chunk_size, total_updates)}/{total_updates})"
+                )
+                break  # Успех, переходим к следующему chunk
+
+            except gspread.exceptions.APIError as e:
+                if '503' in str(e) and attempt < max_retries - 1:
+                    wait_time = 2 ** attempt  # Экспоненциальная задержка
+                    logger.warning(
+                        f"Ошибка 503 в chunk {chunk_number}, "
+                        f"попытка {attempt + 1}/{max_retries}, жду {wait_time} сек"
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.error(
+                        f"Не удалось обновить chunk {chunk_number} после {max_retries} попыток: {e}"
+                    )
+                    raise e
+        else:
+            logger.error(f"Chunk {chunk_number} не удалось обновить после {max_retries} попыток")
+            raise Exception(f"Failed to update chunk {chunk_number} after {max_retries} attempts")
+
+    logger.info(f"Все обновления завершены успешно: {total_updates} ячеек")
 
 def retry_on_quota_exceeded_async(max_retries=10, delay=60):
     def decorator(func):
@@ -41,6 +97,7 @@ class GoogleSheet:
         client = self.client_init_json()
         for _ in range(10):
             try:
+                print(sheet, "sheet")
                 spreadsheet = client.open(self.spreadsheet)
                 self.sheet = spreadsheet.worksheet(sheet)
                 break
@@ -133,8 +190,13 @@ class GoogleSheet:
                         column_letter = column_index_to_letter(column_index)
                         updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
 
-        self.sheet.batch_update(updates)
-
+        # self.sheet.batch_update(updates)
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5,  # Можно настроить количество попыток
+        )
         logger.info("Проверка и добавление завершены")
 
     def update_rows(self, data_json, edit_column_clean: dict = None):
@@ -198,7 +260,13 @@ class GoogleSheet:
                         updates.append({'range': f'AF{row_number}', 'values': [['']]})
 
         # pprint(updates)
-        self.sheet.batch_update(updates)
+        # self.sheet.batch_update(updates)
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5,  # Можно настроить количество попыток
+        )
         logger.info("Данные успешно обновлены.")
         return True
 
@@ -458,8 +526,13 @@ class GoogleSheet:
                         column_letter = column_index_to_letter(column_index)
                         updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
 
-        self.sheet.batch_update(updates)
-
+        # self.sheet.batch_update(updates)
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5,  # Можно настроить количество попыток
+        )
         logger.info("Проверка и добавление завершены")
 
     def shift_headers_count_list(self, today):
@@ -628,7 +701,13 @@ class GoogleSheet:
 
         # Batch update the Google Sheet with error handling
         try:
-            self.sheet.batch_update(updates)
+            # self.sheet.batch_update(updates)
+            safe_batch_update(
+                sheet=self.sheet,
+                updates=updates,
+                chunk_size=1000,  # Можно настроить под свои needs
+                max_retries=5,  # Можно настроить количество попыток
+            )
         except Exception as e:
             logger.error(f'Error during batch update: {e}')
 
@@ -665,8 +744,13 @@ class GoogleSheet:
                         column_letter = column_index_to_letter(column_index)
                         updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
 
-        self.sheet.batch_update(updates)
-
+        # self.sheet.batch_update(updates)
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5,  # Можно настроить количество попыток
+        )
 
 class GoogleSheetServiceRevenue:
     """Выручка: AD-AN"""
@@ -722,8 +806,13 @@ class GoogleSheetServiceRevenue:
                         })
 
         # Отправка обновлений одним запросом
-        self.sheet.batch_update(updates)
-
+        # self.sheet.batch_update(updates)
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5,  # Можно настроить количество попыток
+        )
         logger.info("Значения обновлены в таблице.")
 
     def add_last_day_revenue(self, last_day, nm_ids_revenue_data: dict):
@@ -753,8 +842,13 @@ class GoogleSheetServiceRevenue:
 
         # Отправка обновлений одним запросом
         logger.info(updates)
-        self.sheet.batch_update(updates, value_input_option="USER_ENTERED")
-
+        # self.sheet.batch_update(updates, value_input_option="USER_ENTERED")
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5,  # Можно настроить количество попыток
+        )
         logger.info("Значения обновлены в таблице.")
 
     def shift_revenue_columns_to_the_left(self, last_day):
@@ -928,8 +1022,13 @@ class GoogleSheetServiceRevenue:
                         column_letter = column_index_to_letter(column_index)
                         updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
 
-        self.sheet.batch_update(updates)
-
+        # self.sheet.batch_update(updates)
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5,  # Можно настроить количество попыток
+        )
         logger.info("Проверка и добавление завершены")
 
     def update_revenue_rows(self, data_json):
@@ -963,8 +1062,13 @@ class GoogleSheetServiceRevenue:
                         column_letter = column_index_to_letter(column_index)
                         updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
 
-        self.sheet.batch_update(updates)
-
+        # self.sheet.batch_update(updates)
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5,  # Можно настроить количество попыток
+        )
 
 class GoogleSheetSopostTable:
     from settings import settings
@@ -1137,7 +1241,13 @@ class PCGoogleSheet:
                         column_index = headers.index(column) + 1
                         column_letter = column_index_to_letter(column_index)
                         updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
-        self.sheet.batch_update(updates)
+        # self.sheet.batch_update(updates)
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5,  # Можно настроить количество попыток
+        )
         logger.info("Актуализированы данные по дням в листе ПРОДАЖИ")
 
 
