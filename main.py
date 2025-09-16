@@ -30,7 +30,7 @@ async def get_actually_revenues_orders_and_net_profit_data():
     logger.info("Завершение : Актуализация данных по выручке, заказам и сумме с чистой прибыли")
 
 
-@scheduler.scheduled_job(IntervalTrigger(seconds=10), coalesce=True)
+@scheduler.scheduled_job(IntervalTrigger(minutes=10), coalesce=True)
 @log_job
 async def job_check_new_nm_ids():
     """Смотрит в таблицу, оценивает новые nm_ids"""
