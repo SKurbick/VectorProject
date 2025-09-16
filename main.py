@@ -17,10 +17,10 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from service.service_edit_columns import check_new_nm_ids, check_edits_columns, gs_service_for_schedule_connection
 from service.service_update_db import Service
 
-scheduler = AsyncIOScheduler(job_defaults={'misfire_grace_time': 1000, 'max_instances': 1})
+scheduler = AsyncIOScheduler(job_defaults={'misfire_grace_time': 2000, 'max_instances': 1})
 
 
-@scheduler.scheduled_job(IntervalTrigger(minutes=6), coalesce=True)
+@scheduler.scheduled_job(IntervalTrigger(minutes=15), coalesce=True)
 @log_job
 async def get_actually_revenues_orders_and_net_profit_data():
     """Актуализация данных по выручке, заказам и сумме с чистой прибыли"""
@@ -30,7 +30,7 @@ async def get_actually_revenues_orders_and_net_profit_data():
     logger.info("Завершение : Актуализация данных по выручке, заказам и сумме с чистой прибыли")
 
 
-@scheduler.scheduled_job(IntervalTrigger(seconds=300), coalesce=True)
+@scheduler.scheduled_job(IntervalTrigger(seconds=10), coalesce=True)
 @log_job
 async def job_check_new_nm_ids():
     """Смотрит в таблицу, оценивает новые nm_ids"""
@@ -39,7 +39,7 @@ async def job_check_new_nm_ids():
     logger.info("Завершение : Смотрит в таблицу, оценивает новые nm_ids")
 
 
-@scheduler.scheduled_job(IntervalTrigger(minutes=6), coalesce=True)
+@scheduler.scheduled_job(IntervalTrigger(minutes=30), coalesce=True)
 @log_job
 async def job_check_edits_columns_and_add_actually_data_to_table():
     logger.info("Запуск :"
@@ -97,7 +97,7 @@ async def check_headers():
     logger.info("Завершение : Смотрим состояние заголовков текущих дней")
 
 
-@scheduler.scheduled_job(IntervalTrigger(minutes=5), coalesce=True)
+@scheduler.scheduled_job(IntervalTrigger(minutes=15), coalesce=True)
 @log_job
 async def get_actually_data_by_qty():
     """Актуализация остатков по регионам в таблице MAIN"""
