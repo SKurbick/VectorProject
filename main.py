@@ -47,7 +47,7 @@ async def job_check_edits_columns_and_add_actually_data_to_table():
     gs_service = gs_service_for_schedule_connection()
     service = Service()
     async with Database1() as db:
-        await gs_service.add_actually_data_to_table(db=db)
+        # await gs_service.add_actually_data_to_table(db=db)
         logger.info("Завершение :"
                     "Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
         logger.info("Запуск : Смотрит в таблицу, оценивает изменения")
