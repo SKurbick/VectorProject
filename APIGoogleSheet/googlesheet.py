@@ -20,6 +20,7 @@ def safe_batch_update(
         updates: List[Dict[str, Any]],
         chunk_size: int = 3000,
         max_retries: int = 5,
+        start_chunk: int = 1  # Новый параметр - начинать с указанного чанка
 ) -> None:
     """
     Безопасное массовое обновление данных в Google Sheets с retry-логикой
@@ -29,7 +30,7 @@ def safe_batch_update(
         updates: Список словарей с обновлениями формата {'range': 'A1', 'values': [[value]]}
         chunk_size: Размер chunk'а (по умолчанию 3000)
         max_retries: Максимальное количество попыток (по умолчанию 5)
-        value_input_option: Опция ввода данных ("USER_ENTERED" или "RAW")
+        start_chunk: Номер чанка, с которого начать обновление (по умолчанию 1)
     """
     total_updates = len(updates)
     if total_updates == 0:
@@ -37,9 +38,20 @@ def safe_batch_update(
         return
 
     total_chunks = (total_updates + chunk_size - 1) // chunk_size
-    logger.info(f"Начинаем обновление: {total_updates} ячеек, {total_chunks} chunks")
 
-    for chunk_index in range(0, total_updates, chunk_size):
+    # Проверяем валидность start_chunk
+    if start_chunk < 1:
+        start_chunk = 1
+    elif start_chunk > total_chunks:
+        logger.info(f"start_chunk ({start_chunk}) превышает общее количество чанков ({total_chunks}). Ничего не обновляем.")
+        return
+
+    # Вычисляем стартовый индекс для среза updates
+    start_index = (start_chunk - 1) * chunk_size
+
+    logger.info(f"Начинаем обновление: {total_updates} ячеек, {total_chunks} chunks, начиная с chunk {start_chunk}")
+
+    for chunk_index in range(start_index, total_updates, chunk_size):
         chunk = updates[chunk_index:chunk_index + chunk_size]
         chunk_number = chunk_index // chunk_size + 1
 
@@ -54,7 +66,7 @@ def safe_batch_update(
 
             except gspread.exceptions.APIError as e:
                 if '503' in str(e) and attempt < max_retries - 1:
-                    wait_time = 2 ** attempt  # Экспоненциальная задержка
+                    wait_time = 10 ** attempt  # Экспоненциальная задержка
                     logger.warning(
                         f"Ошибка 503 в chunk {chunk_number}, "
                         f"попытка {attempt + 1}/{max_retries}, жду {wait_time} сек"
@@ -265,7 +277,8 @@ class GoogleSheet:
             sheet=self.sheet,
             updates=updates,
             chunk_size=1000,  # Можно настроить под свои needs
-            max_retries=5,  # Можно настроить количество попыток
+            max_retries=5  # Можно настроить количество попыток
+            # start_chunk=10
         )
         logger.info("Данные успешно обновлены.")
         return True
