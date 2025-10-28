@@ -39,7 +39,7 @@ async def job_check_new_nm_ids():
     logger.info("Завершение : Смотрит в таблицу, оценивает новые nm_ids")
 
 
-@scheduler.scheduled_job(IntervalTrigger(minutes=30), coalesce=True)
+@scheduler.scheduled_job(IntervalTrigger(minutes=15), coalesce=True)
 @log_job
 async def job_check_edits_columns_and_add_actually_data_to_table():
     logger.info("Запуск :"
@@ -47,7 +47,7 @@ async def job_check_edits_columns_and_add_actually_data_to_table():
     gs_service = gs_service_for_schedule_connection()
     service = Service()
     async with Database1() as db:
-        # await gs_service.add_actually_data_to_table(db=db)
+        await gs_service.add_actually_data_to_table(db=db)
         logger.info("Завершение :"
                     "Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
         logger.info("Запуск : Смотрит в таблицу, оценивает изменения")
@@ -107,6 +107,14 @@ async def get_actually_data_by_qty():
     logger.info("Завершение : актуализация остатков по регионам в таблице MAIN")
 
 
+@scheduler.scheduled_job(IntervalTrigger(minutes=15), coalesce=True)
+async def add_stock_data_in_gs():
+    logger.info("Запуск : актуализация СЕРВИСНЫХ остатков")
+    gs_service = gs_service_for_schedule_connection()
+    await gs_service.get_stock_data_on_api()
+
+
+
 def job_error_listener(event):
     job = scheduler.get_job(event.job_id)
     if job:
@@ -133,3 +141,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    # asyncio.run(job_check_edits_columns_and_add_actually_data_to_table())
+    # asyncio.run(job_check_new_nm_ids())
+    # asyncio.run(get_actually_revenues_orders_and_net_profit_data())
+    # asyncio.run(add_stock_data_in_gs())

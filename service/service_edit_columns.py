@@ -114,9 +114,13 @@ async def check_edits_columns(db: Database1):
                                                    "dimensions": service_google_sheet['Габариты'],
                                                    "qty": service_google_sheet["Остаток"]})
                         return create_lk_articles(edit_nm_ids_data)
+                    return None
+                return None
 
             else:
                 logger.info("Сервис заблокирован на изменения: (Цены/Скидки, Остаток, Габариты)")
+                return None
         except Exception as e:
             logger.info(f"[ERROR] СЕРВИС РЕДАКТИРОВАНИЯ {e}")
             raise e
+    return None

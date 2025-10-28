@@ -24,6 +24,7 @@ class Setting:
     TELEGRAM_TOKEN: str = os.getenv("TELEGRAM_TOKEN")
     TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID")
 
+    ONE_C_ROUTING_API:str = os.getenv("ONE_C_ROUTING_API")
 
 class DBConfig:
     DB_USER: str = os.getenv('DB_USER')

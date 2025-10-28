@@ -2,6 +2,7 @@ import asyncio
 import json
 import time
 from datetime import datetime
+from pprint import pprint
 from typing import List, Dict, Any
 
 import pandas
@@ -126,6 +127,211 @@ class GoogleSheet:
     def get_table_by_id(client: Client, table_key):
         """Получение таблицы из Google Sheets по ID таблицы."""
         return client.open_by_key(table_key)
+
+    def get_article_and_profit_data_alternative(self) -> list[tuple]:
+        """
+        Альтернативный метод получения данных.
+        Более устойчив к небольшим различиям в названиях колонок.
+        """
+        try:
+            # Получаем первую строку с заголовками
+            headers = self.sheet.row_values(1)
+
+            # Находим индексы нужных колонок
+            article_idx = -1
+            profit_idx = -1
+
+            for i, header in enumerate(headers):
+                header_lower = header.lower().strip()
+                if 'артикул' in header_lower:
+                    article_idx = i
+                elif 'среднее чп за 23' in header_lower:
+                    profit_idx = i
+
+            if article_idx == -1 or profit_idx == -1:
+                logger.error("Не найдены нужные колонки в таблице")
+                return []
+
+            # Получаем все данные, начиная со второй строки
+            all_data = self.sheet.get_all_values()[1:]
+
+            result = []
+            for row in all_data:
+                if len(row) > max(article_idx, profit_idx):
+                    article = row[article_idx].strip()
+                    profit = row[profit_idx].strip()
+
+                    # Пропускаем пустые значения
+                    if not article or not profit:
+                        continue
+
+                    # Преобразуем оба значения в числовой формат
+                    try:
+                        # Преобразуем артикул в int
+                        article_clean = article.replace(' ', '').replace(',', '')
+                        article_value = int(article_clean)
+
+                        # Преобразуем profit в int
+                        profit_clean = profit.replace(' ', '').replace(',', '.')
+                        profit_value = int(float(profit_clean))  # Сначала в float, потом в int для чисел с точкой
+
+                        result.append((article_value, profit_value))
+
+                    except (ValueError, TypeError) as e:
+                        # Логируем ошибку преобразования, но пропускаем строку
+                        logger.warning(f"Не удалось преобразовать значения: артикул='{article}', прибыль='{profit}'. Ошибка: {e}")
+                        continue
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Ошибка при получении данных: {e}")
+            return []
+
+
+
+
+
+    def insert_wild_data_correct(self, data_dict: dict,sheet_header="wild") -> None:
+        """
+        Оптимизированная версия - обновляет данные целыми столбцами.
+        """
+        try:
+            # Получаем заголовки таблицы
+            headers = self.sheet.row_values(1)
+            # print(headers)
+            # Находим индекс колонки wild
+            wild_col_idx = None
+            for idx, header in enumerate(headers):
+                if sheet_header in header.lower():
+                    wild_col_idx = idx
+                    print(wild_col_idx)
+
+            if wild_col_idx is None:
+
+                logger.error(f"Колонка {sheet_header} не найдена в таблице")
+                return
+
+            # Находим индексы и диапазон наших целевых колонок
+            # target_headers = list(next(iter(data_dict.values())).keys()) if data_dict else []
+            target_headers = list(set().union(*(item.keys() for item in data_dict.values())))
+            print(f"Все целевые заголовки: {target_headers}")
+
+            target_indices = []
+
+            for header in target_headers:
+                if header in headers:
+                    target_indices.append(headers.index(header))
+
+            if not target_indices:
+                logger.error("Целевые заголовки не найдены в таблице")
+                return
+
+            # Сортируем индексы и проверяем, что они идут подряд
+            target_indices.sort()
+            is_consecutive = all(target_indices[i] + 1 == target_indices[i + 1]
+                                 for i in range(len(target_indices) - 1))
+
+            # Получаем все данные таблицы
+            all_data = self.sheet.get_all_values()
+
+            # Создаем матрицу для обновления (строки x колонки)
+            updates = []
+
+            if is_consecutive and len(target_indices) > 1:
+                # ОПТИМИЗАЦИЯ: обновляем целым диапазоном столбцов
+                start_col = target_indices[0]
+                end_col = target_indices[-1]
+
+                # ПРАВИЛЬНО формируем диапазон: "AX2:BA5886"
+                start_col_letter = self.get_column_letter(start_col + 1)
+                end_col_letter = self.get_column_letter(end_col + 1)
+                update_range = f"{start_col_letter}2:{end_col_letter}{len(all_data)}"
+
+                logger.info(f"Обновляем диапазон: {update_range}")
+
+                # Создаем матрицу обновлений
+                update_matrix = [['' for _ in range(len(target_indices))] for _ in range(len(all_data) - 1)]
+
+                # Заполняем матрицу данными
+                for row_idx in range(1, len(all_data)):
+                    row = all_data[row_idx]
+                    if len(row) > wild_col_idx:
+                        current_wild = row[wild_col_idx]
+                        if current_wild in data_dict:
+                            wild_data = data_dict[current_wild]
+                            for i, col_idx in enumerate(target_indices):
+                                header = headers[col_idx]
+                                if header in wild_data:
+                                    update_matrix[row_idx - 1][i] = wild_data[header]
+                                else:
+                                    # Сохраняем оригинальное значение если нет в словаре
+                                    update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+                        else:
+                            # Сохраняем оригинальные значения для строк без совпадения
+                            for i, col_idx in enumerate(target_indices):
+                                update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+                    else:
+                        # Для строк без wild данных
+                        for i, col_idx in enumerate(target_indices):
+                            update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+
+                updates.append({
+                    'range': update_range,
+                    'values': update_matrix
+                })
+            else:
+                # Если колонки не подряд, обновляем каждую колонку отдельно
+                for col_idx in target_indices:
+                    header = headers[col_idx]
+                    col_letter = self.get_column_letter(col_idx + 1)
+                    # ПРАВИЛЬНЫЙ формат: "AX2:AX5886"
+                    col_range = f"{col_letter}2:{col_letter}{len(all_data)}"
+
+                    logger.info(f"Обновляем колонку: {col_range}")
+
+                    # Подготавливаем данные для столбца
+                    column_data = []
+                    for row_idx in range(1, len(all_data)):
+                        row = all_data[row_idx]
+                        if len(row) > wild_col_idx:
+                            current_wild = row[wild_col_idx]
+                            if current_wild in data_dict and header in data_dict[current_wild]:
+                                column_data.append([data_dict[current_wild][header]])
+                            else:
+                                column_data.append([row[col_idx] if col_idx < len(row) else ''])
+                        else:
+                            column_data.append([row[col_idx] if col_idx < len(row) else ''])
+
+                    updates.append({
+                        'range': col_range,
+                        'values': column_data
+                    })
+
+            # pprint(updates)
+
+            # Выполняем обновление
+            if updates:
+                for i, update in enumerate(updates):
+                    try:
+                        self.sheet.update(update['range'], update['values'], value_input_option='USER_ENTERED')
+                        logger.info(f"Успешно обновлен диапазон {update['range']} ({i + 1}/{len(updates)})")
+                    except Exception as e:
+                        logger.error(f"Ошибка при обновлении {update['range']}: {e}")
+                        # Можно добавить повторные попытки или продолжить
+
+        except Exception as e:
+            logger.error(f"Ошибка при вставке данных: {e}")
+            raise
+
+    @staticmethod
+    def get_column_letter( col_idx: int) -> str:
+        """Конвертирует индекс колонки в букву (A, B, C, ...)"""
+        result = ""
+        while col_idx > 0:
+            col_idx, remainder = divmod(col_idx - 1, 26)
+            result = chr(65 + remainder) + result
+        return result
 
     def get_nm_ids(self):
 
@@ -786,6 +992,153 @@ class GoogleSheetServiceRevenue:
     def client_init_json(self) -> Client:
         """Создание клиента для работы с Google Sheets."""
         return service_account(filename=self.creds_json)
+
+
+
+    def insert_wild_data_correct(self, data_dict: dict,sheet_header="wild") -> None:
+        """
+        Оптимизированная версия - обновляет данные целыми столбцами.
+        """
+        try:
+            # Получаем заголовки таблицы
+            headers = self.sheet.row_values(1)
+            print(headers)
+            # Находим индекс колонки wild
+            wild_col_idx = None
+            for idx, header in enumerate(headers):
+                if sheet_header in header.lower():
+                    wild_col_idx = idx
+                    print(wild_col_idx)
+
+            if wild_col_idx is None:
+
+                logger.error(f"Колонка {sheet_header} не найдена в таблице")
+                return
+
+            # Находим индексы и диапазон наших целевых колонок
+            target_headers = list(next(iter(data_dict.values())).keys()) if data_dict else []
+            target_indices = []
+
+            for header in target_headers:
+                if header in headers:
+                    target_indices.append(headers.index(header))
+
+            if not target_indices:
+                logger.error("Целевые заголовки не найдены в таблице")
+                return
+
+            # Сортируем индексы и проверяем, что они идут подряд
+            target_indices.sort()
+            is_consecutive = all(target_indices[i] + 1 == target_indices[i + 1]
+                                 for i in range(len(target_indices) - 1))
+
+            # Получаем все данные таблицы
+            all_data = self.sheet.get_all_values()
+
+            # Создаем матрицу для обновления (строки x колонки)
+            updates = []
+
+            if is_consecutive and len(target_indices) > 1:
+                # ОПТИМИЗАЦИЯ: обновляем целым диапазоном столбцов
+                start_col = target_indices[0]
+                end_col = target_indices[-1]
+
+                # ПРАВИЛЬНО формируем диапазон: "AX2:BA5886"
+                start_col_letter = self.get_column_letter(start_col + 1)
+                end_col_letter = self.get_column_letter(end_col + 1)
+                update_range = f"{start_col_letter}2:{end_col_letter}{len(all_data)}"
+
+                logger.info(f"Обновляем диапазон: {update_range}")
+
+                # Создаем матрицу обновлений
+                update_matrix = [['' for _ in range(len(target_indices))] for _ in range(len(all_data) - 1)]
+
+                # Заполняем матрицу данными
+                for row_idx in range(1, len(all_data)):
+                    row = all_data[row_idx]
+                    if len(row) > wild_col_idx:
+                        current_wild = row[wild_col_idx]
+                        if current_wild in data_dict:
+                            wild_data = data_dict[current_wild]
+                            for i, col_idx in enumerate(target_indices):
+                                header = headers[col_idx]
+                                if header in wild_data:
+                                    update_matrix[row_idx - 1][i] = wild_data[header]
+                                else:
+                                    # Сохраняем оригинальное значение если нет в словаре
+                                    update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+                        else:
+                            # Сохраняем оригинальные значения для строк без совпадения
+                            for i, col_idx in enumerate(target_indices):
+                                update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+                    else:
+                        # Для строк без wild данных
+                        for i, col_idx in enumerate(target_indices):
+                            update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+
+                updates.append({
+                    'range': update_range,
+                    'values': update_matrix
+                })
+            else:
+                # Если колонки не подряд, обновляем каждую колонку отдельно
+                for col_idx in target_indices:
+                    header = headers[col_idx]
+                    col_letter = self.get_column_letter(col_idx + 1)
+                    # ПРАВИЛЬНЫЙ формат: "AX2:AX5886"
+                    col_range = f"{col_letter}2:{col_letter}{len(all_data)}"
+
+                    logger.info(f"Обновляем колонку: {col_range}")
+
+                    # Подготавливаем данные для столбца
+                    column_data = []
+                    for row_idx in range(1, len(all_data)):
+                        row = all_data[row_idx]
+                        if len(row) > wild_col_idx:
+                            current_wild = row[wild_col_idx]
+                            if current_wild in data_dict and header in data_dict[current_wild]:
+                                column_data.append([data_dict[current_wild][header]])
+                            else:
+                                column_data.append([row[col_idx] if col_idx < len(row) else ''])
+                        else:
+                            column_data.append([row[col_idx] if col_idx < len(row) else ''])
+
+                    updates.append({
+                        'range': col_range,
+                        'values': column_data
+                    })
+
+            pprint(updates)
+
+            # Выполняем обновление
+            if updates:
+                for i, update in enumerate(updates):
+                    try:
+                        self.sheet.update(update['range'], update['values'], value_input_option='USER_ENTERED')
+                        logger.info(f"Успешно обновлен диапазон {update['range']} ({i + 1}/{len(updates)})")
+                    except Exception as e:
+                        logger.error(f"Ошибка при обновлении {update['range']}: {e}")
+                        # Можно добавить повторные попытки или продолжить
+
+        except Exception as e:
+            logger.error(f"Ошибка при вставке данных: {e}")
+            raise
+
+    @staticmethod
+    def get_column_letter( col_idx: int) -> str:
+        """Конвертирует индекс колонки в букву (A, B, C, ...)"""
+        result = ""
+        while col_idx > 0:
+            col_idx, remainder = divmod(col_idx - 1, 26)
+            result = chr(65 + remainder) + result
+        return result
+
+
+
+
+
+
+
 
     def add_for_all_new_nm_id_revenue(self, nm_ids_revenue_data: dict):
         """

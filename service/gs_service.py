@@ -4,6 +4,7 @@ import time
 from pprint import pformat, pprint
 from typing import Tuple, List, Dict, Any, Set
 
+import aiohttp
 import gspread.exceptions
 import requests
 
@@ -20,6 +21,7 @@ from database.postgresql.models.inventory_turnover_by_reg import QuantityAndSupp
 from database.postgresql.repositories.accurate_net_profit_data import AccurateNetProfitTable
 from database.postgresql.repositories.accurate_npd_purchase_calculation import AccurateNetProfitPCTable
 from database.postgresql.repositories.article import ArticleTable
+from database.postgresql.repositories.assembly_task import AssemblyTask
 from database.postgresql.repositories.current_stocks_quantity import CurrentStocksQuantity
 from database.postgresql.repositories.inventory_turnover_by_reg import InventoryTurnoverByRegTable
 from database.postgresql.repositories.orders_by_federal_district import OrdersByFederalDistrict
@@ -127,23 +129,32 @@ class ServiceGoogleSheet:
                 data_to_update_main[article_id].update({orders_and_np_date_header: sum_value})
 
         try:
-            self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
+            pprint(data_to_update_main)
+            # self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)# устарел
+            data_str_keys = {str(k): v for k, v in data_to_update_main.items()}
+            self.gs_service_revenue_connect.insert_wild_data_correct(data_dict=data_str_keys, sheet_header="артикул")
             logger.info("Данные по чп и выручке в Unit актуализированы")
         except Exception as e:
             logger.error(
                 f"{e} Ошибка при актуализации информации по выручке и чп в main. Повторная попытка 36 sec")
             await asyncio.sleep(36)
-            self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)
+            # self.gs_service_revenue_connect.update_revenue_rows(data_json=data_to_update_main)# устарел
+            data_str_keys = {str(k): v for k, v in data_to_update_main.items()}
+            self.gs_service_revenue_connect.insert_wild_data_correct(data_dict=data_str_keys, sheet_header="Артикул")
             logger.info("Данные по чп и выручке в Unit актуализированы")
-        #
+
         try:
-            await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)
+            # await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)# устарел
+            data_str_keys = {str(k): v for k, v in data_to_update_orders.items()}
+            gs_connect_orders_sheet.insert_wild_data_correct(data_dict=data_str_keys, sheet_header="артикул")
             logger.info("Данные по количеству заказов актуализированы")
         except Exception as e:
             logger.error(
                 f"{e} Ошибка при актуализации информации в Количество заказов. Повторная попытка 36 sec")
             await asyncio.sleep(36)
-            await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)
+            data_str_keys = {str(k): v for k, v in data_to_update_orders.items()}
+            gs_connect_orders_sheet.insert_wild_data_correct(data_dict=data_str_keys, sheet_header="артикул")
+            # await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders) # устарел
             logger.info("Данные по количеству заказов актуализированы")
 
     async def add_revenue_for_new_nm_ids(self, lk_articles: dict):
@@ -567,7 +578,7 @@ class ServiceGoogleSheet:
         for items in article_id_to_update:
             for k, v in items.items():
                 for key, value in list(v.items()):
-                    if not value:
+                    if value is None:
                         items[k].pop(key)
         article_id_to_update = {k: v for d in article_id_to_update for k, v in d.items()}
         photos = {k: v for d in photos for k, v in d.items()}
@@ -582,11 +593,15 @@ class ServiceGoogleSheet:
             article_id_to_update = await self.get_actually_data_to_table_refactor(db=db)
             article_id_to_update, photos = self._get_photos_and_filter_empty_value(article_id_to_update)
             logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице")
-            self.gs_connect.update_rows(data_json=article_id_to_update)
-            if len(photos) > 0:
-                logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице ФОТО")
-                gs_connect_photo = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet="ФОТО")
-                await gs_connect_photo.add_data_to_count_list(photos)
+            # self.gs_connect.update_rows(data_json=article_id_to_update)
+            pprint(article_id_to_update[439704110])
+            data_str_keys = {str(k): v for k, v in article_id_to_update.items()}
+            self.gs_connect.insert_wild_data_correct(data_dict=data_str_keys, sheet_header='артикул')
+
+            # if len(photos) > 0:
+            #     logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице ФОТО")
+            #     gs_connect_photo = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet="ФОТО")
+            #     await gs_connect_photo.add_data_to_count_list(photos)
 
     async def get_actually_virtual_qty(self, account, data: dict, token):
         articles_qty_data = {}
@@ -667,7 +682,11 @@ class ServiceGoogleSheet:
                 if article_id not in data_to_gs_update:
                     data_to_gs_update[article_id] = {}
                 data_to_gs_update[article_id].update({quantity_type: quantity})
-        await self.gs_connect.update_qty_by_reg(data_to_gs_update)
+        pprint(data_to_gs_update)
+        # await self.gs_connect.update_qty_by_reg(data_to_gs_update)
+
+        data_str_keys = {str(k): v for k, v in data_to_gs_update.items()}
+        self.gs_connect.insert_wild_data_correct(data_dict=data_str_keys, sheet_header='артикул')
         logger.info("Успешно")
 
     async def get_qty_data_by_account(self, account, data, token, warehouses_info):
@@ -1289,3 +1308,63 @@ class ServiceGoogleSheet:
         # актуализируем данные в таблице
         await self.gs_connect.update_qty_by_reg(update_data=avg_data_by_orders)
         logger.info("Усредненные данные по заказам со складов\регионов актуализированы в Таблице")
+
+    async def get_stock_data_on_api(self):
+        async with Database1() as connection:
+            assembly_task_repo = AssemblyTask(connection)
+            db_data = await assembly_task_repo.get_order_status_counts_by_vendor()
+        return_data = {}
+        url_stock = f"{settings.ONE_C_ROUTING_API}warehouse_and_balances/get_all_product_current_balances"
+        url_reserve = f"{settings.ONE_C_ROUTING_API}shipment_of_goods/summ_reserve_data"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url=url_reserve) as response:
+                reserve_response_json = await response.json()
+                for res in reserve_response_json:
+                    product_id = res['product_id']
+                    if product_id not in return_data:
+                        return_data[product_id] = {
+                            "Физ остаток\n(сервис)": 0,
+                            "Свободный остаток\n(сервис)": 0,
+                            "Резерв ФБС\n(сервис)": 0,
+                            "Резерв ФБО\n(сервис)": 0
+                        }
+                    for delivery_type_data in res['delivery_type_data']:
+                        reserve_type = delivery_type_data['reserve_type']
+                        current_reserve = delivery_type_data['current_reserve']
+                        if reserve_type == "ФБО":
+                            return_data[product_id]["Резерв ФБО\n(сервис)"] += current_reserve
+                        if reserve_type == "ФБС":
+                            return_data[product_id]["Резерв ФБС\n(сервис)"] += current_reserve
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url=url_stock) as response:
+                stock_response_json = await response.json()
+                for res in stock_response_json:
+                    if res['warehouse_id'] != 1:
+                        continue
+                    product_id = res['product_id']
+                    if product_id not in return_data:
+                        return_data[product_id] = {
+                            "Физ остаток\n(сервис)": 0,
+                            "Свободный остаток\n(сервис)": 0,
+                            "Резерв ФБС\n(сервис)": 0,
+                            "Резерв ФБО\n(сервис)": 0
+                        }
+                    physical_quantity = res["physical_quantity"]
+                    available_quantity = res["available_quantity"]
+                    return_data[product_id]["Физ остаток\n(сервис)"] += physical_quantity
+                    return_data[product_id]["Свободный остаток\n(сервис)"] += available_quantity
+        for res in db_data:
+            product_id = res['local_vendor_code']
+            if product_id not in return_data:
+                return_data[product_id] = {
+                    "Физ остаток\n(сервис)": 0,
+                    "Свободный остаток\n(сервис)": 0,
+                    "Резерв ФБС\n(сервис)": 0,
+                    "Резерв ФБО\n(сервис)": 0
+                }
+            return_data[product_id]["Резерв ФБС\n(сервис)"] += res['total_orders']
+            return_data[product_id]["Свободный остаток\n(сервис)"] -= res['total_orders']
+
+        self.gs_connect.insert_wild_data_correct(data_dict=return_data)
