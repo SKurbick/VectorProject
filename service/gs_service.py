@@ -1309,10 +1309,10 @@ class ServiceGoogleSheet:
         logger.info("Усредненные данные по заказам со складов\регионов актуализированы в Таблице")
 
     async def get_stock_data_on_api(self):
-        async with Database1() as connection:
-            assembly_task_repo = AssemblyTask(connection)
-            db_data = await assembly_task_repo.get_order_status_counts_by_vendor()
-            print(db_data)
+        # async with Database1() as connection:
+        #     assembly_task_repo = AssemblyTask(connection)
+        #     db_data = await assembly_task_repo.get_order_status_counts_by_vendor()
+        #     print(db_data)
         return_data = {}
         url_stock = f"{settings.ONE_C_ROUTING_API}warehouse_and_balances/get_all_product_current_balances"
         url_reserve = f"{settings.ONE_C_ROUTING_API}shipment_of_goods/summ_reserve_data"
@@ -1359,16 +1359,16 @@ class ServiceGoogleSheet:
                     available_quantity = res["available_quantity"]
                     return_data[product_id]["Физ остаток\n(сервис)"] += physical_quantity
                     return_data[product_id]["Свободный остаток\n(сервис)"] += available_quantity
-        for res in db_data:
-            product_id = res['local_vendor_code']
-            if product_id not in return_data:
-                return_data[product_id] = {
-                    "Физ остаток\n(сервис)": 0,
-                    "Свободный остаток\n(сервис)": 0,
-                    "Резерв ФБС\n(сервис)": 0,
-                    "Резерв ФБО\n(сервис)": 0
-                }
-            return_data[product_id]["Резерв ФБС\n(сервис)"] += res['total_orders']
-            return_data[product_id]["Свободный остаток\n(сервис)"] -= res['total_orders']
-
-        self.gs_connect.insert_wild_data_correct(data_dict=return_data)
+        # for res in db_data:
+        #     product_id = res['local_vendor_code']
+        #     if product_id not in return_data:
+        #         return_data[product_id] = {
+        #             "Физ остаток\n(сервис)": 0,
+        #             "Свободный остаток\n(сервис)": 0,
+        #             "Резерв ФБС\n(сервис)": 0,
+        #             "Резерв ФБО\n(сервис)": 0
+        #         }
+        #     return_data[product_id]["Резерв ФБС\n(сервис)"] += res['total_orders']
+        #     return_data[product_id]["Свободный остаток\n(сервис)"] -= res['total_orders']
+        #
+        # self.gs_connect.insert_wild_data_correct(data_dict=return_data)
