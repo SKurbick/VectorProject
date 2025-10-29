@@ -598,10 +598,10 @@ class ServiceGoogleSheet:
             data_str_keys = {str(k): v for k, v in article_id_to_update.items()}
             self.gs_connect.insert_wild_data_correct(data_dict=data_str_keys, sheet_header='артикул')
 
-            # if len(photos) > 0:
-            #     logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице ФОТО")
-            #     gs_connect_photo = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet="ФОТО")
-            #     await gs_connect_photo.add_data_to_count_list(photos)
+            if len(photos) > 0:
+                logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице ФОТО")
+                gs_connect_photo = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet="ФОТО")
+                await gs_connect_photo.add_data_to_count_list(photos)
 
     async def get_actually_virtual_qty(self, account, data: dict, token):
         articles_qty_data = {}
@@ -1316,8 +1316,12 @@ class ServiceGoogleSheet:
         return_data = {}
         url_stock = f"{settings.ONE_C_ROUTING_API}warehouse_and_balances/get_all_product_current_balances"
         url_reserve = f"{settings.ONE_C_ROUTING_API}shipment_of_goods/summ_reserve_data"
-
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(
+            total=300,  # 5 минут
+            connect=60,  # 1 минута на соединение
+            sock_read=120  # 2 минуты на чтение
+        )
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(url=url_reserve) as response:
                 reserve_response_json = await response.json()
                 for res in reserve_response_json:

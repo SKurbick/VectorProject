@@ -108,6 +108,7 @@ async def get_actually_data_by_qty():
 
 
 @scheduler.scheduled_job(IntervalTrigger(minutes=15), coalesce=True)
+@log_job
 async def add_stock_data_in_gs():
     logger.info("Запуск : актуализация СЕРВИСНЫХ остатков")
     gs_service = gs_service_for_schedule_connection()
