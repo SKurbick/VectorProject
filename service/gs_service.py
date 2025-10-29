@@ -594,14 +594,13 @@ class ServiceGoogleSheet:
             article_id_to_update, photos = self._get_photos_and_filter_empty_value(article_id_to_update)
             logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице")
             # self.gs_connect.update_rows(data_json=article_id_to_update)
-            pprint(article_id_to_update[439704110])
             data_str_keys = {str(k): v for k, v in article_id_to_update.items()}
             self.gs_connect.insert_wild_data_correct(data_dict=data_str_keys, sheet_header='артикул')
-
-            if len(photos) > 0:
-                logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице ФОТО")
-                gs_connect_photo = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet="ФОТО")
-                await gs_connect_photo.add_data_to_count_list(photos)
+            #
+            # if len(photos) > 0:
+            #     logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице ФОТО")
+            #     gs_connect_photo = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet="ФОТО")
+            #     await gs_connect_photo.add_data_to_count_list(photos)
 
     async def get_actually_virtual_qty(self, account, data: dict, token):
         articles_qty_data = {}
