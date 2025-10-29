@@ -1312,6 +1312,7 @@ class ServiceGoogleSheet:
         async with Database1() as connection:
             assembly_task_repo = AssemblyTask(connection)
             db_data = await assembly_task_repo.get_order_status_counts_by_vendor()
+            print(db_data)
         return_data = {}
         url_stock = f"{settings.ONE_C_ROUTING_API}warehouse_and_balances/get_all_product_current_balances"
         url_reserve = f"{settings.ONE_C_ROUTING_API}shipment_of_goods/summ_reserve_data"
