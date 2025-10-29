@@ -1,4 +1,6 @@
 import html
+import time
+
 import pytz
 import asyncio
 import datetime
@@ -141,7 +143,10 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    while True:
+        asyncio.run(add_stock_data_in_gs())
+        time.sleep(2)
+    # asyncio.run(main())
     # asyncio.run(job_check_edits_columns_and_add_actually_data_to_table())
     # asyncio.run(job_check_new_nm_ids())
     # asyncio.run(get_actually_revenues_orders_and_net_profit_data())
