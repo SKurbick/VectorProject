@@ -84,6 +84,7 @@ def safe_batch_update(
 
     logger.info(f"Все обновления завершены успешно: {total_updates} ячеек")
 
+
 def retry_on_quota_exceeded_async(max_retries=10, delay=60):
     def decorator(func):
         async def async_wrapper(*args, **kwargs):
@@ -188,11 +189,7 @@ class GoogleSheet:
             logger.error(f"Ошибка при получении данных: {e}")
             return []
 
-
-
-
-
-    def insert_wild_data_correct(self, data_dict: dict,sheet_header="wild") -> None:
+    def insert_wild_data_correct(self, data_dict: dict, sheet_header="wild") -> None:
         """
         Оптимизированная версия - обновляет данные целыми столбцами.
         """
@@ -208,7 +205,6 @@ class GoogleSheet:
                     print(wild_col_idx)
 
             if wild_col_idx is None:
-
                 logger.error(f"Колонка {sheet_header} не найдена в таблице")
                 return
 
@@ -325,7 +321,7 @@ class GoogleSheet:
             raise
 
     @staticmethod
-    def get_column_letter( col_idx: int) -> str:
+    def get_column_letter(col_idx: int) -> str:
         """Конвертирует индекс колонки в букву (A, B, C, ...)"""
         result = ""
         while col_idx > 0:
@@ -557,12 +553,13 @@ class GoogleSheet:
                 continue
 
             # если ячейки, выделенные для изменения, будут иметь число, то они не будут отобраны для обновления данных
-            if True in (str(row['Новая\nДлина (см)']).replace('\xa0', '').isdigit(),
-                        str(row['Новая\nШирина (см)']).replace('\xa0', '').isdigit(),
-                        str(row['Новая\nВысота (см)']).replace('\xa0', '').isdigit(),
-                        str(row['Установить новую цену']).replace('\xa0', '').isdigit(),
-                        str(row['Установить новую скидку %']).replace('\xa0', '').isdigit(),
-                        str(row["Новый остаток"]).replace('\xa0', '').isdigit()):
+            if True in (
+                    # str(row['Новая\nДлина (см)']).replace('\xa0', '').isdigit(),
+                    # str(row['Новая\nШирина (см)']).replace('\xa0', '').isdigit(),
+                    # str(row['Новая\nВысота (см)']).replace('\xa0', '').isdigit(),
+                    str(row['Установить новую цену']).replace('\xa0', '').isdigit(),
+                    str(row['Установить новую скидку %']).replace('\xa0', '').isdigit(),
+                    str(row["Новый остаток"]).replace('\xa0', '').isdigit()):
                 continue
             if lk.upper() not in lk_articles_dict:
                 lk_articles_dict[lk.upper()] = []
@@ -971,6 +968,7 @@ class GoogleSheet:
             max_retries=5,  # Можно настроить количество попыток
         )
 
+
 class GoogleSheetServiceRevenue:
     """Выручка: AD-AN"""
 
@@ -993,9 +991,7 @@ class GoogleSheetServiceRevenue:
         """Создание клиента для работы с Google Sheets."""
         return service_account(filename=self.creds_json)
 
-
-
-    def insert_wild_data_correct(self, data_dict: dict,sheet_header="wild") -> None:
+    def insert_wild_data_correct(self, data_dict: dict, sheet_header="wild") -> None:
         """
         Оптимизированная версия - обновляет данные целыми столбцами.
         """
@@ -1011,7 +1007,6 @@ class GoogleSheetServiceRevenue:
                     print(wild_col_idx)
 
             if wild_col_idx is None:
-
                 logger.error(f"Колонка {sheet_header} не найдена в таблице")
                 return
 
@@ -1125,20 +1120,13 @@ class GoogleSheetServiceRevenue:
             raise
 
     @staticmethod
-    def get_column_letter( col_idx: int) -> str:
+    def get_column_letter(col_idx: int) -> str:
         """Конвертирует индекс колонки в букву (A, B, C, ...)"""
         result = ""
         while col_idx > 0:
             col_idx, remainder = divmod(col_idx - 1, 26)
             result = chr(65 + remainder) + result
         return result
-
-
-
-
-
-
-
 
     def add_for_all_new_nm_id_revenue(self, nm_ids_revenue_data: dict):
         """
@@ -1435,6 +1423,7 @@ class GoogleSheetServiceRevenue:
             chunk_size=1000,  # Можно настроить под свои needs
             max_retries=5,  # Можно настроить количество попыток
         )
+
 
 class GoogleSheetSopostTable:
     from settings import settings
