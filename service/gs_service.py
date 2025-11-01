@@ -1367,7 +1367,7 @@ class ServiceGoogleSheet:
                     "Резерв ФБС\n(сервис)": 0,
                     "Резерв ФБО\n(сервис)": 0
                 }
-            return_data[product_id]["Резерв ФБС\n(сервис)"] += res['total_orders']
-            return_data[product_id]["Свободный остаток\n(сервис)"] -= res['total_orders']
+            return_data[product_id]["Резерв ФБС\n(сервис)"] += res['new_count']
+            return_data[product_id]["Свободный остаток\n(сервис)"] -= res['new_count']
 
         self.gs_connect.insert_wild_data_correct(data_dict=return_data)

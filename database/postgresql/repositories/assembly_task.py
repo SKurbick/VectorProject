@@ -12,11 +12,11 @@ class AssemblyTask:
         """
         Получает количество заказов по статусам для каждого вендора
         """
+        #COUNT(CASE WHEN osl.status IN ('IN_TECHNICAL_SUPPLY', 'NEW') THEN 1 END) as total_orders,
+        #COUNT(CASE WHEN osl.status = 'IN_TECHNICAL_SUPPLY' THEN 1 END) as in_technical_supply_count
         query = """
         SELECT 
             a.local_vendor_code,
-            COUNT(CASE WHEN osl.status IN ('IN_TECHNICAL_SUPPLY', 'NEW') THEN 1 END) as total_orders,
-            COUNT(CASE WHEN osl.status = 'IN_TECHNICAL_SUPPLY' THEN 1 END) as in_technical_supply_count,
             COUNT(CASE WHEN osl.status = 'NEW' THEN 1 END) as new_count
         FROM public.order_status_log osl
         JOIN assembly_task as ast ON ast.task_id = osl.order_id
@@ -30,7 +30,7 @@ class AssemblyTask:
         ) latest ON osl.order_id = latest.order_id AND osl.created_at = latest.max_created_at
         WHERE osl.status IN ('IN_TECHNICAL_SUPPLY', 'NEW')
         GROUP BY a.local_vendor_code
-        ORDER BY total_orders DESC;
+        ORDER BY new_count DESC;
         """
 
         rows = await self.db.fetch(query)
