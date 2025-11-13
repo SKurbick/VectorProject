@@ -529,7 +529,8 @@ class ServiceGoogleSheet:
             "Цена на WB без скидки": self.__validate_value(data["price"], float),  # float
             "Рейтинг": self.__validate_value(data["rating"], float),  # float
             "wild": self.__validate_value(data["local_vendor_code"], str),  # str
-            "Фото": self.__validate_value(data["photo_link"], str)  # str
+            "Фото": self.__validate_value(data["photo_link"], str),  # str
+            "ВЕС": self.__validate_value(data["weight_brutto"], float)  # str
         }
 
     async def get_actually_data_from_db(self, db: Database1, article_ids: Set[int]) -> Dict[int, Dict[str, Any]]:
