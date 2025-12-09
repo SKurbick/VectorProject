@@ -146,14 +146,14 @@ class ServiceGoogleSheet:
         try:
             # await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders)# устарел
             data_str_keys = {str(k): v for k, v in data_to_update_orders.items()}
-            gs_connect_orders_sheet.insert_wild_data_correct(data_dict=data_str_keys, sheet_header="артикул")
+            gs_connect_orders_sheet.insert_wild_data_correct_preinsert(data_dict=data_str_keys, sheet_header="артикул")
             logger.info("Данные по количеству заказов актуализированы")
         except Exception as e:
             logger.error(
                 f"{e} Ошибка при актуализации информации в Количество заказов. Повторная попытка 36 sec")
             await asyncio.sleep(36)
             data_str_keys = {str(k): v for k, v in data_to_update_orders.items()}
-            gs_connect_orders_sheet.insert_wild_data_correct(data_dict=data_str_keys, sheet_header="артикул")
+            gs_connect_orders_sheet.insert_wild_data_correct_preinsert(data_dict=data_str_keys, sheet_header="артикул")
             # await gs_connect_orders_sheet.add_data_to_count_list(data_json=data_to_update_orders) # устарел
             logger.info("Данные по количеству заказов актуализированы")
 

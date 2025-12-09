@@ -991,6 +991,179 @@ class GoogleSheetServiceRevenue:
         """Создание клиента для работы с Google Sheets."""
         return service_account(filename=self.creds_json)
 
+
+    def insert_wild_data_correct_preinsert(self, data_dict: dict, sheet_header="wild") -> None:
+        """
+        Оптимизированная версия - обновляет данные целыми столбцами.
+        """
+        try:
+            # 1. ТОЧНО КАК В ПЕРВОЙ ФУНКЦИИ: добавляем отсутствующие значения
+
+            # Получаем все ключи из data_dict
+            wilds_list = list(data_dict.keys())
+
+            # Получаем существующие данные
+            existing_data = self.sheet.get_all_records()
+
+            # Определяем имя ключевой колонки для поиска
+            # В первой функции это было 'Артикул', здесь используем sheet_header
+            # НО: нужно понять, как называется эта колонка в заголовках таблицы
+
+            # Сначала получим заголовки
+            headers = self.sheet.row_values(1)
+
+            # Найдем точное название колонки, содержащей sheet_header
+            wild_column_name = None
+            for header in headers:
+                if sheet_header in header.lower():
+                    wild_column_name = header
+                    break
+
+            if wild_column_name is None:
+                logger.error(f"Колонка с {sheet_header} не найдена в таблице")
+                return
+
+            # Собираем существующие значения из найденной колонки
+            existing_wilds = set()
+            for row in existing_data:
+                if wild_column_name in row and row[wild_column_name]:
+                    existing_wilds.add(str(row[wild_column_name]))
+
+            # Находим отсутствующие значения
+            missing_wilds = [wild for wild in wilds_list if wild not in existing_wilds]
+
+            # Добавляем все отсутствующие значения одним запросом
+            if missing_wilds:
+                # Подготавливаем строки для вставки
+                new_rows = []
+                for wild in missing_wilds:
+                    # Создаем строку с нужным количеством колонок
+                    row = [''] * len(headers)
+                    # Находим индекс колонки, куда вставлять
+                    col_idx = headers.index(wild_column_name)
+                    row[col_idx] = int(wild)
+                    new_rows.append(row)
+
+                self.sheet.append_rows(new_rows)
+                logger.info(f"Добавлено {len(missing_wilds)} новых записей")
+
+                # Пауза как в первой функции
+                import time
+                time.sleep(2)
+
+            # 2. ТОЧНО КАК ВО ВТОРОЙ ФУНКЦИИ: обновляем данные
+
+            # Обновляем заголовки после добавления новых строк
+            headers = self.sheet.row_values(1)
+
+            # Находим индекс колонки wild (ключевой)
+            wild_col_idx = None
+            for idx, header in enumerate(headers):
+                if sheet_header in header.lower():
+                    wild_col_idx = idx
+                    break
+
+            if wild_col_idx is None:
+                logger.error(f"Колонка {sheet_header} не найдена в таблице")
+                return
+
+            # Находим индексы целевых колонок
+            target_headers = list(next(iter(data_dict.values())).keys()) if data_dict else []
+            target_indices = []
+
+            for header in target_headers:
+                if header in headers:
+                    target_indices.append(headers.index(header))
+
+            if not target_indices:
+                logger.error("Целевые заголовки не найдены в таблице")
+                return
+
+            # ДАЛЕЕ ИДЁТ ТОЧНО ОРИГИНАЛЬНЫЙ КОД ИЗ ВТОРОЙ ФУНКЦИИ
+            # БЕЗ ЛЮБЫХ ИЗМЕНЕНИЙ
+
+            target_indices.sort()
+            is_consecutive = all(target_indices[i] + 1 == target_indices[i + 1]
+                                 for i in range(len(target_indices) - 1))
+
+            all_data = self.sheet.get_all_values()
+
+            updates = []
+
+            if is_consecutive and len(target_indices) > 1:
+                start_col = target_indices[0]
+                end_col = target_indices[-1]
+
+                start_col_letter = self.get_column_letter(start_col + 1)
+                end_col_letter = self.get_column_letter(end_col + 1)
+                update_range = f"{start_col_letter}2:{end_col_letter}{len(all_data)}"
+
+                logger.info(f"Обновляем диапазон: {update_range}")
+
+                update_matrix = [['' for _ in range(len(target_indices))] for _ in range(len(all_data) - 1)]
+
+                for row_idx in range(1, len(all_data)):
+                    row = all_data[row_idx]
+                    if len(row) > wild_col_idx:
+                        current_wild = row[wild_col_idx]
+                        if current_wild in data_dict:
+                            wild_data = data_dict[current_wild]
+                            for i, col_idx in enumerate(target_indices):
+                                header = headers[col_idx]
+                                if header in wild_data:
+                                    update_matrix[row_idx - 1][i] = wild_data[header]
+                                else:
+                                    update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+                        else:
+                            for i, col_idx in enumerate(target_indices):
+                                update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+                    else:
+                        for i, col_idx in enumerate(target_indices):
+                            update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+
+                updates.append({
+                    'range': update_range,
+                    'values': update_matrix
+                })
+            else:
+                for col_idx in target_indices:
+                    header = headers[col_idx]
+                    col_letter = self.get_column_letter(col_idx + 1)
+                    col_range = f"{col_letter}2:{col_letter}{len(all_data)}"
+
+                    logger.info(f"Обновляем колонку: {col_range}")
+
+                    column_data = []
+                    for row_idx in range(1, len(all_data)):
+                        row = all_data[row_idx]
+                        if len(row) > wild_col_idx:
+                            current_wild = row[wild_col_idx]
+                            if current_wild in data_dict and header in data_dict[current_wild]:
+                                column_data.append([data_dict[current_wild][header]])
+                            else:
+                                column_data.append([row[col_idx] if col_idx < len(row) else ''])
+                        else:
+                            column_data.append([row[col_idx] if col_idx < len(row) else ''])
+
+                    updates.append({
+                        'range': col_range,
+                        'values': column_data
+                    })
+
+            if updates:
+                for i, update in enumerate(updates):
+                    try:
+                        self.sheet.update(update['range'], update['values'], value_input_option='USER_ENTERED')
+                        logger.info(f"Успешно обновлен диапазон {update['range']} ({i + 1}/{len(updates)})")
+                    except Exception as e:
+                        logger.error(f"Ошибка при обновлении {update['range']}: {e}")
+
+        except Exception as e:
+            logger.error(f"Ошибка при вставке данных: {e}")
+            raise
+
+
+
     def insert_wild_data_correct(self, data_dict: dict, sheet_header="wild") -> None:
         """
         Оптимизированная версия - обновляет данные целыми столбцами.
