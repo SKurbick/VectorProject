@@ -67,21 +67,22 @@ async def check_new_nm_ids():
 
                     retry_to_check_new_nm_ids = False
 
-                try:
-                    revenue_data_for_update_rows = await service_gs_table.add_revenue_for_new_nm_ids(
-                        lk_articles=lk_articles)
-
-                    if len(revenue_data_for_update_rows) > 0:
-                        logger.info("Добавляем выручку в таблицу")
-                        """Добавление информации по выручкам за последние 7 дней"""
-                        gs_service_revenue_connection().update_revenue_rows(
-                            data_json=revenue_data_for_update_rows)
-
-                except Exception as e:
-                    logger.exception(f"Ошибка при выполнении асинхронной функции: {e}")
-                    return
-
-                finally:
+                # todo Поправить на другой метод воронки
+                # try:
+                #     revenue_data_for_update_rows = await service_gs_table.add_revenue_for_new_nm_ids(
+                #         lk_articles=lk_articles)
+                #
+                #     if len(revenue_data_for_update_rows) > 0:
+                #         logger.info("Добавляем выручку в таблицу")
+                #         """Добавление информации по выручкам за последние 7 дней"""
+                #         gs_service_revenue_connection().update_revenue_rows(
+                #             data_json=revenue_data_for_update_rows)
+                #
+                # except Exception as e:
+                #     logger.exception(f"Ошибка при выполнении асинхронной функции: {e}")
+                #     return
+                #
+                # finally:
                     retry_to_check_new_nm_ids = True
 
             logger.info("Упали в ожидание")
