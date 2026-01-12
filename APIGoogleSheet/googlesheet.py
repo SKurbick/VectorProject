@@ -1162,8 +1162,6 @@ class GoogleSheetServiceRevenue:
             logger.error(f"Ошибка при вставке данных: {e}")
             raise
 
-
-
     def insert_wild_data_correct(self, data_dict: dict, sheet_header="wild") -> None:
         """
         Оптимизированная версия - обновляет данные целыми столбцами.
@@ -1172,6 +1170,7 @@ class GoogleSheetServiceRevenue:
             # Получаем заголовки таблицы
             headers = self.sheet.row_values(1)
             print(headers)
+
             # Находим индекс колонки wild
             wild_col_idx = None
             for idx, header in enumerate(headers):
@@ -1184,12 +1183,23 @@ class GoogleSheetServiceRevenue:
                 return
 
             # Находим индексы и диапазон наших целевых колонок
-            target_headers = list(next(iter(data_dict.values())).keys()) if data_dict else []
+            # target_headers = list(next(iter(data_dict.values())).keys()) if data_dict else []
+            target_headers = list(set().union(*data_dict.values())) if data_dict else []
+            # === ДОБАВЛЕННЫЕ ЛОГИ ===
+            logger.info(f"target_headers из data_dict: {target_headers}")
+
             target_indices = []
 
             for header in target_headers:
                 if header in headers:
                     target_indices.append(headers.index(header))
+                    logger.info(f"Найден заголовок '{header}' в таблице, индекс: {headers.index(header)}")
+                else:
+                    logger.warning(f"Заголовок '{header}' НЕ найден в таблице!")
+
+            logger.info(f"target_indices: {target_indices}")
+            logger.info(f"Найденные заголовки: {[headers[i] for i in target_indices]}")
+            # === КОНЕЦ ЛОГОВ ===
 
             if not target_indices:
                 logger.error("Целевые заголовки не найдены в таблице")

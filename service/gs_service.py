@@ -84,7 +84,8 @@ class ServiceGoogleSheet:
                     all_accounts_new_revenue_data.update(res)
                 # добавляем выручку в таблицу
                 logger.info(f"Собрали недельную выручку по всем кабинетам timer: {datetime.datetime.now() - start}")
-                self.gs_service_revenue_connect.update_revenue_rows(data_json=all_accounts_new_revenue_data)
+                data_str_keys = {str(k): v for k, v in all_accounts_new_revenue_data.items()}
+                self.gs_service_revenue_connect.insert_wild_data_correct(data_dict=data_str_keys, sheet_header="артикул")
         gs_connect = GoogleSheet(sheet="Количество заказов", spreadsheet=settings.SPREADSHEET,
                                  creds_json=settings.CREEDS_FILE_NAME)
         date_object = datetime.datetime.today()
