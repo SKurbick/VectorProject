@@ -1,5 +1,6 @@
 import html
 import time
+from pprint import pprint
 
 import pytz
 import asyncio
@@ -54,6 +55,7 @@ async def job_check_edits_columns_and_add_actually_data_to_table():
                     "Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
         logger.info("Запуск : Смотрит в таблицу, оценивает изменения")
         result = await check_edits_columns(db=db)
+        pprint(result)
         if result:
             logger.info("Завершение : Внесение изменений в таблицу")
             await service.actualize_card_data_in_db(result)

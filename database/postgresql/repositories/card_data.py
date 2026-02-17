@@ -25,7 +25,7 @@ class CardData:
 
     async def get_card_data(self):
         query = """
-        SELECT * FROM card_data"""
+        SELECT * FROM card_data;"""
         result = await self.db.fetch(query)
         return result
 

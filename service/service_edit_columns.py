@@ -1,9 +1,11 @@
 import datetime
+from pprint import pprint
 from typing import Dict, Any, Set
 
 from APIGoogleSheet.googlesheet import GoogleSheet, GoogleSheetServiceRevenue
 from database.postgresql.database import Database1
 from database.postgresql.repositories.article import ArticleTable
+from database.postgresql.repositories.card_data import CardData
 from service.gs_service import ServiceGoogleSheet
 from logger import app_logger as logger
 from settings import settings
@@ -100,7 +102,13 @@ async def check_edits_columns(db: Database1):
                     or service_google_sheet["Габариты"]):
                 logger.info("СЕРВИС РЕДАКТИРОВАНИЯ АКТИВЕН. Оцениваем ячейки по изменениям товара")
                 db_nm_ids_data = await ArticleTable(db).get_all_nm_ids()
-                edit_data_from_table = await gs_connect.get_edit_data(db_nm_ids_data, service_google_sheet)
+                chrt_ids_by_nm_id = {}
+                print("получаем из бд артикулы и chrt_id")
+                card_data_db = await CardData(db=db).get_card_data()
+                for cd in card_data_db:
+                    # print(cd)
+                    chrt_ids_by_nm_id[cd['article_id']] = cd['chrt_id']
+                edit_data_from_table = await gs_connect.get_edit_data(db_nm_ids_data, service_google_sheet, chrt_ids_by_nm_id)
                 if edit_data_from_table:
                     service_gs_table = ServiceGoogleSheet(
                         token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)

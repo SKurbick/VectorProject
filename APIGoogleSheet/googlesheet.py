@@ -11,6 +11,9 @@ from gspread.utils import rowcol_to_a1
 import gspread
 import requests
 from gspread import Client, service_account
+
+from database.postgresql.database import Database1
+from database.postgresql.repositories.card_data import CardData
 from utils import get_nm_ids_in_db, column_index_to_letter, can_be_int
 import pandas as pd
 
@@ -501,17 +504,25 @@ class GoogleSheet:
         return article_dict
 
     @staticmethod
-    def update_result_qty_edit_data(service_google_sheet, result_qty_edit_data, account, row):
+    def update_result_qty_edit_data(service_google_sheet, result_qty_edit_data, account, row, chrt_ids_by_nm_id:dict):
+
         if service_google_sheet["Остаток"]:
             if account not in result_qty_edit_data:
                 result_qty_edit_data[account] = {"stocks": [], "nm_ids": []}
             if str(row["Новый остаток"]).isdigit():
+                # старая реализация - по баркоду
+                # result_qty_edit_data[account]["stocks"].append(
+                #     {"sku": row["Баркод"], "amount": int(row["Новый остаток"].replace('\xa0', ''))},
+                # )
+                # новая реализация - по chrt_id
                 result_qty_edit_data[account]["stocks"].append(
-                    {"sku": row["Баркод"], "amount": int(row["Новый остаток"].replace('\xa0', ''))}, )
+                    {"chrtId": chrt_ids_by_nm_id[int(row["Артикул"])], "amount": int(row["Новый остаток"].replace('\xa0', ''))},
+                )
+
                 # nm_id нам будет нужен для функции обновления данных почему в список?
                 result_qty_edit_data[account]["nm_ids"].append(int(row["Артикул"]))
 
-    async def get_edit_data(self, db_nm_ids_data, service_google_sheet):
+    async def get_edit_data(self, db_nm_ids_data, service_google_sheet, chrt_ids_by_nm_id):
         """
         Получает данные с запросом на изменение с таблицы
         """
@@ -530,7 +541,7 @@ class GoogleSheet:
             if not article.isdigit() or not account.strip() or article not in db_nm_ids_data or "vendor_code" not in db_nm_ids_data[article]:
                 continue
             article_dict = self.get_article_dict(service_google_sheet, row, db_nm_ids_data[article])
-            self.update_result_qty_edit_data(service_google_sheet, result_qty_edit_data, account, row)
+            self.update_result_qty_edit_data(service_google_sheet, result_qty_edit_data, account, row, chrt_ids_by_nm_id)
             if account not in result_nm_ids_data:
                 result_nm_ids_data[account] = {}
             result_nm_ids_data[account][article] = article_dict
