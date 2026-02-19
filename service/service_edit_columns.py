@@ -104,8 +104,8 @@ async def check_edits_columns(db: Database1):
                 db_nm_ids_data = await ArticleTable(db).get_all_nm_ids()
                 chrt_ids_by_nm_id = {}
                 print("получаем из бд артикулы и chrt_id")
-                card_data_db = await CardData(db=db).get_card_data()
-                for cd in card_data_db:
+                chrt_ids = await CardData(db=db).get_chrt_ids()
+                for cd in chrt_ids:
                     # print(cd)
                     chrt_ids_by_nm_id[cd['article_id']] = cd['chrt_id']
                 edit_data_from_table = await gs_connect.get_edit_data(db_nm_ids_data, service_google_sheet, chrt_ids_by_nm_id)
