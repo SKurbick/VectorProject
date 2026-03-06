@@ -22,6 +22,20 @@ from service.service_update_db import Service
 
 scheduler = AsyncIOScheduler(job_defaults={'misfire_grace_time': 2000, 'max_instances': 1})
 
+def gs_service_new_good_table_connection():
+    return ServiceGoogleSheet(
+        token=None, sheet="Остатки по складам", spreadsheet="Новый товар", creds_json="creds.json")
+
+
+
+@scheduler.scheduled_job(IntervalTrigger(minutes=15), coalesce=True)
+@log_job
+async def add_stock_data_in_new_good_gs():
+    logger.info("Запуск : актуализация СЕРВИСНЫХ остатков")
+    gs_service = gs_service_new_good_table_connection()
+    await gs_service.get_stock_data_on_api(warehouse_ids=[2,4,5,6,7,8])
+
+
 
 @scheduler.scheduled_job(IntervalTrigger(minutes=15), coalesce=True)
 @log_job
@@ -50,7 +64,7 @@ async def job_check_edits_columns_and_add_actually_data_to_table():
     gs_service = gs_service_for_schedule_connection()
     service = Service()
     async with Database1() as db:
-        await gs_service.add_actually_data_to_table(db=db)
+        # await gs_service.add_actually_data_to_table(db=db)
         logger.info("Завершение :"
                     "Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
         logger.info("Запуск : Смотрит в таблицу, оценивает изменения")
@@ -116,7 +130,7 @@ async def get_actually_data_by_qty():
 async def add_stock_data_in_gs():
     logger.info("Запуск : актуализация СЕРВИСНЫХ остатков")
     gs_service = gs_service_for_schedule_connection()
-    await gs_service.get_stock_data_on_api()
+    await gs_service.get_stock_data_on_api(warehouse_ids=[2])
 
 
 

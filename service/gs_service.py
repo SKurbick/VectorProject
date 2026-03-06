@@ -1310,17 +1310,44 @@ class ServiceGoogleSheet:
         await self.gs_connect.update_qty_by_reg(update_data=avg_data_by_orders)
         logger.info("Усредненные данные по заказам со складов\регионов актуализированы в Таблице")
 
-    async def get_stock_data_on_api(self):
+
+
+    async def get_stock_data_on_api(self, warehouse_ids: list[int] | None = None):
+        WAREHOUSE_FIELDS = {
+            4: "Физ остаток Офис\n(сервис)",
+            2: "Физ остаток Брак\n(сервис)",
+            5: "Физ остаток Вёшки\n(сервис)",
+            6: "Физ остаток Недостача\n(сервис)",
+            7: "Физ остаток Переупаковка\n(сервис)",
+            8: "Физ остаток Авито\n(сервис)",
+        }
+
         async with Database1() as connection:
             assembly_task_repo = AssemblyTask(connection)
             db_data = await assembly_task_repo.get_order_status_counts_by_vendor()
+
+        extra_warehouses = {
+            wid: WAREHOUSE_FIELDS[wid]
+            for wid in (warehouse_ids or [])
+            if wid in WAREHOUSE_FIELDS
+        }
+
+        def make_default_entry():
+            return {
+                "Физ остаток\n(сервис)": 0,
+                "Свободный остаток\n(сервис)": 0,
+                "Резерв ФБС\n(сервис)": 0,
+                "Резерв ФБО\n(сервис)": 0,
+                **{field: 0 for field in extra_warehouses.values()}
+            }
+
         return_data = {}
         url_stock = f"{settings.ONE_C_ROUTING_API}warehouse_and_balances/get_all_product_current_balances"
         url_reserve = f"{settings.ONE_C_ROUTING_API}shipment_of_goods/summ_reserve_data"
         timeout = aiohttp.ClientTimeout(
-            total=300,  # 5 минут
-            connect=60,  # 1 минута на соединение
-            sock_read=120  # 2 минуты на чтение
+            total=300,
+            connect=60,
+            sock_read=120
         )
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(url=url_reserve) as response:
@@ -1328,12 +1355,7 @@ class ServiceGoogleSheet:
                 for res in reserve_response_json:
                     product_id = res['product_id']
                     if product_id not in return_data:
-                        return_data[product_id] = {
-                            "Физ остаток\n(сервис)": 0,
-                            "Свободный остаток\n(сервис)": 0,
-                            "Резерв ФБС\n(сервис)": 0,
-                            "Резерв ФБО\n(сервис)": 0
-                        }
+                        return_data[product_id] = make_default_entry()
                     for delivery_type_data in res['delivery_type_data']:
                         reserve_type = delivery_type_data['reserve_type']
                         current_reserve = delivery_type_data['current_reserve']
@@ -1346,30 +1368,28 @@ class ServiceGoogleSheet:
             async with session.get(url=url_stock) as response:
                 stock_response_json = await response.json()
                 for res in stock_response_json:
-                    if res['warehouse_id'] != 1:
-                        continue
                     product_id = res['product_id']
+                    warehouse_id = res['warehouse_id']
+
+                    if warehouse_id != 1 and warehouse_id not in extra_warehouses:
+                        continue
+
                     if product_id not in return_data:
-                        return_data[product_id] = {
-                            "Физ остаток\n(сервис)": 0,
-                            "Свободный остаток\n(сервис)": 0,
-                            "Резерв ФБС\n(сервис)": 0,
-                            "Резерв ФБО\n(сервис)": 0
-                        }
-                    physical_quantity = res["physical_quantity"]
-                    available_quantity = res["available_quantity"]
-                    return_data[product_id]["Физ остаток\n(сервис)"] += physical_quantity
-                    return_data[product_id]["Свободный остаток\n(сервис)"] += available_quantity
+                        return_data[product_id] = make_default_entry()
+
+                    if warehouse_id == 1:
+                        return_data[product_id]["Физ остаток\n(сервис)"] += res["physical_quantity"]
+                        return_data[product_id]["Свободный остаток\n(сервис)"] += res["available_quantity"]
+                    else:
+                        field_name = extra_warehouses[warehouse_id]
+                        return_data[product_id][field_name] += res["physical_quantity"]
+
         for res in db_data:
             product_id = res['local_vendor_code']
             if product_id not in return_data:
-                return_data[product_id] = {
-                    "Физ остаток\n(сервис)": 0,
-                    "Свободный остаток\n(сервис)": 0,
-                    "Резерв ФБС\n(сервис)": 0,
-                    "Резерв ФБО\n(сервис)": 0
-                }
+                return_data[product_id] = make_default_entry()
             return_data[product_id]["Резерв ФБС\n(сервис)"] += res['new_count']
             return_data[product_id]["Свободный остаток\n(сервис)"] -= res['new_count']
+        pprint(return_data)
 
         self.gs_connect.insert_wild_data_correct(data_dict=return_data)
