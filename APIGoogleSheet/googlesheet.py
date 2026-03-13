@@ -564,14 +564,14 @@ class GoogleSheet:
                 continue
 
             # если ячейки, выделенные для изменения, будут иметь число, то они не будут отобраны для обновления данных
-            if True in (
-                    # str(row['Новая\nДлина (см)']).replace('\xa0', '').isdigit(),
-                    # str(row['Новая\nШирина (см)']).replace('\xa0', '').isdigit(),
-                    # str(row['Новая\nВысота (см)']).replace('\xa0', '').isdigit(),
-                    str(row['Установить новую цену']).replace('\xa0', '').isdigit(),
-                    str(row['Установить новую скидку %']).replace('\xa0', '').isdigit(),
-                    str(row["Новый остаток"]).replace('\xa0', '').isdigit()):
-                continue
+            # if True in (
+            #         # str(row['Новая\nДлина (см)']).replace('\xa0', '').isdigit(),
+            #         # str(row['Новая\nШирина (см)']).replace('\xa0', '').isdigit(),
+            #         # str(row['Новая\nВысота (см)']).replace('\xa0', '').isdigit(),
+            #         str(row['Установить новую цену']).replace('\xa0', '').isdigit(),
+            #         str(row['Установить новую скидку %']).replace('\xa0', '').isdigit(),
+            #         str(row["Новый остаток"]).replace('\xa0', '').isdigit()):
+            #     continue
             if lk.upper() not in lk_articles_dict:
                 lk_articles_dict[lk.upper()] = []
             lk_articles_dict[lk.upper()].append(article)
