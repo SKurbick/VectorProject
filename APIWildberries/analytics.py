@@ -90,47 +90,68 @@ class AnalyticsNMReport:
         # pprint(for_db_all_data)
         return {"result_data": result_data, "all_data": for_db_all_data}
 
-    async def get_last_week_revenue(self, nm_ids, week_count):
+    async def get_last_week_revenue(self, nm_ids: list[int], week_count: int) -> dict:
+        "V2"
         weeks = get_last_weeks_dates(last_week_count=week_count)
-        url = self.url.format("detail")
+        url = "https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products"
         result_data = {}
-        page = 1
-        for key_dates, dates in weeks.items():
-            while True:
-                json_data = {
-                    "nmIDs": nm_ids,
-                    "timezone": "Europe/Moscow",
-                    "period": {
-                        "begin": dates["Start"],
-                        "end": dates["End"]
-                    },
-                    "orderBy": {
-                        "field": "ordersSumRub",
-                        "mode": "asc"
-                    },
-                    "page": page
-                }
-                for _ in range(10):
-                    try:
-                        async with aiohttp.ClientSession() as session:
-                            async with session.post(url=url, headers=self.headers, json=json_data) as response:
+
+        async with aiohttp.ClientSession() as session:
+            for key_dates, dates in weeks.items():
+                offset = 0
+                limit = 1000
+
+                while True:
+                    json_data = {
+                        "selectedPeriod": {
+                            "start": dates["Start"][:10],
+                            "end": dates["End"][:10]
+                        },
+                        "nmIds": nm_ids,
+                        "timezone": "Europe/Moscow",
+                        "orderBy": {
+                            "field": "orderSum",
+                            "mode": "asc"
+                        },
+                        "limit": limit,
+                        "offset": offset
+                    }
+
+                    response_data = None
+                    for attempt in range(9):
+                        try:
+                            async with session.post(url, headers=self.headers, json=json_data) as response:
+
+                                # Обработка 429 — слишком много запросов
+                                if response.status == 429:
+                                    logger.warning(f"Rate limit (429). Attempt {attempt + 1}/9. Waiting 60 seconds...")
+                                    await asyncio.sleep(60)
+                                    continue
+
                                 response_data = await response.json()
-                                for card in response_data["data"]["cards"]:
-                                    if card["nmID"] not in result_data.keys():
-                                        result_data[card["nmID"]] = {}
-                                    result_data[card["nmID"]].update({
-                                        key_dates: card["statistics"]["selectedPeriod"]["ordersSumRub"]
-                                    })
+
+                                for product in response_data.get("data", {}).get("products", []):
+                                    nm_id = product["product"]["nmId"]
+                                    orders_sum = product["statistic"]["selected"]["orderSum"]
+
+                                    if nm_id not in result_data:
+                                        result_data[nm_id] = {}
+                                    result_data[nm_id][key_dates] = orders_sum
                                 break
-                    except (aiohttp.ClientError, Exception) as e:
-                        logger.exception(e)
 
-                if response_data["data"]["isNextPage"] is False:
-                    # если нет следующей страницы, цикл должен остановиться
-                    page = 1
-                    break
+                        except (aiohttp.ClientError, Exception) as e:
+                            logger.exception(f"Attempt {attempt + 1}/9 failed: {e}")
+                            await asyncio.sleep(5)
 
-                page += 1
+                    if response_data is None:
+                        logger.error(f"All 9 attempts failed for period {key_dates}")
+                        break
+
+                    products_count = len(response_data.get("data", {}).get("products", []))
+                    if products_count < limit:
+                        break
+
+                    offset += limit
 
         return result_data
 

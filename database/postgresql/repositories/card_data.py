@@ -23,9 +23,15 @@ class CardData:
     def __init__(self, db):
         self.db = db
 
+    async def get_chrt_ids(self):
+        query = """
+         SELECT article_id, chrt_id FROM card_data;
+         """
+        return await self.db.fetch(query)
+
     async def get_card_data(self):
         query = """
-        SELECT * FROM card_data"""
+        SELECT * FROM card_data;"""
         result = await self.db.fetch(query)
         return result
 

@@ -1,4 +1,7 @@
 import html
+import time
+from pprint import pprint
+
 import pytz
 import asyncio
 import datetime
@@ -17,10 +20,24 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from service.service_edit_columns import check_new_nm_ids, check_edits_columns, gs_service_for_schedule_connection
 from service.service_update_db import Service
 
-scheduler = AsyncIOScheduler(job_defaults={'misfire_grace_time': 1000, 'max_instances': 1})
+scheduler = AsyncIOScheduler(job_defaults={'misfire_grace_time': 2000, 'max_instances': 1})
+
+def gs_service_new_good_table_connection():
+    return ServiceGoogleSheet(
+        token=None, sheet="Остатки по складам", spreadsheet="Новый товар", creds_json="creds.json")
 
 
-@scheduler.scheduled_job(IntervalTrigger(minutes=6), coalesce=True)
+
+@scheduler.scheduled_job(IntervalTrigger(minutes=15), coalesce=True)
+@log_job
+async def add_stock_data_in_new_good_gs():
+    logger.info("Запуск : актуализация СЕРВИСНЫХ остатков")
+    gs_service = gs_service_new_good_table_connection()
+    await gs_service.get_stock_data_on_api(warehouse_ids=[2,4,5,6,7,8])
+
+
+
+@scheduler.scheduled_job(IntervalTrigger(minutes=15), coalesce=True)
 @log_job
 async def get_actually_revenues_orders_and_net_profit_data():
     """Актуализация данных по выручке, заказам и сумме с чистой прибыли"""
@@ -30,7 +47,7 @@ async def get_actually_revenues_orders_and_net_profit_data():
     logger.info("Завершение : Актуализация данных по выручке, заказам и сумме с чистой прибыли")
 
 
-@scheduler.scheduled_job(IntervalTrigger(seconds=300), coalesce=True)
+@scheduler.scheduled_job(IntervalTrigger(minutes=10), coalesce=True)
 @log_job
 async def job_check_new_nm_ids():
     """Смотрит в таблицу, оценивает новые nm_ids"""
@@ -39,7 +56,7 @@ async def job_check_new_nm_ids():
     logger.info("Завершение : Смотрит в таблицу, оценивает новые nm_ids")
 
 
-@scheduler.scheduled_job(IntervalTrigger(minutes=6), coalesce=True)
+@scheduler.scheduled_job(IntervalTrigger(minutes=15), coalesce=True)
 @log_job
 async def job_check_edits_columns_and_add_actually_data_to_table():
     logger.info("Запуск :"
@@ -52,6 +69,7 @@ async def job_check_edits_columns_and_add_actually_data_to_table():
                     "Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
         logger.info("Запуск : Смотрит в таблицу, оценивает изменения")
         result = await check_edits_columns(db=db)
+        pprint(result)
         if result:
             logger.info("Завершение : Внесение изменений в таблицу")
             await service.actualize_card_data_in_db(result)
@@ -97,14 +115,23 @@ async def check_headers():
     logger.info("Завершение : Смотрим состояние заголовков текущих дней")
 
 
-@scheduler.scheduled_job(IntervalTrigger(minutes=5), coalesce=True)
+@scheduler.scheduled_job(IntervalTrigger(minutes=15), coalesce=True)
 @log_job
 async def get_actually_data_by_qty():
     """Актуализация остатков по регионам в таблице MAIN"""
     logger.info("Запуск : актуализация остатков по регионам в таблице MAIN")
     gs_service = gs_service_for_schedule_connection()
-    await gs_service.get_actually_data_by_qty()
+    await gs_service.get_actually_data_by_qty_from_db()
     logger.info("Завершение : актуализация остатков по регионам в таблице MAIN")
+
+
+@scheduler.scheduled_job(IntervalTrigger(minutes=15), coalesce=True)
+@log_job
+async def add_stock_data_in_gs():
+    logger.info("Запуск : актуализация СЕРВИСНЫХ остатков")
+    gs_service = gs_service_for_schedule_connection()
+    await gs_service.get_stock_data_on_api(warehouse_ids=[2])
+
 
 
 def job_error_listener(event):
@@ -133,3 +160,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    # asyncio.run(job_check_edits_columns_and_add_actually_data_to_table())
+    # asyncio.run(job_check_new_nm_ids())
+    # asyncio.run(get_actually_revenues_orders_and_net_profit_data())
+    # asyncio.run(add_stock_data_in_gs())

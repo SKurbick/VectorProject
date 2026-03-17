@@ -1,9 +1,11 @@
 import datetime
+from pprint import pprint
 from typing import Dict, Any, Set
 
 from APIGoogleSheet.googlesheet import GoogleSheet, GoogleSheetServiceRevenue
 from database.postgresql.database import Database1
 from database.postgresql.repositories.article import ArticleTable
+from database.postgresql.repositories.card_data import CardData
 from service.gs_service import ServiceGoogleSheet
 from logger import app_logger as logger
 from settings import settings
@@ -67,21 +69,22 @@ async def check_new_nm_ids():
 
                     retry_to_check_new_nm_ids = False
 
-                try:
-                    revenue_data_for_update_rows = await service_gs_table.add_revenue_for_new_nm_ids(
-                        lk_articles=lk_articles)
-
-                    if len(revenue_data_for_update_rows) > 0:
-                        logger.info("Добавляем выручку в таблицу")
-                        """Добавление информации по выручкам за последние 7 дней"""
-                        gs_service_revenue_connection().update_revenue_rows(
-                            data_json=revenue_data_for_update_rows)
-
-                except Exception as e:
-                    logger.exception(f"Ошибка при выполнении асинхронной функции: {e}")
-                    return
-
-                finally:
+                # todo Поправить на другой метод воронки
+                # try:
+                #     revenue_data_for_update_rows = await service_gs_table.add_revenue_for_new_nm_ids(
+                #         lk_articles=lk_articles)
+                #
+                #     if len(revenue_data_for_update_rows) > 0:
+                #         logger.info("Добавляем выручку в таблицу")
+                #         """Добавление информации по выручкам за последние 7 дней"""
+                #         gs_service_revenue_connection().update_revenue_rows(
+                #             data_json=revenue_data_for_update_rows)
+                #
+                # except Exception as e:
+                #     logger.exception(f"Ошибка при выполнении асинхронной функции: {e}")
+                #     return
+                #
+                # finally:
                     retry_to_check_new_nm_ids = True
 
             logger.info("Упали в ожидание")
@@ -99,7 +102,13 @@ async def check_edits_columns(db: Database1):
                     or service_google_sheet["Габариты"]):
                 logger.info("СЕРВИС РЕДАКТИРОВАНИЯ АКТИВЕН. Оцениваем ячейки по изменениям товара")
                 db_nm_ids_data = await ArticleTable(db).get_all_nm_ids()
-                edit_data_from_table = await gs_connect.get_edit_data(db_nm_ids_data, service_google_sheet)
+                chrt_ids_by_nm_id = {}
+                print("получаем из бд артикулы и chrt_id")
+                chrt_ids = await CardData(db=db).get_chrt_ids()
+                for cd in chrt_ids:
+                    # print(cd)
+                    chrt_ids_by_nm_id[cd['article_id']] = cd['chrt_id']
+                edit_data_from_table = await gs_connect.get_edit_data(db_nm_ids_data, service_google_sheet, chrt_ids_by_nm_id)
                 if edit_data_from_table:
                     service_gs_table = ServiceGoogleSheet(
                         token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
@@ -114,9 +123,13 @@ async def check_edits_columns(db: Database1):
                                                    "dimensions": service_google_sheet['Габариты'],
                                                    "qty": service_google_sheet["Остаток"]})
                         return create_lk_articles(edit_nm_ids_data)
+                    return None
+                return None
 
             else:
                 logger.info("Сервис заблокирован на изменения: (Цены/Скидки, Остаток, Габариты)")
+                return None
         except Exception as e:
             logger.info(f"[ERROR] СЕРВИС РЕДАКТИРОВАНИЯ {e}")
             raise e
+    return None

@@ -19,7 +19,6 @@ aio_database.json
 aio_poligon.py
 revenue_database.json
 clean_revenue.py
-orders_data.json
 useful_data.py
 database/poligon.py
 database_poligon.py
@@ -36,3 +35,9 @@ add_data_from_table.py
 logging
 kostya_script.py
 kostya_utils.py
+add_new_product_in_products.py
+add_stock_data_in_gs_table.py
+get_net_profit_difference.py
+create_exel_table_from_db.py
+create_exel_table_from_incoming_ba.py
+check_columns.py

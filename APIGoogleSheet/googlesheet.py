@@ -2,6 +2,8 @@ import asyncio
 import json
 import time
 from datetime import datetime
+from pprint import pprint
+from typing import List, Dict, Any
 
 import pandas
 from gspread.utils import rowcol_to_a1
@@ -9,10 +11,81 @@ from gspread.utils import rowcol_to_a1
 import gspread
 import requests
 from gspread import Client, service_account
+
+from database.postgresql.database import Database1
+from database.postgresql.repositories.card_data import CardData
 from utils import get_nm_ids_in_db, column_index_to_letter, can_be_int
 import pandas as pd
 
 from logger import app_logger as logger
+
+def safe_batch_update(
+        sheet: gspread.Worksheet,
+        updates: List[Dict[str, Any]],
+        chunk_size: int = 3000,
+        max_retries: int = 5,
+        start_chunk: int = 1  # Новый параметр - начинать с указанного чанка
+) -> None:
+    """
+    Безопасное массовое обновление данных в Google Sheets с retry-логикой
+
+    Args:
+        sheet: Объект gspread Worksheet
+        updates: Список словарей с обновлениями формата {'range': 'A1', 'values': [[value]]}
+        chunk_size: Размер chunk'а (по умолчанию 3000)
+        max_retries: Максимальное количество попыток (по умолчанию 5)
+        start_chunk: Номер чанка, с которого начать обновление (по умолчанию 1)
+    """
+    total_updates = len(updates)
+    if total_updates == 0:
+        logger.info("Нет обновлений для выполнения")
+        return
+
+    total_chunks = (total_updates + chunk_size - 1) // chunk_size
+
+    # Проверяем валидность start_chunk
+    if start_chunk < 1:
+        start_chunk = 1
+    elif start_chunk > total_chunks:
+        logger.info(f"start_chunk ({start_chunk}) превышает общее количество чанков ({total_chunks}). Ничего не обновляем.")
+        return
+
+    # Вычисляем стартовый индекс для среза updates
+    start_index = (start_chunk - 1) * chunk_size
+
+    logger.info(f"Начинаем обновление: {total_updates} ячеек, {total_chunks} chunks, начиная с chunk {start_chunk}")
+
+    for chunk_index in range(start_index, total_updates, chunk_size):
+        chunk = updates[chunk_index:chunk_index + chunk_size]
+        chunk_number = chunk_index // chunk_size + 1
+
+        for attempt in range(max_retries):
+            try:
+                sheet.batch_update(chunk)
+                logger.info(
+                    f"Успешно обновлен chunk {chunk_number}/{total_chunks} "
+                    f"({len(chunk)} ячеек, всего {min(chunk_index + chunk_size, total_updates)}/{total_updates})"
+                )
+                break  # Успех, переходим к следующему chunk
+
+            except gspread.exceptions.APIError as e:
+                if '503' in str(e) and attempt < max_retries - 1:
+                    wait_time = 10 ** attempt  # Экспоненциальная задержка
+                    logger.warning(
+                        f"Ошибка 503 в chunk {chunk_number}, "
+                        f"попытка {attempt + 1}/{max_retries}, жду {wait_time} сек"
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.error(
+                        f"Не удалось обновить chunk {chunk_number} после {max_retries} попыток: {e}"
+                    )
+                    raise e
+        else:
+            logger.error(f"Chunk {chunk_number} не удалось обновить после {max_retries} попыток")
+            raise Exception(f"Failed to update chunk {chunk_number} after {max_retries} attempts")
+
+    logger.info(f"Все обновления завершены успешно: {total_updates} ячеек")
 
 
 def retry_on_quota_exceeded_async(max_retries=10, delay=60):
@@ -41,6 +114,7 @@ class GoogleSheet:
         client = self.client_init_json()
         for _ in range(10):
             try:
+                print(sheet, "sheet")
                 spreadsheet = client.open(self.spreadsheet)
                 self.sheet = spreadsheet.worksheet(sheet)
                 break
@@ -57,6 +131,206 @@ class GoogleSheet:
     def get_table_by_id(client: Client, table_key):
         """Получение таблицы из Google Sheets по ID таблицы."""
         return client.open_by_key(table_key)
+
+    def get_article_and_profit_data_alternative(self) -> list[tuple]:
+        """
+        Альтернативный метод получения данных.
+        Более устойчив к небольшим различиям в названиях колонок.
+        """
+        try:
+            # Получаем первую строку с заголовками
+            headers = self.sheet.row_values(1)
+
+            # Находим индексы нужных колонок
+            article_idx = -1
+            profit_idx = -1
+
+            for i, header in enumerate(headers):
+                header_lower = header.lower().strip()
+                if 'артикул' in header_lower:
+                    article_idx = i
+                elif 'среднее чп за 23' in header_lower:
+                    profit_idx = i
+
+            if article_idx == -1 or profit_idx == -1:
+                logger.error("Не найдены нужные колонки в таблице")
+                return []
+
+            # Получаем все данные, начиная со второй строки
+            all_data = self.sheet.get_all_values()[1:]
+
+            result = []
+            for row in all_data:
+                if len(row) > max(article_idx, profit_idx):
+                    article = row[article_idx].strip()
+                    profit = row[profit_idx].strip()
+
+                    # Пропускаем пустые значения
+                    if not article or not profit:
+                        continue
+
+                    # Преобразуем оба значения в числовой формат
+                    try:
+                        # Преобразуем артикул в int
+                        article_clean = article.replace(' ', '').replace(',', '')
+                        article_value = int(article_clean)
+
+                        # Преобразуем profit в int
+                        profit_clean = profit.replace(' ', '').replace(',', '.')
+                        profit_value = int(float(profit_clean))  # Сначала в float, потом в int для чисел с точкой
+
+                        result.append((article_value, profit_value))
+
+                    except (ValueError, TypeError) as e:
+                        # Логируем ошибку преобразования, но пропускаем строку
+                        logger.warning(f"Не удалось преобразовать значения: артикул='{article}', прибыль='{profit}'. Ошибка: {e}")
+                        continue
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Ошибка при получении данных: {e}")
+            return []
+
+    def insert_wild_data_correct(self, data_dict: dict, sheet_header="wild") -> None:
+        """
+        Оптимизированная версия - обновляет данные целыми столбцами.
+        """
+        try:
+            # Получаем заголовки таблицы
+            headers = self.sheet.row_values(1)
+            # print(headers)
+            # Находим индекс колонки wild
+            wild_col_idx = None
+            for idx, header in enumerate(headers):
+                if sheet_header in header.lower():
+                    wild_col_idx = idx
+                    print(wild_col_idx)
+
+            if wild_col_idx is None:
+                logger.error(f"Колонка {sheet_header} не найдена в таблице")
+                return
+
+            # Находим индексы и диапазон наших целевых колонок
+            # target_headers = list(next(iter(data_dict.values())).keys()) if data_dict else []
+            target_headers = list(set().union(*(item.keys() for item in data_dict.values())))
+            print(f"Все целевые заголовки: {target_headers}")
+
+            target_indices = []
+
+            for header in target_headers:
+                if header in headers:
+                    target_indices.append(headers.index(header))
+
+            if not target_indices:
+                logger.error("Целевые заголовки не найдены в таблице")
+                return
+
+            # Сортируем индексы и проверяем, что они идут подряд
+            target_indices.sort()
+            is_consecutive = all(target_indices[i] + 1 == target_indices[i + 1]
+                                 for i in range(len(target_indices) - 1))
+
+            # Получаем все данные таблицы
+            all_data = self.sheet.get_all_values()
+
+            # Создаем матрицу для обновления (строки x колонки)
+            updates = []
+
+            if is_consecutive and len(target_indices) > 1:
+                # ОПТИМИЗАЦИЯ: обновляем целым диапазоном столбцов
+                start_col = target_indices[0]
+                end_col = target_indices[-1]
+
+                # ПРАВИЛЬНО формируем диапазон: "AX2:BA5886"
+                start_col_letter = self.get_column_letter(start_col + 1)
+                end_col_letter = self.get_column_letter(end_col + 1)
+                update_range = f"{start_col_letter}2:{end_col_letter}{len(all_data)}"
+
+                logger.info(f"Обновляем диапазон: {update_range}")
+
+                # Создаем матрицу обновлений
+                update_matrix = [['' for _ in range(len(target_indices))] for _ in range(len(all_data) - 1)]
+
+                # Заполняем матрицу данными
+                for row_idx in range(1, len(all_data)):
+                    row = all_data[row_idx]
+                    if len(row) > wild_col_idx:
+                        current_wild = row[wild_col_idx]
+                        if current_wild in data_dict:
+                            wild_data = data_dict[current_wild]
+                            for i, col_idx in enumerate(target_indices):
+                                header = headers[col_idx]
+                                if header in wild_data:
+                                    update_matrix[row_idx - 1][i] = wild_data[header]
+                                else:
+                                    # Сохраняем оригинальное значение если нет в словаре
+                                    update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+                        else:
+                            # Сохраняем оригинальные значения для строк без совпадения
+                            for i, col_idx in enumerate(target_indices):
+                                update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+                    else:
+                        # Для строк без wild данных
+                        for i, col_idx in enumerate(target_indices):
+                            update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+
+                updates.append({
+                    'range': update_range,
+                    'values': update_matrix
+                })
+            else:
+                # Если колонки не подряд, обновляем каждую колонку отдельно
+                for col_idx in target_indices:
+                    header = headers[col_idx]
+                    col_letter = self.get_column_letter(col_idx + 1)
+                    # ПРАВИЛЬНЫЙ формат: "AX2:AX5886"
+                    col_range = f"{col_letter}2:{col_letter}{len(all_data)}"
+
+                    logger.info(f"Обновляем колонку: {col_range}")
+
+                    # Подготавливаем данные для столбца
+                    column_data = []
+                    for row_idx in range(1, len(all_data)):
+                        row = all_data[row_idx]
+                        if len(row) > wild_col_idx:
+                            current_wild = row[wild_col_idx]
+                            if current_wild in data_dict and header in data_dict[current_wild]:
+                                column_data.append([data_dict[current_wild][header]])
+                            else:
+                                column_data.append([row[col_idx] if col_idx < len(row) else ''])
+                        else:
+                            column_data.append([row[col_idx] if col_idx < len(row) else ''])
+
+                    updates.append({
+                        'range': col_range,
+                        'values': column_data
+                    })
+
+            # pprint(updates)
+
+            # Выполняем обновление
+            if updates:
+                for i, update in enumerate(updates):
+                    try:
+                        self.sheet.update(update['range'], update['values'], value_input_option='USER_ENTERED')
+                        logger.info(f"Успешно обновлен диапазон {update['range']} ({i + 1}/{len(updates)})")
+                    except Exception as e:
+                        logger.error(f"Ошибка при обновлении {update['range']}: {e}")
+                        # Можно добавить повторные попытки или продолжить
+
+        except Exception as e:
+            logger.error(f"Ошибка при вставке данных: {e}")
+            raise
+
+    @staticmethod
+    def get_column_letter(col_idx: int) -> str:
+        """Конвертирует индекс колонки в букву (A, B, C, ...)"""
+        result = ""
+        while col_idx > 0:
+            col_idx, remainder = divmod(col_idx - 1, 26)
+            result = chr(65 + remainder) + result
+        return result
 
     def get_nm_ids(self):
 
@@ -133,8 +407,13 @@ class GoogleSheet:
                         column_letter = column_index_to_letter(column_index)
                         updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
 
-        self.sheet.batch_update(updates)
-
+        # self.sheet.batch_update(updates)
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5,  # Можно настроить количество попыток
+        )
         logger.info("Проверка и добавление завершены")
 
     def update_rows(self, data_json, edit_column_clean: dict = None):
@@ -198,7 +477,14 @@ class GoogleSheet:
                         updates.append({'range': f'AF{row_number}', 'values': [['']]})
 
         # pprint(updates)
-        self.sheet.batch_update(updates)
+        # self.sheet.batch_update(updates)
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5  # Можно настроить количество попыток
+            # start_chunk=10
+        )
         logger.info("Данные успешно обновлены.")
         return True
 
@@ -218,17 +504,25 @@ class GoogleSheet:
         return article_dict
 
     @staticmethod
-    def update_result_qty_edit_data(service_google_sheet, result_qty_edit_data, account, row):
+    def update_result_qty_edit_data(service_google_sheet, result_qty_edit_data, account, row, chrt_ids_by_nm_id:dict):
+
         if service_google_sheet["Остаток"]:
             if account not in result_qty_edit_data:
                 result_qty_edit_data[account] = {"stocks": [], "nm_ids": []}
             if str(row["Новый остаток"]).isdigit():
+                # старая реализация - по баркоду
+                # result_qty_edit_data[account]["stocks"].append(
+                #     {"sku": row["Баркод"], "amount": int(row["Новый остаток"].replace('\xa0', ''))},
+                # )
+                # новая реализация - по chrt_id
                 result_qty_edit_data[account]["stocks"].append(
-                    {"sku": row["Баркод"], "amount": int(row["Новый остаток"].replace('\xa0', ''))}, )
+                    {"chrtId": chrt_ids_by_nm_id[int(row["Артикул"])], "amount": int(row["Новый остаток"].replace('\xa0', ''))},
+                )
+
                 # nm_id нам будет нужен для функции обновления данных почему в список?
                 result_qty_edit_data[account]["nm_ids"].append(int(row["Артикул"]))
 
-    async def get_edit_data(self, db_nm_ids_data, service_google_sheet):
+    async def get_edit_data(self, db_nm_ids_data, service_google_sheet, chrt_ids_by_nm_id):
         """
         Получает данные с запросом на изменение с таблицы
         """
@@ -247,7 +541,7 @@ class GoogleSheet:
             if not article.isdigit() or not account.strip() or article not in db_nm_ids_data or "vendor_code" not in db_nm_ids_data[article]:
                 continue
             article_dict = self.get_article_dict(service_google_sheet, row, db_nm_ids_data[article])
-            self.update_result_qty_edit_data(service_google_sheet, result_qty_edit_data, account, row)
+            self.update_result_qty_edit_data(service_google_sheet, result_qty_edit_data, account, row, chrt_ids_by_nm_id)
             if account not in result_nm_ids_data:
                 result_nm_ids_data[account] = {}
             result_nm_ids_data[account][article] = article_dict
@@ -270,13 +564,14 @@ class GoogleSheet:
                 continue
 
             # если ячейки, выделенные для изменения, будут иметь число, то они не будут отобраны для обновления данных
-            if True in (str(row['Новая\nДлина (см)']).replace('\xa0', '').isdigit(),
-                        str(row['Новая\nШирина (см)']).replace('\xa0', '').isdigit(),
-                        str(row['Новая\nВысота (см)']).replace('\xa0', '').isdigit(),
-                        str(row['Установить новую цену']).replace('\xa0', '').isdigit(),
-                        str(row['Установить новую скидку %']).replace('\xa0', '').isdigit(),
-                        str(row["Новый остаток"]).replace('\xa0', '').isdigit()):
-                continue
+            # if True in (
+            #         # str(row['Новая\nДлина (см)']).replace('\xa0', '').isdigit(),
+            #         # str(row['Новая\nШирина (см)']).replace('\xa0', '').isdigit(),
+            #         # str(row['Новая\nВысота (см)']).replace('\xa0', '').isdigit(),
+            #         str(row['Установить новую цену']).replace('\xa0', '').isdigit(),
+            #         str(row['Установить новую скидку %']).replace('\xa0', '').isdigit(),
+            #         str(row["Новый остаток"]).replace('\xa0', '').isdigit()):
+            #     continue
             if lk.upper() not in lk_articles_dict:
                 lk_articles_dict[lk.upper()] = []
             lk_articles_dict[lk.upper()].append(article)
@@ -372,7 +667,7 @@ class GoogleSheet:
             wild = row["wild"]
 
             if str(article).isdigit():
-                if str(min_qty).isdigit() and int(min_qty) != 0:
+                if str(min_qty).isdigit() and int(min_qty) != 0 and str(current_qty).isdigit():
                     if int(min_qty) >= int(current_qty):
                         if account not in result_data:
                             result_data[account] = {"qty": [], "nm_ids": []}
@@ -458,8 +753,13 @@ class GoogleSheet:
                         column_letter = column_index_to_letter(column_index)
                         updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
 
-        self.sheet.batch_update(updates)
-
+        # self.sheet.batch_update(updates)
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5,  # Можно настроить количество попыток
+        )
         logger.info("Проверка и добавление завершены")
 
     def shift_headers_count_list(self, today):
@@ -508,23 +808,23 @@ class GoogleSheet:
         df_formulas = pd.DataFrame(all_formulas[1:], columns=all_values[0])
 
         # Сохраняем формулы из столбцов, которые не попадают в диапазон смещения
-        formulas_to_preserve = df_formulas.iloc[:, 115:].values
+        formulas_to_preserve = df_formulas.iloc[:, 135:].values
 
         # Смещение заголовков и содержимого столбцов
-        header_values = df_values.columns[85:115].tolist()  # Индексы столбцов
+        header_values = df_values.columns[105:135].tolist()  # Индексы столбцов
         shifted_header_values = header_values[:29]
         shifted_header_values.insert(0, today)
         # Обновление заголовков
-        df_values.columns = df_values.columns[:85].tolist() + shifted_header_values + df_values.columns[115:].tolist()
+        df_values.columns = df_values.columns[:105].tolist() + shifted_header_values + df_values.columns[135:].tolist()
         df_formulas.columns = df_values.columns  # Обновляем заголовки в формулах
         # Смещение содержимого столбцов
-        df_values.iloc[:, 86:115] = df_values.iloc[:, 85:114].values
-        df_values.iloc[:, 77] = ""  # Очистка первого столбца
+        df_values.iloc[:, 106:135] = df_values.iloc[:, 105:134].values
+        df_values.iloc[:, 105] = ""  # Очистка первого столбца
 
         # Восстанавливаем формулы в столбцах, которые не попадают в диапазон смещения
-        df_formulas.iloc[:, 86:115] = df_formulas.iloc[:, 85:114].values
-        df_formulas.iloc[:, 85] = ""  # Очистка первого столбца
-        df_formulas.iloc[:, 115:] = formulas_to_preserve
+        df_formulas.iloc[:, 106:135] = df_formulas.iloc[:, 105:134].values
+        df_formulas.iloc[:, 105] = ""  # Очистка первого столбца
+        df_formulas.iloc[:, 135:] = formulas_to_preserve
 
         # Преобразование обратно в список списков
         updated_values = [df_values.columns.tolist()] + df_values.values.tolist()
@@ -628,7 +928,13 @@ class GoogleSheet:
 
         # Batch update the Google Sheet with error handling
         try:
-            self.sheet.batch_update(updates)
+            # self.sheet.batch_update(updates)
+            safe_batch_update(
+                sheet=self.sheet,
+                updates=updates,
+                chunk_size=1000,  # Можно настроить под свои needs
+                max_retries=5,  # Можно настроить количество попыток
+            )
         except Exception as e:
             logger.error(f'Error during batch update: {e}')
 
@@ -665,7 +971,13 @@ class GoogleSheet:
                         column_letter = column_index_to_letter(column_index)
                         updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
 
-        self.sheet.batch_update(updates)
+        # self.sheet.batch_update(updates)
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5,  # Можно настроить количество попыток
+        )
 
 
 class GoogleSheetServiceRevenue:
@@ -689,6 +1001,326 @@ class GoogleSheetServiceRevenue:
     def client_init_json(self) -> Client:
         """Создание клиента для работы с Google Sheets."""
         return service_account(filename=self.creds_json)
+
+
+    def insert_wild_data_correct_preinsert(self, data_dict: dict, sheet_header="wild") -> None:
+        """
+        Оптимизированная версия - обновляет данные целыми столбцами.
+        """
+        try:
+            # 1. ТОЧНО КАК В ПЕРВОЙ ФУНКЦИИ: добавляем отсутствующие значения
+
+            # Получаем все ключи из data_dict
+            wilds_list = list(data_dict.keys())
+
+            # Получаем существующие данные
+            existing_data = self.sheet.get_all_records()
+
+            # Определяем имя ключевой колонки для поиска
+            # В первой функции это было 'Артикул', здесь используем sheet_header
+            # НО: нужно понять, как называется эта колонка в заголовках таблицы
+
+            # Сначала получим заголовки
+            headers = self.sheet.row_values(1)
+
+            # Найдем точное название колонки, содержащей sheet_header
+            wild_column_name = None
+            for header in headers:
+                if sheet_header in header.lower():
+                    wild_column_name = header
+                    break
+
+            if wild_column_name is None:
+                logger.error(f"Колонка с {sheet_header} не найдена в таблице")
+                return
+
+            # Собираем существующие значения из найденной колонки
+            existing_wilds = set()
+            for row in existing_data:
+                if wild_column_name in row and row[wild_column_name]:
+                    existing_wilds.add(str(row[wild_column_name]))
+
+            # Находим отсутствующие значения
+            missing_wilds = [wild for wild in wilds_list if wild not in existing_wilds]
+
+            # Добавляем все отсутствующие значения одним запросом
+            if missing_wilds:
+                # Подготавливаем строки для вставки
+                new_rows = []
+                for wild in missing_wilds:
+                    # Создаем строку с нужным количеством колонок
+                    row = [''] * len(headers)
+                    # Находим индекс колонки, куда вставлять
+                    col_idx = headers.index(wild_column_name)
+                    row[col_idx] = int(wild)
+                    new_rows.append(row)
+
+                self.sheet.append_rows(new_rows)
+                logger.info(f"Добавлено {len(missing_wilds)} новых записей")
+
+                # Пауза как в первой функции
+                import time
+                time.sleep(2)
+
+            # 2. ТОЧНО КАК ВО ВТОРОЙ ФУНКЦИИ: обновляем данные
+
+            # Обновляем заголовки после добавления новых строк
+            headers = self.sheet.row_values(1)
+
+            # Находим индекс колонки wild (ключевой)
+            wild_col_idx = None
+            for idx, header in enumerate(headers):
+                if sheet_header in header.lower():
+                    wild_col_idx = idx
+                    break
+
+            if wild_col_idx is None:
+                logger.error(f"Колонка {sheet_header} не найдена в таблице")
+                return
+
+            # Находим индексы целевых колонок
+            target_headers = list(next(iter(data_dict.values())).keys()) if data_dict else []
+            target_indices = []
+
+            for header in target_headers:
+                if header in headers:
+                    target_indices.append(headers.index(header))
+
+            if not target_indices:
+                logger.error("Целевые заголовки не найдены в таблице")
+                return
+
+            # ДАЛЕЕ ИДЁТ ТОЧНО ОРИГИНАЛЬНЫЙ КОД ИЗ ВТОРОЙ ФУНКЦИИ
+            # БЕЗ ЛЮБЫХ ИЗМЕНЕНИЙ
+
+            target_indices.sort()
+            is_consecutive = all(target_indices[i] + 1 == target_indices[i + 1]
+                                 for i in range(len(target_indices) - 1))
+
+            all_data = self.sheet.get_all_values()
+
+            updates = []
+
+            if is_consecutive and len(target_indices) > 1:
+                start_col = target_indices[0]
+                end_col = target_indices[-1]
+
+                start_col_letter = self.get_column_letter(start_col + 1)
+                end_col_letter = self.get_column_letter(end_col + 1)
+                update_range = f"{start_col_letter}2:{end_col_letter}{len(all_data)}"
+
+                logger.info(f"Обновляем диапазон: {update_range}")
+
+                update_matrix = [['' for _ in range(len(target_indices))] for _ in range(len(all_data) - 1)]
+
+                for row_idx in range(1, len(all_data)):
+                    row = all_data[row_idx]
+                    if len(row) > wild_col_idx:
+                        current_wild = row[wild_col_idx]
+                        if current_wild in data_dict:
+                            wild_data = data_dict[current_wild]
+                            for i, col_idx in enumerate(target_indices):
+                                header = headers[col_idx]
+                                if header in wild_data:
+                                    update_matrix[row_idx - 1][i] = wild_data[header]
+                                else:
+                                    update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+                        else:
+                            for i, col_idx in enumerate(target_indices):
+                                update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+                    else:
+                        for i, col_idx in enumerate(target_indices):
+                            update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+
+                updates.append({
+                    'range': update_range,
+                    'values': update_matrix
+                })
+            else:
+                for col_idx in target_indices:
+                    header = headers[col_idx]
+                    col_letter = self.get_column_letter(col_idx + 1)
+                    col_range = f"{col_letter}2:{col_letter}{len(all_data)}"
+
+                    logger.info(f"Обновляем колонку: {col_range}")
+
+                    column_data = []
+                    for row_idx in range(1, len(all_data)):
+                        row = all_data[row_idx]
+                        if len(row) > wild_col_idx:
+                            current_wild = row[wild_col_idx]
+                            if current_wild in data_dict and header in data_dict[current_wild]:
+                                column_data.append([data_dict[current_wild][header]])
+                            else:
+                                column_data.append([row[col_idx] if col_idx < len(row) else ''])
+                        else:
+                            column_data.append([row[col_idx] if col_idx < len(row) else ''])
+
+                    updates.append({
+                        'range': col_range,
+                        'values': column_data
+                    })
+
+            if updates:
+                for i, update in enumerate(updates):
+                    try:
+                        self.sheet.update(update['range'], update['values'], value_input_option='USER_ENTERED')
+                        logger.info(f"Успешно обновлен диапазон {update['range']} ({i + 1}/{len(updates)})")
+                    except Exception as e:
+                        logger.error(f"Ошибка при обновлении {update['range']}: {e}")
+
+        except Exception as e:
+            logger.error(f"Ошибка при вставке данных: {e}")
+            raise
+
+    def insert_wild_data_correct(self, data_dict: dict, sheet_header="wild") -> None:
+        """
+        Оптимизированная версия - обновляет данные целыми столбцами.
+        """
+        try:
+            # Получаем заголовки таблицы
+            headers = self.sheet.row_values(1)
+            print(headers)
+
+            # Находим индекс колонки wild
+            wild_col_idx = None
+            for idx, header in enumerate(headers):
+                if sheet_header in header.lower():
+                    wild_col_idx = idx
+                    print(wild_col_idx)
+
+            if wild_col_idx is None:
+                logger.error(f"Колонка {sheet_header} не найдена в таблице")
+                return
+
+            # Находим индексы и диапазон наших целевых колонок
+            # target_headers = list(next(iter(data_dict.values())).keys()) if data_dict else []
+            target_headers = list(set().union(*data_dict.values())) if data_dict else []
+            # === ДОБАВЛЕННЫЕ ЛОГИ ===
+            logger.info(f"target_headers из data_dict: {target_headers}")
+
+            target_indices = []
+
+            for header in target_headers:
+                if header in headers:
+                    target_indices.append(headers.index(header))
+                    logger.info(f"Найден заголовок '{header}' в таблице, индекс: {headers.index(header)}")
+                else:
+                    logger.warning(f"Заголовок '{header}' НЕ найден в таблице!")
+
+            logger.info(f"target_indices: {target_indices}")
+            logger.info(f"Найденные заголовки: {[headers[i] for i in target_indices]}")
+            # === КОНЕЦ ЛОГОВ ===
+
+            if not target_indices:
+                logger.error("Целевые заголовки не найдены в таблице")
+                return
+
+            # Сортируем индексы и проверяем, что они идут подряд
+            target_indices.sort()
+            is_consecutive = all(target_indices[i] + 1 == target_indices[i + 1]
+                                 for i in range(len(target_indices) - 1))
+
+            # Получаем все данные таблицы
+            all_data = self.sheet.get_all_values()
+
+            # Создаем матрицу для обновления (строки x колонки)
+            updates = []
+
+            if is_consecutive and len(target_indices) > 1:
+                # ОПТИМИЗАЦИЯ: обновляем целым диапазоном столбцов
+                start_col = target_indices[0]
+                end_col = target_indices[-1]
+
+                # ПРАВИЛЬНО формируем диапазон: "AX2:BA5886"
+                start_col_letter = self.get_column_letter(start_col + 1)
+                end_col_letter = self.get_column_letter(end_col + 1)
+                update_range = f"{start_col_letter}2:{end_col_letter}{len(all_data)}"
+
+                logger.info(f"Обновляем диапазон: {update_range}")
+
+                # Создаем матрицу обновлений
+                update_matrix = [['' for _ in range(len(target_indices))] for _ in range(len(all_data) - 1)]
+
+                # Заполняем матрицу данными
+                for row_idx in range(1, len(all_data)):
+                    row = all_data[row_idx]
+                    if len(row) > wild_col_idx:
+                        current_wild = row[wild_col_idx]
+                        if current_wild in data_dict:
+                            wild_data = data_dict[current_wild]
+                            for i, col_idx in enumerate(target_indices):
+                                header = headers[col_idx]
+                                if header in wild_data:
+                                    update_matrix[row_idx - 1][i] = wild_data[header]
+                                else:
+                                    # Сохраняем оригинальное значение если нет в словаре
+                                    update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+                        else:
+                            # Сохраняем оригинальные значения для строк без совпадения
+                            for i, col_idx in enumerate(target_indices):
+                                update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+                    else:
+                        # Для строк без wild данных
+                        for i, col_idx in enumerate(target_indices):
+                            update_matrix[row_idx - 1][i] = row[col_idx] if col_idx < len(row) else ''
+
+                updates.append({
+                    'range': update_range,
+                    'values': update_matrix
+                })
+            else:
+                # Если колонки не подряд, обновляем каждую колонку отдельно
+                for col_idx in target_indices:
+                    header = headers[col_idx]
+                    col_letter = self.get_column_letter(col_idx + 1)
+                    # ПРАВИЛЬНЫЙ формат: "AX2:AX5886"
+                    col_range = f"{col_letter}2:{col_letter}{len(all_data)}"
+
+                    logger.info(f"Обновляем колонку: {col_range}")
+
+                    # Подготавливаем данные для столбца
+                    column_data = []
+                    for row_idx in range(1, len(all_data)):
+                        row = all_data[row_idx]
+                        if len(row) > wild_col_idx:
+                            current_wild = row[wild_col_idx]
+                            if current_wild in data_dict and header in data_dict[current_wild]:
+                                column_data.append([data_dict[current_wild][header]])
+                            else:
+                                column_data.append([row[col_idx] if col_idx < len(row) else ''])
+                        else:
+                            column_data.append([row[col_idx] if col_idx < len(row) else ''])
+
+                    updates.append({
+                        'range': col_range,
+                        'values': column_data
+                    })
+
+            pprint(updates)
+
+            # Выполняем обновление
+            if updates:
+                for i, update in enumerate(updates):
+                    try:
+                        self.sheet.update(update['range'], update['values'], value_input_option='USER_ENTERED')
+                        logger.info(f"Успешно обновлен диапазон {update['range']} ({i + 1}/{len(updates)})")
+                    except Exception as e:
+                        logger.error(f"Ошибка при обновлении {update['range']}: {e}")
+                        # Можно добавить повторные попытки или продолжить
+
+        except Exception as e:
+            logger.error(f"Ошибка при вставке данных: {e}")
+            raise
+
+    @staticmethod
+    def get_column_letter(col_idx: int) -> str:
+        """Конвертирует индекс колонки в букву (A, B, C, ...)"""
+        result = ""
+        while col_idx > 0:
+            col_idx, remainder = divmod(col_idx - 1, 26)
+            result = chr(65 + remainder) + result
+        return result
 
     def add_for_all_new_nm_id_revenue(self, nm_ids_revenue_data: dict):
         """
@@ -722,8 +1354,13 @@ class GoogleSheetServiceRevenue:
                         })
 
         # Отправка обновлений одним запросом
-        self.sheet.batch_update(updates)
-
+        # self.sheet.batch_update(updates)
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5,  # Можно настроить количество попыток
+        )
         logger.info("Значения обновлены в таблице.")
 
     def add_last_day_revenue(self, last_day, nm_ids_revenue_data: dict):
@@ -753,8 +1390,13 @@ class GoogleSheetServiceRevenue:
 
         # Отправка обновлений одним запросом
         logger.info(updates)
-        self.sheet.batch_update(updates, value_input_option="USER_ENTERED")
-
+        # self.sheet.batch_update(updates, value_input_option="USER_ENTERED")
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5,  # Можно настроить количество попыток
+        )
         logger.info("Значения обновлены в таблице.")
 
     def shift_revenue_columns_to_the_left(self, last_day):
@@ -928,8 +1570,13 @@ class GoogleSheetServiceRevenue:
                         column_letter = column_index_to_letter(column_index)
                         updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
 
-        self.sheet.batch_update(updates)
-
+        # self.sheet.batch_update(updates)
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5,  # Можно настроить количество попыток
+        )
         logger.info("Проверка и добавление завершены")
 
     def update_revenue_rows(self, data_json):
@@ -963,7 +1610,13 @@ class GoogleSheetServiceRevenue:
                         column_letter = column_index_to_letter(column_index)
                         updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
 
-        self.sheet.batch_update(updates)
+        # self.sheet.batch_update(updates)
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5,  # Можно настроить количество попыток
+        )
 
 
 class GoogleSheetSopostTable:
@@ -1137,7 +1790,13 @@ class PCGoogleSheet:
                         column_index = headers.index(column) + 1
                         column_letter = column_index_to_letter(column_index)
                         updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
-        self.sheet.batch_update(updates)
+        # self.sheet.batch_update(updates)
+        safe_batch_update(
+            sheet=self.sheet,
+            updates=updates,
+            chunk_size=1000,  # Можно настроить под свои needs
+            max_retries=5,  # Можно настроить количество попыток
+        )
         logger.info("Актуализированы данные по дням в листе ПРОДАЖИ")
 
 
