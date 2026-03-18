@@ -22,19 +22,20 @@ from service.service_update_db import Service
 
 scheduler = AsyncIOScheduler(job_defaults={'misfire_grace_time': 2000, 'max_instances': 1})
 
-def gs_service_new_good_table_connection():
+def gs_service_new_good_table_connection(sheet, spreadsheet, creds_json):
     return ServiceGoogleSheet(
-        token=None, sheet="Остатки по складам", spreadsheet="Новый товар", creds_json="creds.json")
+        token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
 
 
 
 @scheduler.scheduled_job(IntervalTrigger(minutes=15), coalesce=True)
 @log_job
-async def add_stock_data_in_new_good_gs():
+async def add_stock_data_in_another_good_gs():
     logger.info("Запуск : актуализация СЕРВИСНЫХ остатков")
-    gs_service = gs_service_new_good_table_connection()
+    gs_service = gs_service_new_good_table_connection(sheet="Остатки по складам", spreadsheet="Новый товар", creds_json="creds.json")
     await gs_service.get_stock_data_on_api(warehouse_ids=[2,4,5,6,7,8])
-
+    gs_service = gs_service_new_good_table_connection(sheet="Остатки по складам", spreadsheet="Годовой план закупа 2026", creds_json="creds.json")
+    await gs_service.get_stock_data_on_api(warehouse_ids=[2,4,5,6,7,8])
 
 
 @scheduler.scheduled_job(IntervalTrigger(minutes=15), coalesce=True)
