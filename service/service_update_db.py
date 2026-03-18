@@ -54,10 +54,10 @@ class Service:
                             (article, card_data['account'], card_data['local_vendor_code'], card_data['vendor_code']))
                         to_update_card_data.append(
                             (article, card_data.get('barcode', None), card_data.get('commission_wb', None),
-                             card_data.get('discount', None),
+                             card_data.get('Скидка %', None),
                              card_data.get('height', None), card_data.get('length', None),
                              card_data.get('logistic_from_wb_wh_to_opp', None), card_data.get('photo_link', None),
-                             card_data.get('price', None),
+                             card_data.get('Цена на WB без скидки', None),
                              card_data.get('subject_name', None), card_data.get('width', None),
                              current_time)
                         )
@@ -68,9 +68,9 @@ class Service:
                             cost_price = cost_price.purchase_price
                         to_update_unit_economics.append(
                             (article, card_data.get('commission_wb', None),
-                             card_data.get('discount', None),
+                             card_data.get('Скидка %', None),
                              card_data.get('logistic_from_wb_wh_to_opp', None),
-                             card_data.get('price', None),
+                             card_data.get('Цена на WB без скидки', None),
                              cost_price,
                              percent_by_tax,
                              current_time)

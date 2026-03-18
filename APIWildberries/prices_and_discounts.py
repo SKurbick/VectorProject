@@ -132,45 +132,65 @@ class ListOfGoodsPricesAndDiscounts:
             logger.info(f"в запросе просмотра цен есть невалидные артикулы -> {account}: {nm_ids}")
         return nm_ids_list
 
-    def add_new_price_and_discount(self, data: list, step=1000):
+    async def add_new_price_and_discount(self, data: list, step=1000) -> bool:
+        """
+        Устанавливает цены и скидки для списка товаров через WB API.
+
+        Отправляет данные батчами по 1000 артикулов (ограничение WB API).
+        Для каждого батча делает до 10 попыток при неудаче.
+
+        Args:
+            data: список словарей вида [{"nmID": int, "price": int, "discount": int}, ...]
+            step: размер батча (максимум 1000 по ограничению WB API)
+
+        Returns:
+            True  — все батчи успешно приняты WB
+            False — хотя бы один батч не прошёл после 10 попыток
+
+        WB API: POST /api/v2/upload/task
+        Документация: https://dev.wildberries.ru/docs/openapi/work-with-products
+        """
         url = self.post_url
+        success = True
         for start in range(0, len(data), step):
             butch_data = data[start: start + step]
-            for _ in range(10):
+            batch_success = False
+            for _ in range(10):  # до 10 попыток на каждый батч при сетевых ошибках
                 try:
-                    response = requests.post(url=url, headers=self.headers, json={"data": butch_data})
-                    logger.info(f"Артикулы на изменение цены: {butch_data}")
-                    logger.info(f"price and discount edit result: {response.json()}")
-                    time.sleep(2)
-                    if (response.status_code in (200, 208) or response.json()['errorText'] in
-                            ("Task already exists", "No goods for process", "The specified prices and discounts are already set")):
-                        break
+                    # Новая сессия на каждую попытку — избегаем переиспользования
+                    # протухшего соединения после ошибки или долгого sleep
+                    async with aiohttp.ClientSession() as session:
+                        async with session.post(url=url, headers=self.headers,
+                                                json={"data": butch_data}) as response:
+                            response_json = await response.json()
+                            logger.info(f"Артикулы на изменение цены: {butch_data}")
+                            logger.info(f"price and discount edit result: {response_json}")
 
-                except (Exception, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
+                            if response.status == 429:
+                                # WB вернул "слишком много запросов" — ждём и повторяем
+                                await asyncio.sleep(10)
+                                continue
+
+                            # Небольшая пауза после успешного ответа —
+                            # соблюдаем лимит WB API: 10 запросов / 6 сек
+                            await asyncio.sleep(2)
+
+                            if (response.status in (200, 208) or response_json.get('errorText') in
+                                    ("Task already exists", "No goods for process",
+                                     "Specified prices and discounts are already set")):
+                                # 200 — задача принята
+                                # 208 — такая задача уже существует (идемпотентность)
+                                # errorText варианты — WB сообщает что изменений не требуется,
+                                # это не ошибка, цены уже соответствуют нужным значениям
+                                batch_success = True
+                                break
+
+                except (aiohttp.ClientError, aiohttp.ClientResponseError,
+                        aiohttp.ClientConnectionTimeoutError, asyncio.TimeoutError, Exception) as e:
                     logger.exception(e)
-                    time.sleep(63)
+                    # Долгий sleep при сетевой ошибке — WB может временно быть недоступен
+                    await asyncio.sleep(63)
 
-    # def add_new_price_and_discount_async(self, data: list, step=1000):
-    #     url = self.post_url
-    #     for start in range(0, len(data), step):
-    #         butch_data = data[start: start + step]
-    #         for _ in range(10):
-    #             try:
-    #                 async with aiohttp.ClientSession() as session:
-    #                     async with session.post(url=url, headers=self.headers, json={"data": butch_data}) as response:
-    #                     if (response.status in (200, 208) or response.json()['errorText'] in
-    #                             ("Task already exists", "No goods for process")):
-    #                         break
-    #
-    #             except:
-    # response = requests.post(url=url, headers=self.headers, json={"data": butch_data})
-    #     print("Артикулы на изменение цены:", butch_data)
-    #     print("price and discount edit result:", response.json())
-    #     time.sleep(2)
-    #     if (response.status_code in (200, 208) or response.json()['errorText'] in
-    #             ("Task already exists", "No goods for process")):
-    #         break
-    #
-    # except (Exception, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
-    #     print(e)
-    #     time.sleep(63)
+            if not batch_success:
+                success = False  # фиксируем что батч не прошёл, продолжаем остальные
+        return success

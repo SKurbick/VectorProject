@@ -40,15 +40,15 @@ class CardData:
         INSERT INTO card_data (article_id, barcode,commission_wb, discount, height, length, 
                                 logistic_from_wb_wh_to_opp, photo_link, price, subject_name, width, last_update_time)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        ON CONFLICT (article_id) DO UPDATE 
+        ON CONFLICT (article_id) DO UPDATE
         SET barcode = EXCLUDED.barcode,
             commission_wb = EXCLUDED.commission_wb,
-            discount = EXCLUDED.discount,
+            discount = COALESCE(EXCLUDED.discount, card_data.discount),
             height = EXCLUDED.height,
             length = EXCLUDED.length,
             logistic_from_wb_wh_to_opp = EXCLUDED.logistic_from_wb_wh_to_opp,
             photo_link = EXCLUDED.photo_link,
-            price = EXCLUDED.price,
+            price = COALESCE(EXCLUDED.price, card_data.price),
             subject_name = EXCLUDED.subject_name,
             width = EXCLUDED.width,
             last_update_time = EXCLUDED.last_update_time;                   
@@ -70,6 +70,26 @@ class CardData:
         WHERE article_id = ANY($1)
         """
         return await self.db.fetch(query, article_ids)
+
+    async def update_our_price_and_discount(self, data: list[tuple]):
+        """
+        Обновляет эталонные цену и скидку для списка артикулов.
+        Вызывается только при намеренном изменении цены через наш сервис.
+        Поля our_price, our_discount, our_price_set_at — шедулер их не трогает.
+
+        data: list of (article_id, our_price, our_discount, our_price_set_at)
+        COALESCE защищает от перезаписи нулём — если клиент передал только скидку
+        без цены, our_price остаётся прежним.
+        """
+        query = """
+            UPDATE card_data
+            SET
+                our_price = COALESCE($2, our_price),
+                our_discount = COALESCE($3, our_discount),
+                our_price_set_at = $4
+            WHERE article_id = $1
+        """
+        await self.db.executemany(query, data)
 
     async def get_actual_information_to_db(self, article_ids: Set[int]):
         query = """SELECT cd.*, a.local_vendor_code 

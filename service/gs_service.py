@@ -360,8 +360,26 @@ class ServiceGoogleSheet:
                                                "sizes": data["sizes"], "dimensions": data["dimensions"]})
                 """запрос на изменение цены и/или скидки по артикулу"""
                 if price_discount_data:
-                    wb_api_price_and_discount.add_new_price_and_discount(price_discount_data)
+                    result = await wb_api_price_and_discount.add_new_price_and_discount(price_discount_data)
                     edit_column_clean["price_discount"] = True
+                    if result:
+                        try:
+                            set_at = datetime.datetime.now(tz=datetime.timezone.utc)
+                            our_price_data = [
+                                (
+                                    item["nmID"],
+                                    item.get("price"),  # None если клиент не менял цену
+                                    item.get("discount"),  # None если клиент не менял скидку
+                                    set_at
+                                )
+                                for item in price_discount_data
+                            ]
+                            async with Database1() as connection:
+                                card_data_db = CardData(db=connection)
+                                await card_data_db.update_our_price_and_discount(data=our_price_data)
+                            logger.info(f"[{account}] Эталонные цены обновлены для {len(our_price_data)} артикулов")
+                        except Exception as e:
+                            logger.error(f"[{account}] Ошибка при обновлении эталонных цен в card_data: {e}")
 
                 """Запрос на изменение габаритов товара по артикулу и vendorCode (wild)"""
                 if size_edit_data:
