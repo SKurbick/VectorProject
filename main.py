@@ -47,14 +47,14 @@ async def get_actually_revenues_orders_and_net_profit_data():
     await gs_service.get_actually_revenues_orders_and_net_profit_data()
     logger.info("Завершение : Актуализация данных по выручке, заказам и сумме с чистой прибыли")
 
-
-@scheduler.scheduled_job(IntervalTrigger(minutes=10), coalesce=True)
-@log_job
-async def job_check_new_nm_ids():
-    """Смотрит в таблицу, оценивает новые nm_ids"""
-    logger.info("Запуск : Смотрит в таблицу, оценивает новые nm_ids")
-    await check_new_nm_ids()
-    logger.info("Завершение : Смотрит в таблицу, оценивает новые nm_ids")
+#
+# @scheduler.scheduled_job(IntervalTrigger(minutes=10), coalesce=True)
+# @log_job
+# async def job_check_new_nm_ids():
+#     """Смотрит в таблицу, оценивает новые nm_ids"""
+#     logger.info("Запуск : Смотрит в таблицу, оценивает новые nm_ids")
+#     await check_new_nm_ids()
+#     logger.info("Завершение : Смотрит в таблицу, оценивает новые nm_ids")
 
 
 @scheduler.scheduled_job(IntervalTrigger(minutes=15), coalesce=True)
