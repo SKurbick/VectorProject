@@ -8,8 +8,14 @@ class OrdersRevenuesTable:
 
     async def get_data_by_date(self, date):
         query = """
-        SELECT article_id, orders_count, orders_sum_rub from orders_revenues
-        WHERE date = $1
+            SELECT
+                ors.article_id,
+                a.local_vendor_code,
+                ors.orders_count,
+                ors.orders_sum_rub
+            FROM orders_revenues AS ors
+            JOIN article AS a ON a.nm_id = ors.article_id
+            WHERE date = $1;
         """
         query_result =await self.db.fetch(query, date)
         return query_result

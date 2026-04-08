@@ -118,8 +118,9 @@ class ServiceGoogleSheet:
                 article_id = res['article_id']
                 revenues = res['orders_sum_rub']
                 orders = res['orders_count']
+                local_vendor_code = res['local_vendor_code']
                 data_to_update_main[article_id] = {revenue_date_header: revenues}
-                data_to_update_orders[article_id] = {orders_and_np_date_header: orders}
+                data_to_update_orders[article_id] = {orders_and_np_date_header: orders, "wild":local_vendor_code}
 
             result_som_net_profit_data = await accurate_net_profit_table.get_net_profit_by_date(date=str(current_date))
             for record in result_som_net_profit_data:
