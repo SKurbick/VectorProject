@@ -599,11 +599,13 @@ class ServiceGoogleSheet:
             # self.gs_connect.update_rows(data_json=article_id_to_update)
             data_str_keys = {str(k): v for k, v in article_id_to_update.items()}
             self.gs_connect.insert_wild_data_correct(data_dict=data_str_keys, sheet_header='артикул')
-            #
-            # if len(photos) > 0:
-            #     logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице ФОТО")
-            #     gs_connect_photo = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet="ФОТО")
-            #     await gs_connect_photo.add_data_to_count_list(photos)
+
+            if len(photos) > 0:
+                logger.info(f"[INFO] {datetime.datetime.now()} обновляем данные в таблице ФОТО")
+                gs_connect_photo = GoogleSheet(creds_json=self.creds_json, spreadsheet=self.spreadsheet, sheet="ФОТО")
+                photos_str_keys = {str(k): v for k, v in photos.items()}
+                pprint(photos_str_keys)
+                gs_connect_photo.insert_wild_data_correct_preinsert(data_dict=photos_str_keys, sheet_header="артикул")
 
     async def get_actually_virtual_qty(self, account, data: dict, token):
         articles_qty_data = {}
