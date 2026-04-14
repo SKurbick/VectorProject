@@ -191,7 +191,7 @@ class GoogleSheet:
         except Exception as e:
             logger.error(f"Ошибка при получении данных: {e}")
             return []
-    def insert_wild_data_correct_preinsert(self, data_dict: dict, sheet_header="wild") -> None:
+    def insert_wild_data_correct_preinsert(self, data_dict: dict, sheet_header="wild", corrected_to_int =True) -> None:
         """
         Оптимизированная версия - обновляет данные целыми столбцами.
         """
@@ -240,7 +240,9 @@ class GoogleSheet:
                     row = [''] * len(headers)
                     # Находим индекс колонки, куда вставлять
                     col_idx = headers.index(wild_column_name)
-                    row[col_idx] = int(wild)
+                    if corrected_to_int:
+                        wild = int(wild)
+                    row[col_idx] = wild
                     new_rows.append(row)
 
                 self.sheet.append_rows(new_rows)

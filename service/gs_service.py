@@ -1395,4 +1395,4 @@ class ServiceGoogleSheet:
             return_data[product_id]["Свободный остаток\n(сервис)"] -= res['new_count']
         pprint(return_data)
 
-        self.gs_connect.insert_wild_data_correct(data_dict=return_data)
+        self.gs_connect.insert_wild_data_correct_preinsert(data_dict=return_data, corrected_to_int=False)
