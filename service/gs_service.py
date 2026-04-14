@@ -1315,7 +1315,7 @@ class ServiceGoogleSheet:
 
 
 
-    async def get_stock_data_on_api(self, warehouse_ids: list[int] | None = None):
+    async def get_stock_data_on_api(self, warehouse_ids: list[int] | None = None, add_missing: bool = False):
         WAREHOUSE_FIELDS = {
             4: "Физ остаток Офис\n(сервис)",
             2: "Физ остаток Брак\n(сервис)",
@@ -1395,4 +1395,7 @@ class ServiceGoogleSheet:
             return_data[product_id]["Свободный остаток\n(сервис)"] -= res['new_count']
         pprint(return_data)
 
-        self.gs_connect.insert_wild_data_correct_preinsert(data_dict=return_data, corrected_to_int=False)
+        if add_missing:
+            self.gs_connect.insert_wild_data_correct_preinsert(data_dict=return_data, corrected_to_int=False)
+        else:
+            self.gs_connect.insert_wild_data_correct(data_dict=return_data)

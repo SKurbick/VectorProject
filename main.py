@@ -33,9 +33,9 @@ def gs_service_new_good_table_connection(sheet, spreadsheet, creds_json):
 async def add_stock_data_in_another_good_gs():
     logger.info("Запуск : актуализация СЕРВИСНЫХ остатков")
     gs_service = gs_service_new_good_table_connection(sheet="Остатки по складам", spreadsheet="Новый товар", creds_json="creds.json")
-    await gs_service.get_stock_data_on_api(warehouse_ids=[2,4,5,6,7,8])
+    await gs_service.get_stock_data_on_api(warehouse_ids=[2,4,5,6,7,8], add_missing=True)
     gs_service = gs_service_new_good_table_connection(sheet="Остатки по складам", spreadsheet="Годовой план закупа 2026", creds_json="creds.json")
-    await gs_service.get_stock_data_on_api(warehouse_ids=[2,4,5,6,7,8])
+    await gs_service.get_stock_data_on_api(warehouse_ids=[2,4,5,6,7,8], add_missing=True)
 
 
 @scheduler.scheduled_job(IntervalTrigger(minutes=15), coalesce=True)
