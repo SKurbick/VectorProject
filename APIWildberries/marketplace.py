@@ -89,7 +89,18 @@ class LeftoversMarketplace:
             }
             response = requests.put(url=url, headers=self.headers, json=json_data)
             if response.status_code > 399:
-                logger.info(f"Запрос на изменение остатков: {response.json()}")
+                try:
+                    response_data = response.json()
+                except requests.exceptions.JSONDecodeError:
+                    response_data = response.text or "<пустой ответ>"
+
+                logger.error(
+                    "Ошибка запроса на изменение остатков. Пачка пропущена. Код: {}. Content-Type: {}. Ответ: {}",
+                    response.status_code,
+                    response.headers.get("Content-Type", "<не указан>"),
+                    response_data,
+                )
+                continue
             else:
                 logger.info(f"Запрос на изменение остатков. Код: {response.status_code}", )
 
