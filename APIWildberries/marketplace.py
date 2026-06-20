@@ -49,6 +49,9 @@ class DeliveryByTheSellersMPWB:
 
 
 class LeftoversMarketplace:
+    REQUEST_TIMEOUT = (10, 60)
+    REQUEST_RETRIES = 3
+
     def __init__(self, token):
         self.token = token
         self.url = "https://marketplace-api.wildberries.ru/api/v3/stocks/{}"
@@ -87,7 +90,35 @@ class LeftoversMarketplace:
             json_data = {
                 "stocks": barcodes_part
             }
-            response = requests.put(url=url, headers=self.headers, json=json_data)
+            response = None
+            for attempt in range(1, self.REQUEST_RETRIES + 1):
+                try:
+                    response = requests.put(
+                        url=url,
+                        headers=self.headers,
+                        json=json_data,
+                        timeout=self.REQUEST_TIMEOUT,
+                    )
+                    break
+                except requests.exceptions.RequestException as e:
+                    logger.error(
+                        "Ошибка соединения при изменении остатков. Склад: {}. Попытка {}/{}. Ошибка: {}",
+                        warehouse_id,
+                        attempt,
+                        self.REQUEST_RETRIES,
+                        e,
+                    )
+                    if attempt < self.REQUEST_RETRIES:
+                        time.sleep(10 * attempt)
+
+            if response is None:
+                logger.error(
+                    "Ошибка запроса на изменение остатков. Пачка пропущена после {} попыток. Склад: {}",
+                    self.REQUEST_RETRIES,
+                    warehouse_id,
+                )
+                continue
+
             if response.status_code > 399:
                 try:
                     response_data = response.json()

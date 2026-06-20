@@ -161,6 +161,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    # asyncio.run(get_actually_data_by_qty())
     # asyncio.run(job_check_edits_columns_and_add_actually_data_to_table())
     # asyncio.run(job_check_new_nm_ids())
     # asyncio.run(get_actually_revenues_orders_and_net_profit_data())
