@@ -250,6 +250,21 @@ class ServiceGoogleSheet:
 
                 # объединяем полученные данные
                 merge_json_data = merge_dicts(card_from_nm_ids_filter, goods_nm_ids)
+                if only_edits_data:
+                    skipped_nm_ids = [
+                        nm_id for nm_id, data in merge_json_data.items()
+                        if not isinstance(data, dict) or "Артикул" not in data or not data.get("account")
+                    ]
+                    if skipped_nm_ids:
+                        logger.warning(
+                            "Пропускаем неполные данные WB при обновлении после редактирования. account: {} nm_ids: {}",
+                            account,
+                            skipped_nm_ids,
+                        )
+                    merge_json_data = {
+                        nm_id: data for nm_id, data in merge_json_data.items()
+                        if isinstance(data, dict) and "Артикул" in data and data.get("account")
+                    }
                 subject_names = set()  # итог предметов со всех карточек
                 account_barcodes = []
                 current_tariffs_data = commission_traffics.get_tariffs_box_from_marketplace()
@@ -332,7 +347,7 @@ class ServiceGoogleSheet:
         dimensions_edit_status = sheet_statuses['Габариты']
         quantity_edit_status = sheet_statuses['Остаток']
         updates_nm_ids_data = {}
-        edit_column_clean = {"price_discount": False, "dimensions": False, "qty": False}
+        edit_column_clean = {"price_discount": set(), "dimensions": set(), "qty": set()}
 
         logger.info("Получил данные по ячейкам на изменение товара")
         for account, nm_ids_data in edit_data_from_table["nm_ids_edit_data"].items():
@@ -362,12 +377,16 @@ class ServiceGoogleSheet:
                 """запрос на изменение цены и/или скидки по артикулу"""
                 if price_discount_data:
                     wb_api_price_and_discount.add_new_price_and_discount(price_discount_data)
-                    edit_column_clean["price_discount"] = True
+                    edit_column_clean["price_discount"].update(
+                        item["nmID"] for item in price_discount_data
+                    )
 
                 """Запрос на изменение габаритов товара по артикулу и vendorCode (wild)"""
                 if size_edit_data:
                     wb_api_content.size_edit(size_edit_data)
-                    edit_column_clean["dimensions"] = True
+                    edit_column_clean["dimensions"].update(
+                        item["nmID"] for item in size_edit_data
+                    )
                 """Перезаписываем данные в таблице после их изменений на WB"""
                 nm_ids_result = [int(nm_ids_str) for nm_ids_str in valid_data_result.keys()]
                 updates_nm_ids_data.update({account: nm_ids_result})
@@ -376,25 +395,71 @@ class ServiceGoogleSheet:
                     (len(edit_data_from_table["qty_edit_data"][account]["stocks"]) > 0 and quantity_edit_status)):
                 "изменение остатков на всех складах продавца"
                 logger.info("изменение остатков на всех складах продавца")
-                for warehouse in warehouses.get_account_warehouse():
-                    warehouses_qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse["id"],
-                                                                    edit_barcodes_list=
-                                                                    edit_data_from_table["qty_edit_data"][
-                                                                        account]["stocks"])
-                edit_column_clean["qty"] = True
+                qty_edit_data = edit_data_from_table["qty_edit_data"][account]
+                valid_qty_pairs = [
+                    (stock, nm_id)
+                    for stock, nm_id in zip(qty_edit_data["stocks"], qty_edit_data["nm_ids"])
+                    if stock.get("chrtId") is not None
+                ]
+                skipped_qty_nm_ids = [
+                    nm_id
+                    for stock, nm_id in zip(qty_edit_data["stocks"], qty_edit_data["nm_ids"])
+                    if stock.get("chrtId") is None
+                ]
+                if skipped_qty_nm_ids:
+                    logger.warning(
+                        "Пропускаем изменение остатков без chrtId. account: {} nm_ids: {}",
+                        account,
+                        skipped_qty_nm_ids,
+                    )
+
+                qty_stocks = [stock for stock, _ in valid_qty_pairs]
+                qty_nm_ids = [nm_id for _, nm_id in valid_qty_pairs]
+                requested_chrt_ids = {stock["chrtId"] for stock in qty_stocks}
+                successful_chrt_ids = requested_chrt_ids.copy()
+                account_warehouses = warehouses.get_account_warehouse()
+
+                if not account_warehouses or not qty_stocks:
+                    successful_chrt_ids.clear()
+
+                for warehouse in account_warehouses or []:
+                    warehouse_result = warehouses_qty_edit.edit_amount_from_warehouses(
+                        warehouse_id=warehouse["id"],
+                        edit_barcodes_list=qty_stocks,
+                    )
+                    warehouse_successful_chrt_ids = {
+                        stock["chrtId"]
+                        for stock in warehouse_result["successful"]
+                        if stock.get("chrtId") is not None
+                    }
+                    # Очищаем строку только если остаток успешно изменён на каждом складе.
+                    successful_chrt_ids.intersection_update(
+                        warehouse_successful_chrt_ids
+                    )
+
+                edit_column_clean["qty"].update(
+                    nm_id
+                    for stock, nm_id in zip(qty_stocks, qty_nm_ids)
+                    if stock["chrtId"] in successful_chrt_ids
+                )
                 # добавляем артикул для обновления данных
-                if account not in updates_nm_ids_data:
-                    updates_nm_ids_data[account] = []
-                updates_nm_ids_data[account].extend(edit_data_from_table["qty_edit_data"][account]["nm_ids"])
+                if qty_nm_ids:
+                    if account not in updates_nm_ids_data:
+                        updates_nm_ids_data[account] = []
+                    updates_nm_ids_data[account].extend(qty_nm_ids)
 
         # если хоть по одному артикулу данные будут валидны...
         if updates_nm_ids_data:
             await asyncio.sleep(5)
-            return await self.add_new_data_from_table(lk_articles=updates_nm_ids_data,
-                                                      only_edits_data=True, add_data_in_db=False,
-                                                      check_nm_ids_in_db=False)
+            updated_data = await self.add_new_data_from_table(
+                lk_articles=updates_nm_ids_data,
+                only_edits_data=True,
+                add_data_in_db=False,
+                check_nm_ids_in_db=False,
+            )
+            return updated_data, edit_column_clean
 
-        return updates_nm_ids_data
+        return updates_nm_ids_data, edit_column_clean
 
     async def add_new_day_revenue_to_table(self):
         # todo deprecated method
@@ -820,8 +885,11 @@ class ServiceGoogleSheet:
                     warehouses = WarehouseMarketplaceWB(token=token).get_account_warehouse()
                     qty_edit = LeftoversMarketplace(token=token)
 
+                    sku_to_nm_id = {}
                     if len(edit_data["qty"]) > 0:
-                        for qty_data in edit_data["qty"]:
+                        for qty_data, nm_id in zip(
+                            edit_data["qty"], edit_data["nm_ids"]
+                        ):
                             add_qty = str(sopost_data[qty_data["wild"]]).replace("\xa0", "")
                             if add_qty.isdigit() and int(add_qty) != 0:
                                 update_qty_data.append(
@@ -830,18 +898,36 @@ class ServiceGoogleSheet:
                                         "amount": int(add_qty)
                                     }
                                 )
+                                sku_to_nm_id[qty_data["sku"]] = nm_id
                     print(account)
                     pprint(update_qty_data)
                     if len(update_qty_data):
-                        for warehouse_id in warehouses:
-                            qty_edit.edit_amount_from_warehouses(warehouse_id=warehouse_id["id"],
-                                                                 edit_barcodes_list=update_qty_data)
+                        successful_skus = {
+                            stock["sku"] for stock in update_qty_data
+                        }
+                        if not warehouses:
+                            successful_skus.clear()
 
-                        if account not in nm_ids_for_update_data:
-                            nm_ids_for_update_data[account] = []
-                        logger.info("nm_ids_for_update_data")
-                        logger.info(nm_ids_for_update_data)
-                        nm_ids_for_update_data[account].extend(low_limit_qty_data[account]['nm_ids'])
+                        for warehouse_id in warehouses:
+                            warehouse_result = qty_edit.edit_amount_from_warehouses(
+                                warehouse_id=warehouse_id["id"],
+                                edit_barcodes_list=update_qty_data,
+                            )
+                            successful_skus.intersection_update(
+                                stock["sku"]
+                                for stock in warehouse_result["successful"]
+                                if stock.get("sku") is not None
+                            )
+
+                        successful_nm_ids = [
+                            sku_to_nm_id[sku] for sku in successful_skus
+                        ]
+                        if successful_nm_ids:
+                            if account not in nm_ids_for_update_data:
+                                nm_ids_for_update_data[account] = []
+                            logger.info("nm_ids_for_update_data")
+                            logger.info(nm_ids_for_update_data)
+                            nm_ids_for_update_data[account].extend(successful_nm_ids)
             if len(nm_ids_for_update_data) > 0:
                 logger.info(nm_ids_for_update_data)
                 nm_ids_data_json = await self.add_new_data_from_table(lk_articles=nm_ids_for_update_data,

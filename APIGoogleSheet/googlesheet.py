@@ -592,6 +592,32 @@ class GoogleSheet:
         data = self.sheet.get_all_records(expected_headers=[])
         df = pd.DataFrame(data)
         json_df = pd.DataFrame(list(data_json.values()))
+        if "Артикул" not in json_df.columns:
+            logger.warning("Нет валидных строк с Артикул для обновления таблицы")
+            return False
+        before_filter_count = len(json_df)
+        json_df = json_df[json_df["Артикул"].notna()]
+        if len(json_df) != before_filter_count:
+            logger.warning(
+                "Пропущены строки без Артикул при обновлении таблицы: {}",
+                before_filter_count - len(json_df),
+            )
+        if json_df.empty:
+            logger.warning("После фильтрации нет строк для обновления таблицы")
+            return False
+
+        clean_rules = {}
+        if edit_column_clean is not None:
+            for column, rule in edit_column_clean.items():
+                clean_rules[column] = (
+                    rule if isinstance(rule, bool)
+                    else {str(article) for article in rule}
+                )
+
+        def should_clean(column, article):
+            rule = clean_rules.get(column, False)
+            return rule if isinstance(rule, bool) else str(article) in rule
+
         try:
             json_df = json_df.drop(["vendor_code", "account"], axis=1)
         except KeyError as e:
@@ -607,16 +633,16 @@ class GoogleSheet:
                         df.at[idx, column] = row[column]
 
                 if edit_column_clean is not None:
-                    if edit_column_clean["price_discount"]:
+                    if should_clean("price_discount", row["Артикул"]):
                         df.at[idx, 'Установить новую скидку %'] = ""
                         df.at[idx, 'Установить новую цену'] = ""
 
-                    if edit_column_clean["dimensions"]:
+                    if should_clean("dimensions", row["Артикул"]):
                         df.at[idx, 'Новая\nДлина (см)'] = ""
                         df.at[idx, 'Новая\nШирина (см)'] = ""
                         df.at[idx, 'Новая\nВысота (см)'] = ""
 
-                    if edit_column_clean["qty"]:
+                    if should_clean("qty", row["Артикул"]):
                         df.at[idx, 'Новый остаток'] = ""
 
         # Обновите Google Таблицу только для измененных строк
@@ -634,17 +660,17 @@ class GoogleSheet:
                         column_letter = column_index_to_letter(column_index)
                         updates.append({'range': f'{column_letter}{row_number}', 'values': [[row[column]]]})
                 if edit_column_clean is not None:
-                    if edit_column_clean["price_discount"]:
+                    if should_clean("price_discount", row["Артикул"]):
                         updates.append({'range': f'L{row_number}',
                                         'values': [['']]})  # Очистка столбца 'Установить новую скидку %'
                         updates.append(
                             {'range': f'J{row_number}', 'values': [['']]})  # Очистка столбца 'Установить новую цену'
-                    if edit_column_clean["dimensions"]:
+                    if should_clean("dimensions", row["Артикул"]):
                         updates.append({'range': f'T{row_number}', 'values': [['']]})
                         updates.append({'range': f'U{row_number}', 'values': [['']]})
                         updates.append({'range': f'V{row_number}', 'values': [['']]})
 
-                    if edit_column_clean["qty"]:
+                    if should_clean("qty", row["Артикул"]):
                         updates.append({'range': f'AF{row_number}', 'values': [['']]})
 
         # pprint(updates)
@@ -686,12 +712,21 @@ class GoogleSheet:
                 #     {"sku": row["Баркод"], "amount": int(row["Новый остаток"].replace('\xa0', ''))},
                 # )
                 # новая реализация - по chrt_id
+                article_id = int(row["Артикул"])
+                chrt_id = chrt_ids_by_nm_id.get(article_id)
+                if chrt_id is None:
+                    logger.warning(
+                        "Не найден chrtId для изменения остатка. account: {} nm_id: {}",
+                        account,
+                        article_id,
+                    )
+                    return
                 result_qty_edit_data[account]["stocks"].append(
-                    {"chrtId": chrt_ids_by_nm_id[int(row["Артикул"])], "amount": int(row["Новый остаток"].replace('\xa0', ''))},
+                    {"chrtId": chrt_id, "amount": int(row["Новый остаток"].replace('\xa0', ''))},
                 )
 
                 # nm_id нам будет нужен для функции обновления данных почему в список?
-                result_qty_edit_data[account]["nm_ids"].append(int(row["Артикул"]))
+                result_qty_edit_data[account]["nm_ids"].append(article_id)
 
     async def get_edit_data(self, db_nm_ids_data, service_google_sheet, chrt_ids_by_nm_id):
         """

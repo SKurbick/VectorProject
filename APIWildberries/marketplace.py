@@ -82,15 +82,41 @@ class LeftoversMarketplace:
                     )
         return barcodes_quantity
 
+    @staticmethod
+    def _get_not_found_chrt_ids(response_data):
+        """Извлекает chrtId, которые WB явно отклонил как NotFound."""
+        errors = response_data if isinstance(response_data, list) else [response_data]
+        not_found_chrt_ids = set()
+
+        for error in errors:
+            if not isinstance(error, dict) or error.get("code") != "NotFound":
+                continue
+
+            error_data = error.get("data", [])
+            if isinstance(error_data, dict):
+                error_data = [error_data]
+
+            for stock in error_data:
+                if isinstance(stock, dict) and stock.get("chrtId") is not None:
+                    not_found_chrt_ids.add(str(stock["chrtId"]))
+
+        return not_found_chrt_ids
+
     def edit_amount_from_warehouses(self, warehouse_id, edit_barcodes_list, step=1000):
+        """Возвращает позиции, успешно отправленные и отклонённые на этом складе."""
         url = self.url.format(f"{warehouse_id}")
-        for start in range(0, len(edit_barcodes_list), step):
-            barcodes_part = edit_barcodes_list[start: start + step]
+        result = {"successful": [], "failed": []}
+        batches_to_process = [
+            edit_barcodes_list[start: start + step]
+            for start in range(0, len(edit_barcodes_list), step)
+        ]
+
+        while batches_to_process:
+            barcodes_part = batches_to_process.pop(0)
             logger.info(barcodes_part)
-            json_data = {
-                "stocks": barcodes_part
-            }
+            json_data = {"stocks": barcodes_part}
             response = None
+
             for attempt in range(1, self.REQUEST_RETRIES + 1):
                 try:
                     response = requests.put(
@@ -117,23 +143,52 @@ class LeftoversMarketplace:
                     self.REQUEST_RETRIES,
                     warehouse_id,
                 )
+                result["failed"].extend(barcodes_part)
                 continue
 
-            if response.status_code > 399:
-                try:
-                    response_data = response.json()
-                except requests.exceptions.JSONDecodeError:
-                    response_data = response.text or "<пустой ответ>"
+            if response.status_code <= 399:
+                logger.info(f"Запрос на изменение остатков. Код: {response.status_code}")
+                result["successful"].extend(barcodes_part)
+                continue
 
+            try:
+                response_data = response.json()
+            except requests.exceptions.JSONDecodeError:
+                response_data = response.text or "<пустой ответ>"
+
+            not_found_chrt_ids = set()
+            if response.status_code == 409:
+                not_found_chrt_ids = self._get_not_found_chrt_ids(response_data)
+
+            rejected_stocks = [
+                stock for stock in barcodes_part
+                if str(stock.get("chrtId")) in not_found_chrt_ids
+            ]
+            stocks_to_retry = [
+                stock for stock in barcodes_part
+                if str(stock.get("chrtId")) not in not_found_chrt_ids
+            ]
+
+            if rejected_stocks and len(stocks_to_retry) < len(barcodes_part):
+                result["failed"].extend(rejected_stocks)
                 logger.error(
-                    "Ошибка запроса на изменение остатков. Пачка пропущена. Код: {}. Content-Type: {}. Ответ: {}",
-                    response.status_code,
-                    response.headers.get("Content-Type", "<не указан>"),
-                    response_data,
+                    "WB отклонил chrtId как NotFound. Склад: {}. Исключены: {}",
+                    warehouse_id,
+                    sorted(not_found_chrt_ids),
                 )
+                if stocks_to_retry:
+                    batches_to_process.insert(0, stocks_to_retry)
                 continue
-            else:
-                logger.info(f"Запрос на изменение остатков. Код: {response.status_code}", )
+
+            logger.error(
+                "Ошибка запроса на изменение остатков. Пачка пропущена. Код: {}. Content-Type: {}. Ответ: {}",
+                response.status_code,
+                response.headers.get("Content-Type", "<не указан>"),
+                response_data,
+            )
+            result["failed"].extend(barcodes_part)
+
+        return result
 
 
 class WarehouseMarketplaceWB:

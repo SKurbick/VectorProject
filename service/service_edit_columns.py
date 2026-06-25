@@ -38,10 +38,18 @@ retry_to_check_new_nm_ids = True
 def create_lk_articles(edit_nm_ids_data: Dict[str, Any]) -> dict[Any, set[str]]:
     result = {}
     for k, v in edit_nm_ids_data.items():
-        if v["account"] not in result:
-            result[v["account"]] = {k}
+        account = v.get("account") if isinstance(v, dict) else None
+        if not account:
+            logger.warning(
+                "Пропускаем артикул без account при группировке обновлений: {} -> {}",
+                k,
+                v,
+            )
+            continue
+        if account not in result:
+            result[account] = {k}
         else:
-            result[v["account"]].add(k)
+            result[account].add(k)
     return result
 
 
@@ -113,15 +121,17 @@ async def check_edits_columns(db: Database1):
                     service_gs_table = ServiceGoogleSheet(
                         token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
 
-                    edit_nm_ids_data = await service_gs_table.change_cards_and_tables_data(
-                        db_nm_ids_data=db_nm_ids_data,
-                        edit_data_from_table=edit_data_from_table)
+                    (edit_nm_ids_data, successful_edits) = await (
+                        service_gs_table.change_cards_and_tables_data(
+                            db_nm_ids_data=db_nm_ids_data,
+                            edit_data_from_table=edit_data_from_table,
+                        )
+                    )
                     if edit_nm_ids_data:
-                        gs_connect.update_rows(data_json=edit_nm_ids_data,
-                                               edit_column_clean={
-                                                   "price_discount": service_google_sheet['Цены/Скидки'],
-                                                   "dimensions": service_google_sheet['Габариты'],
-                                                   "qty": service_google_sheet["Остаток"]})
+                        gs_connect.update_rows(
+                            data_json=edit_nm_ids_data,
+                            edit_column_clean=successful_edits,
+                        )
                         return create_lk_articles(edit_nm_ids_data)
                     return None
                 return None
