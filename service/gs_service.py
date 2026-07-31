@@ -748,6 +748,8 @@ class ServiceGoogleSheet:
                 article_id = stocks_data['article_id']
                 quantity = '' if stocks_data['quantity'] is None else stocks_data['quantity']
                 quantity_type = stocks_data['quantity_type']
+                if quantity_type == 'ФБО':
+                    continue
                 if article_id not in data_to_gs_update:
                     data_to_gs_update[article_id] = {}
                 data_to_gs_update[article_id].update({quantity_type: quantity})
