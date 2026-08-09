@@ -35,6 +35,19 @@ from database.postgresql.repositories.card_data import CardData
 from database.postgresql.database import Database1
 from settings import settings
 from logger import app_logger as logger
+from account_names import normalize_account_name
+
+
+def _get_token_for_batch(account, tokens=None):
+    tokens = get_wb_tokens() if tokens is None else tokens
+    normalized_account = normalize_account_name(account)
+    token = tokens.get(normalized_account)
+    if not token:
+        logger.warning(
+            f"Кабинет {account!r} пропущен: для ключа "
+            f"{normalized_account!r} отсутствует токен WB"
+        )
+    return token
 
 
 class ServiceGoogleSheet:
@@ -74,13 +87,18 @@ class ServiceGoogleSheet:
                 lk_articles = self.gs_connect.create_lk_articles_dict()
                 for account, nm_ids_data in lk_articles.items():
                     nm_ids = list(nm_ids_data.keys())
-                    token = get_wb_tokens()[account.capitalize()]
+                    token = _get_token_for_batch(account)
+                    if not token:
+                        continue
                     anal_revenue = AnalyticsNMReport(token=token)
                     task = asyncio.create_task(anal_revenue.get_last_week_revenue(week_count=1, nm_ids=nm_ids))
                     tasks.append(task)
 
-                together_result = await asyncio.gather(*tasks)
+                together_result = await asyncio.gather(*tasks, return_exceptions=True)
                 for res in together_result:
+                    if isinstance(res, Exception):
+                        logger.error("Ошибка получения недельной выручки: %s", res)
+                        continue
                     all_accounts_new_revenue_data.update(res)
                 # добавляем выручку в таблицу
                 logger.info(f"Собрали недельную выручку по всем кабинетам timer: {datetime.datetime.now() - start}")
@@ -168,7 +186,9 @@ class ServiceGoogleSheet:
 
         for account, articles in lk_articles.items():
             # получаем токен и корректируем регистр для чтения из файла
-            token = get_wb_tokens()[account.capitalize()]
+            token = _get_token_for_batch(account)
+            if not token:
+                continue
 
             nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=articles)
             if len(nm_ids_result) > 0:
@@ -221,7 +241,9 @@ class ServiceGoogleSheet:
         result_nm_ids_data = {}
         filter_nm_ids_data = []
         for account, nm_ids in lk_articles.items():
-            token = get_wb_tokens()[account.capitalize()]
+            token = _get_token_for_batch(account)
+            if not token:
+                continue
             nm_ids_result = nm_ids
 
             if check_nm_ids_in_db:
@@ -352,7 +374,9 @@ class ServiceGoogleSheet:
         logger.info("Получил данные по ячейкам на изменение товара")
         for account, nm_ids_data in edit_data_from_table["nm_ids_edit_data"].items():
             valid_data_result = await validate_data(db_nm_ids_data, nm_ids_data)
-            token = get_wb_tokens()[account.capitalize()]
+            token = _get_token_for_batch(account)
+            if not token:
+                continue
             warehouses = WarehouseMarketplaceWB(token=token)
             warehouses_qty_edit = LeftoversMarketplace(token=token)
 
@@ -490,7 +514,9 @@ class ServiceGoogleSheet:
                 nm_ids = list(nm_ids_data.keys())
                 nm_ids_table_data.update(nm_ids_data)
                 # nm_ids_pc_table_data.update(lk_articles_pc[account])
-                token = get_wb_tokens()[account.capitalize()]
+                token = _get_token_for_batch(account)
+                if not token:
+                    continue
                 anal_revenue = AnalyticsNMReport(token=token)
                 task = asyncio.create_task(
                     anal_revenue.get_last_days_revenue(begin_date=begin_date,
@@ -526,7 +552,9 @@ class ServiceGoogleSheet:
                 self.gs_service_revenue_connect.shift_week_revenue_columns_to_the_left(last_week=week_date[0])
                 for account, nm_ids_data in lk_articles.items():
                     nm_ids = list(nm_ids_data.keys())
-                    token = get_wb_tokens()[account.capitalize()]
+                    token = _get_token_for_batch(account)
+                    if not token:
+                        continue
                     anal_revenue = AnalyticsNMReport(token=token)
                     revenue_week_data_by_article = await anal_revenue.get_last_week_revenue(week_count=1, nm_ids=nm_ids)
 
@@ -705,7 +733,9 @@ class ServiceGoogleSheet:
             tasks_virtual_qty = []
             tokens = get_wb_tokens()
             for account, data in lk_articles.items():
-                token = tokens[account.capitalize()]
+                token = _get_token_for_batch(account, tokens)
+                if not token:
+                    continue
                 task = asyncio.create_task(
                     self.get_qty_data_by_account(account=account, data=data, warehouses_info=warehouses_info,
                                                  token=token))
@@ -883,7 +913,9 @@ class ServiceGoogleSheet:
                 logger.info(f"Есть остатки ниже установленного флага: {low_limit_qty_data}")
                 for account, edit_data in low_limit_qty_data.items():
                     update_qty_data = []
-                    token = get_wb_tokens()[account.capitalize()]
+                    token = _get_token_for_batch(account)
+                    if not token:
+                        continue
                     warehouses = WarehouseMarketplaceWB(token=token).get_account_warehouse()
                     qty_edit = LeftoversMarketplace(token=token)
 
@@ -1103,7 +1135,9 @@ class ServiceGoogleSheet:
         tasks_by_qty = []
         tasks_by_supplies = []
         for account, data in lk_articles.items():
-            token = get_wb_tokens()[account.capitalize()]
+            token = _get_token_for_batch(account)
+            if not token:
+                continue
             statistic = Statistic(token=token)
             task_by_supplies = asyncio.create_task(statistic.get_supplies_data(date=yesterday))
             task_by_qty = asyncio.create_task(
@@ -1112,15 +1146,21 @@ class ServiceGoogleSheet:
             tasks_by_supplies.append(task_by_supplies)
 
         results = await asyncio.gather(
-            asyncio.gather(*tasks_by_qty),
-            asyncio.gather(*tasks_by_supplies)
+            asyncio.gather(*tasks_by_qty, return_exceptions=True),
+            asyncio.gather(*tasks_by_supplies, return_exceptions=True)
         )
         gather_result_by_qty, gather_result_by_supplies = results
         ready_qty_data = {}
         plus_supply = {}
         for qty in gather_result_by_qty:
+            if isinstance(qty, Exception):
+                logger.error("Ошибка получения остатков кабинета: %s", qty)
+                continue
             ready_qty_data.update(qty['articles_qty_wb'])
         for supplies in gather_result_by_supplies:
+            if isinstance(supplies, Exception):
+                logger.error("Ошибка получения поставок кабинета: %s", supplies)
+                continue
             if len(supplies) > 0:
                 for data in supplies:
                     nm_id = data['nmId']
@@ -1259,15 +1299,20 @@ class ServiceGoogleSheet:
         articles = []  # для сверки из полученных данных по поставкам
         for account, data in lk_articles.items():
             articles.extend(list(data.values()))
-            token = get_wb_tokens()[account.capitalize()]
+            token = _get_token_for_batch(account)
+            if not token:
+                continue
             statistic = Statistic(token=token)
             task_by_supplies = asyncio.create_task(statistic.get_supplies_data(date=search_date))
             tasks_by_supplies.append(task_by_supplies)
 
         # (article, date, federal_district, supply_qty, supply_count)
         result_dict_data = {}
-        gather_results = await asyncio.gather(*tasks_by_supplies)
+        gather_results = await asyncio.gather(*tasks_by_supplies, return_exceptions=True)
         for results in gather_results:
+            if isinstance(results, Exception):
+                logger.error("Ошибка получения поставок кабинета: %s", results)
+                continue
             for data in results:
                 if len(data) > 0:
                     # for data in res:

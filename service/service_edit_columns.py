@@ -8,6 +8,7 @@ from database.postgresql.repositories.article import ArticleTable
 from database.postgresql.repositories.card_data import CardData
 from service.gs_service import ServiceGoogleSheet
 from logger import app_logger as logger
+from account_names import normalize_account_name
 from settings import settings
 
 creds_json = settings.CREEDS_FILE_NAME
@@ -46,10 +47,11 @@ def create_lk_articles(edit_nm_ids_data: Dict[str, Any]) -> dict[Any, set[str]]:
                 v,
             )
             continue
-        if account not in result:
-            result[account] = {k}
+        account_key = normalize_account_name(account)
+        if account_key not in result:
+            result[account_key] = {k}
         else:
-            result[account].add(k)
+            result[account_key].add(k)
     return result
 
 

@@ -18,6 +18,7 @@ from service.gs_service import PCGoogleSheet
 
 from settings import get_wb_tokens, Setting
 from logger import app_logger as logger
+from account_names import create_wb_account_tasks
 
 
 class Service:
@@ -26,18 +27,17 @@ class Service:
         """Обновление состояния данных карточек по всем кабинетам"""
         logger.info("Обновление состояния данных карточек по всем кабинетам в бд")
         time_start = datetime.datetime.now()
-        tasks = []
-        for account, nm_ids in account_articles.items():
-            tokens = get_wb_tokens()
-            token = tokens[account.capitalize()]
-            task = asyncio.create_task(self.get_actually_data_by_account(
-                token=token,
-                account=account,
-                articles=nm_ids
-            ))
-            tasks.append(task)
+        tokens = get_wb_tokens()
+        task_accounts, tasks = create_wb_account_tasks(
+            account_articles.items(),
+            tokens,
+            lambda account, nm_ids, token: self.get_actually_data_by_account(
+                token=token, account=account, articles=nm_ids
+            ),
+            logger,
+        )
 
-        together_results = await asyncio.gather(*tasks)
+        together_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         to_update_card_data = []
         to_update_article = []
@@ -47,7 +47,10 @@ class Service:
             async with db.acquire() as conn:
                 cost_price = await CostPriceTable(db=conn).get_current_data()
                 cost_price_model = CostPriceDBContainer(cost_price)  # получение закупочной стоимости по wild
-            for results in together_results:
+            for account, results in zip(task_accounts, together_results):
+                if isinstance(results, Exception):
+                    logger.error("Ошибка обновления кабинета %r: %s", account, results)
+                    continue
                 for article, card_data in results.items():
                     try:
                         to_update_article.append(

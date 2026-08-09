@@ -3,6 +3,7 @@ import json
 import time
 from collections import ChainMap
 from logger import app_logger as logger
+from account_names import normalize_account_name
 import re
 import math
 
@@ -82,9 +83,12 @@ def add_nm_ids_in_db(account, new_nm_ids):
     with open('database.json', 'r+') as file:
         # Загрузите данные из файла
         data = json.load(file)
-        if account not in data['account_nm_ids']:
-            data['account_nm_ids'].update({account: []})
-        data['account_nm_ids'][account].extend(new_nm_ids)
+        account_key = normalize_account_name(account)
+        normalized_accounts = {normalize_account_name(key): key for key in data['account_nm_ids']}
+        stored_key = normalized_accounts.get(account_key, account)
+        if stored_key not in data['account_nm_ids']:
+            data['account_nm_ids'].update({stored_key: []})
+        data['account_nm_ids'][stored_key].extend(new_nm_ids)
         file.seek(0)
         json.dump(data, file, indent=4, ensure_ascii=False)
         file.truncate()
@@ -179,9 +183,12 @@ async def validate_data(nm_ids_db_data, data: dict):
 def get_nm_ids_in_db(account):
     with open("database.json", "r", encoding='utf-8') as file:
         nm_ids = json.load(file)
-        if account not in nm_ids["account_nm_ids"]:
+        account_key = normalize_account_name(account)
+        normalized_accounts = {normalize_account_name(key): key for key in nm_ids["account_nm_ids"]}
+        stored_key = normalized_accounts.get(account_key)
+        if stored_key is None:
             return []
-    return nm_ids["account_nm_ids"][account]
+    return nm_ids["account_nm_ids"][stored_key]
 
 
 # todo deprecated
@@ -197,9 +204,15 @@ def add_data_from_warehouse(warehouse_data):
         # Загрузите данные из файла
         database = json.load(file)
         for account, wh_data in warehouse_data.items():
-            if account not in database["warehouse_data"].keys():
-                database["warehouse_data"].update({account: {}})
-            database["warehouse_data"][account].update(wh_data)
+            account_key = normalize_account_name(account)
+            normalized_accounts = {
+                normalize_account_name(key): key
+                for key in database["warehouse_data"]
+            }
+            stored_key = normalized_accounts.get(account_key, account)
+            if stored_key not in database["warehouse_data"]:
+                database["warehouse_data"].update({stored_key: {}})
+            database["warehouse_data"][stored_key].update(wh_data)
         file.seek(0)
         json.dump(database, file, indent=4, ensure_ascii=False)
         file.truncate()

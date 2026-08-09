@@ -3,12 +3,33 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 import os
 
+from account_names import normalize_account_name
+from logger import app_logger as logger
+
 load_dotenv()
 
 
 def get_wb_tokens() -> dict:
     with open(settings.TOKENS_FILE_NAME, "r", encoding='utf-8') as file:
-        tokens = json.load(file)
+        raw_tokens = json.load(file)
+    tokens = {}
+    original_names = {}
+    for original_name, token in raw_tokens.items():
+        normalized_name = normalize_account_name(original_name)
+        if normalized_name in tokens:
+            previous_name = original_names[normalized_name]
+            if tokens[normalized_name] != token:
+                raise ValueError(
+                    f"Конфликт токенов WB: ключи {previous_name!r} и {original_name!r} "
+                    f"нормализуются в {normalized_name!r}, но содержат разные токены"
+                )
+            logger.warning(
+                "Дублирующийся ключ токена WB %r (исходные ключи: %r и %r)",
+                normalized_name, previous_name, original_name,
+            )
+            continue
+        tokens[normalized_name] = token
+        original_names[normalized_name] = original_name
     return tokens
 
 

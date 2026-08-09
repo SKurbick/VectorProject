@@ -9,6 +9,7 @@ import pandas
 from gspread.utils import rowcol_to_a1
 
 import gspread
+from account_names import normalize_account_name
 import requests
 from gspread import Client, service_account
 
@@ -740,7 +741,7 @@ class GoogleSheet:
         result_qty_edit_data = {}
         for index, row in df.iterrows():
             article = row['Артикул']
-            account = str(row['ЛК']).capitalize()
+            account = normalize_account_name(row['ЛК'])
             # if any([not article.isdigit(), not account.strip(), article not in db_nm_ids_data.keys(),
             #         "vendor_code" not in db_nm_ids_data[article]]):
             #     continue
@@ -762,7 +763,7 @@ class GoogleSheet:
         for index, row in df.iterrows():
 
             article = row['Артикул']
-            lk = row['ЛК'].upper()
+            lk = normalize_account_name(row['ЛК'])
             # Пропускаем строки с пустыми значениями в столбце "ЛК" "Артикул"
             if pd.isna(lk) or lk == "":
                 continue
@@ -778,9 +779,9 @@ class GoogleSheet:
             #         str(row['Установить новую скидку %']).replace('\xa0', '').isdigit(),
             #         str(row["Новый остаток"]).replace('\xa0', '').isdigit()):
             #     continue
-            if lk.upper() not in lk_articles_dict:
-                lk_articles_dict[lk.upper()] = []
-            lk_articles_dict[lk.upper()].append(article)
+            if lk not in lk_articles_dict:
+                lk_articles_dict[lk] = []
+            lk_articles_dict[lk].append(article)
         return lk_articles_dict
 
     @retry_on_quota_exceeded_async()
@@ -793,7 +794,7 @@ class GoogleSheet:
         for index, row in df.iterrows():
 
             article = row['Артикул']
-            lk = row['ЛК'].upper()
+            lk = normalize_account_name(row['ЛК'])
             barcode = row['Баркод']
 
             # пропуск невалидных значений
@@ -814,7 +815,7 @@ class GoogleSheet:
         for index, row in df.iterrows():
 
             article = row['Артикул']
-            lk = row['ЛК'].upper()
+            lk = normalize_account_name(row['ЛК'])
             profit = str(row['Чистая прибыль 1ед.']).replace("\xa0", "")
             # Пропускаем строки с пустыми значениями в столбце "ЛК" "Артикул"
             if pd.isna(lk) or lk == "":
@@ -823,9 +824,9 @@ class GoogleSheet:
                 continue
             if profit.lstrip('-').isdigit() is False:
                 continue
-            if lk.upper() not in lk_articles_dict:
-                lk_articles_dict[lk.upper()] = {}
-            lk_articles_dict[lk.upper()].update({article: profit})
+            if lk not in lk_articles_dict:
+                lk_articles_dict[lk] = {}
+            lk_articles_dict[lk].update({article: profit})
         return lk_articles_dict
 
     def check_status_service_sheet(self):
@@ -866,7 +867,7 @@ class GoogleSheet:
         result_data = {}
         for index, row in df.iterrows():
             article = row["Артикул"]
-            account = str(row["ЛК"].capitalize())
+            account = normalize_account_name(row["ЛК"])
             min_qty = row["Минимальный остаток"]
             current_qty = row["ФБС"]
             barcode = row["Баркод"]
@@ -1893,7 +1894,7 @@ class PCGoogleSheet:
         for index, row in df.iterrows():
 
             article = row['Артикул']
-            lk = row['ЛК'].upper()
+            lk = normalize_account_name(row['ЛК'])
             # profit = str(row['ЧП']).replace("\xa0", "")
             profit = row['ЧП']
             # Пропускаем строки с пустыми значениями в столбце "ЛК" "Артикул"
@@ -1903,9 +1904,9 @@ class PCGoogleSheet:
                 continue
             if str(profit).lstrip('-').isdigit() is False:
                 continue
-            if lk.upper() not in lk_articles_dict:
-                lk_articles_dict[lk.upper()] = {}
-            lk_articles_dict[lk.upper()].update({article: profit})
+            if lk not in lk_articles_dict:
+                lk_articles_dict[lk] = {}
+            lk_articles_dict[lk].update({article: profit})
         return lk_articles_dict
 
     def create_lk_articles_list(self):
@@ -1916,16 +1917,16 @@ class PCGoogleSheet:
         for index, row in df.iterrows():
 
             article = row['Артикул']
-            lk = row['ЛК'].upper()
+            lk = normalize_account_name(row['ЛК'])
             # Пропускаем строки с пустыми значениями в столбце "ЛК" "Артикул"
             if pd.isna(lk) or lk == "":
                 continue
             if pd.isna(article) or article == "":
                 continue
 
-            if lk.upper() not in lk_articles_dict:
-                lk_articles_dict[lk.upper()] = []
-            lk_articles_dict[lk.upper()].append(article)
+            if lk not in lk_articles_dict:
+                lk_articles_dict[lk] = []
+            lk_articles_dict[lk].append(article)
         return lk_articles_dict
 
     def shift_orders_header(self, day):
