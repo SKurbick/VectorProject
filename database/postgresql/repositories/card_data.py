@@ -29,6 +29,18 @@ class CardData:
          """
         return await self.db.fetch(query)
 
+    async def get_chrt_ids_by_article_ids(self, article_ids: list[int]):
+        """Получить chrtId только для запрошенных артикулов."""
+        if not article_ids:
+            return []
+        query = """
+        SELECT article_id, chrt_id
+        FROM card_data
+        WHERE article_id = ANY($1)
+          AND chrt_id IS NOT NULL;
+        """
+        return await self.db.fetch(query, article_ids)
+
     async def get_card_data(self):
         query = """
         SELECT * FROM card_data;"""

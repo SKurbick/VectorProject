@@ -9,6 +9,21 @@ from logger import app_logger as logger
 load_dotenv()
 
 
+def is_fbs_stocks_disabled(account: str, disabled_accounts: str | None = None) -> bool:
+    """Проверить, запрещено ли изменение FBS-остатков для WB-аккаунта."""
+    raw_value = (
+        os.getenv("FBS_STOCKS_DISABLED_ACCOUNTS", "")
+        if disabled_accounts is None
+        else disabled_accounts
+    )
+    configured_accounts = {
+        normalize_account_name(item)
+        for item in raw_value.split(",")
+        if item.strip()
+    }
+    return "*" in configured_accounts or normalize_account_name(account) in configured_accounts
+
+
 def get_wb_tokens() -> dict:
     with open(settings.TOKENS_FILE_NAME, "r", encoding='utf-8') as file:
         raw_tokens = json.load(file)
@@ -41,6 +56,7 @@ class Setting:
     TOKENS_FILE_NAME: str = os.getenv("TOKENS_FILE_NAME")
     PC_SHEET: str = os.getenv("PC_SHEET")
     PC_SPREADSHEET: str = os.getenv("PC_SPREADSHEET")
+    FBS_STOCKS_DISABLED_ACCOUNTS: str = os.getenv("FBS_STOCKS_DISABLED_ACCOUNTS", "")
 
     TELEGRAM_TOKEN: str = os.getenv("TELEGRAM_TOKEN")
     TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID")

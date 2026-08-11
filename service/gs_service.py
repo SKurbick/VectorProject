@@ -26,7 +26,7 @@ from database.postgresql.repositories.current_stocks_quantity import CurrentStoc
 from database.postgresql.repositories.inventory_turnover_by_reg import InventoryTurnoverByRegTable
 from database.postgresql.repositories.orders_by_federal_district import OrdersByFederalDistrict
 from database.postgresql.repositories.orders_revenues import OrdersRevenuesTable
-from settings import get_wb_tokens
+from settings import get_wb_tokens, is_fbs_stocks_disabled
 from settings import Setting
 from utils import add_orders_data, calculate_sum_for_logistic, merge_dicts, validate_data, add_nm_ids_in_db, \
     get_last_weeks_dates, create_valid_data_from_db
@@ -911,7 +911,26 @@ class ServiceGoogleSheet:
             nm_ids_for_update_data = {}
             if len(low_limit_qty_data) > 0:
                 logger.info(f"Есть остатки ниже установленного флага: {low_limit_qty_data}")
+                requested_nm_ids = {
+                    nm_id
+                    for account, edit_data in low_limit_qty_data.items()
+                    if not is_fbs_stocks_disabled(account)
+                    for nm_id in edit_data["nm_ids"]
+                }
+                async with Database1() as db:
+                    chrt_id_rows = await CardData(db=db).get_chrt_ids_by_article_ids(
+                        list(requested_nm_ids)
+                    )
+                chrt_ids_by_nm_id = {
+                    row["article_id"]: row["chrt_id"] for row in chrt_id_rows
+                }
                 for account, edit_data in low_limit_qty_data.items():
+                    if is_fbs_stocks_disabled(account):
+                        logger.info(
+                            "Изменение FBS-остатков для кабинета %r отключено настройкой",
+                            account,
+                        )
+                        continue
                     update_qty_data = []
                     token = _get_token_for_batch(account)
                     if not token:
@@ -919,42 +938,52 @@ class ServiceGoogleSheet:
                     warehouses = WarehouseMarketplaceWB(token=token).get_account_warehouse()
                     qty_edit = LeftoversMarketplace(token=token)
 
-                    sku_to_nm_id = {}
+                    chrt_id_to_nm_id = {}
                     if len(edit_data["qty"]) > 0:
                         for qty_data, nm_id in zip(
                             edit_data["qty"], edit_data["nm_ids"]
                         ):
                             add_qty = str(sopost_data[qty_data["wild"]]).replace("\xa0", "")
+                            chrt_id = chrt_ids_by_nm_id.get(nm_id)
+                            if chrt_id is None:
+                                logger.warning(
+                                    "Пропускаем изменение FBS-остатка: не найден chrtId. "
+                                    "account=%r nm_id=%s",
+                                    account,
+                                    nm_id,
+                                )
+                                continue
                             if add_qty.isdigit() and int(add_qty) != 0:
                                 update_qty_data.append(
                                     {
-                                        "sku": qty_data["sku"],
+                                        "chrtId": chrt_id,
                                         "amount": int(add_qty)
                                     }
                                 )
-                                sku_to_nm_id[qty_data["sku"]] = nm_id
+                                chrt_id_to_nm_id[chrt_id] = nm_id
                     print(account)
                     pprint(update_qty_data)
                     if len(update_qty_data):
-                        successful_skus = {
-                            stock["sku"] for stock in update_qty_data
+                        successful_chrt_ids = {
+                            stock["chrtId"] for stock in update_qty_data
                         }
                         if not warehouses:
-                            successful_skus.clear()
+                            successful_chrt_ids.clear()
 
                         for warehouse_id in warehouses:
                             warehouse_result = qty_edit.edit_amount_from_warehouses(
                                 warehouse_id=warehouse_id["id"],
                                 edit_barcodes_list=update_qty_data,
                             )
-                            successful_skus.intersection_update(
-                                stock["sku"]
+                            successful_chrt_ids.intersection_update(
+                                stock["chrtId"]
                                 for stock in warehouse_result["successful"]
-                                if stock.get("sku") is not None
+                                if stock.get("chrtId") is not None
                             )
 
                         successful_nm_ids = [
-                            sku_to_nm_id[sku] for sku in successful_skus
+                            chrt_id_to_nm_id[chrt_id]
+                            for chrt_id in successful_chrt_ids
                         ]
                         if successful_nm_ids:
                             if account not in nm_ids_for_update_data:
