@@ -63,6 +63,13 @@ class Setting:
 
     ONE_C_ROUTING_API:str = os.getenv("ONE_C_ROUTING_API")
 
+    WMS_BASE_URL: str = os.getenv("WMS_BASE_URL")
+    WMS_STOCKS_SPREADSHEET: str = os.getenv("WMS_STOCKS_SPREADSHEET")
+    WMS_STOCKS_WORKSHEET: str = os.getenv("WMS_STOCKS_WORKSHEET")
+    WMS_STOCKS_SYNC_INTERVAL_MINUTES: int = int(
+        os.getenv("WMS_STOCKS_SYNC_INTERVAL_MINUTES", "15")
+    )
+
 class DBConfig:
     DB_USER: str = os.getenv('DB_USER')
     DB_PASSWORD: str = os.getenv('DB_PASSWORD')

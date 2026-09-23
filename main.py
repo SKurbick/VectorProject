@@ -14,6 +14,7 @@ from apscheduler.events import EVENT_JOB_ERROR
 from settings import settings
 from logger import app_logger as logger, log_job
 from service.gs_service import ServiceGoogleSheet
+from service.wms_stocks_google_sheet import WMSStocksGoogleSheetService
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -25,6 +26,32 @@ scheduler = AsyncIOScheduler(job_defaults={'misfire_grace_time': 2000, 'max_inst
 def gs_service_new_good_table_connection(sheet, spreadsheet, creds_json):
     return ServiceGoogleSheet(
         token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
+
+
+@scheduler.scheduled_job(
+    IntervalTrigger(minutes=settings.WMS_STOCKS_SYNC_INTERVAL_MINUTES),
+    coalesce=True,
+)
+@log_job
+async def sync_wms_stocks_to_google_sheet():
+    """Актуализировать остатки WMS и резервы СЗ в Google Sheets."""
+    logger.info("Запуск: актуализация остатков WMS в Google Sheets")
+    service = WMSStocksGoogleSheetService(
+        wms_url=settings.WMS_BASE_URL,
+        spreadsheet=settings.WMS_STOCKS_SPREADSHEET,
+        worksheet=settings.WMS_STOCKS_WORKSHEET,
+        credentials=settings.CREEDS_FILE_NAME,
+    )
+    result = await service.sync()
+    logger.info(
+        "Завершение: остатки WMS актуализированы; "
+        "зон={}, товаров={}, с резервами={}, обновлено={}, добавлено={}",
+        result.zones,
+        result.matrix_products,
+        result.reserved_products,
+        result.updated_products,
+        result.added_products,
+    )
 
 
 

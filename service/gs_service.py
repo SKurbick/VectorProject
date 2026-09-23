@@ -78,11 +78,24 @@ class ServiceGoogleSheet:
 
             # проверяем заголовок прошлой недели
             week_date = list(get_last_weeks_dates().keys())
-            if self.gs_service_revenue_connect.check_last_day_header_from_table(
-                    header=week_date[0]):  # перенести функционал по актуализации недельной выручки
+            week_header = week_date[0]
+            week_header_missing = self.gs_service_revenue_connect.check_last_day_header_from_table(
+                header=week_header
+            )
+            if week_header_missing:  # перенести функционал по актуализации недельной выручки
+                logger.info(f"Заголовка {week_header} нет в таблице, будет добавлен со смещением столбцов")
+                self.gs_service_revenue_connect.shift_week_revenue_columns_to_the_left(last_week=week_header)
+
+            week_header_has_data = self.gs_service_revenue_connect.header_has_data(week_header)
+            if week_header_missing or not week_header_has_data:
+                if not week_header_missing:
+                    logger.warning(
+                        "Недельный столбец %s существует, но не содержит данных. "
+                        "Повторяем загрузку из WB API без смещения столбцов.",
+                        week_header,
+                    )
+
                 all_accounts_new_revenue_data = {}
-                logger.info(f"Заголовка {week_date[0]} нет в таблице, будет добавлен со смещением столбцов")
-                self.gs_service_revenue_connect.shift_week_revenue_columns_to_the_left(last_week=week_date[0])
                 tasks = []
                 lk_articles = self.gs_connect.create_lk_articles_dict()
                 for account, nm_ids_data in lk_articles.items():
@@ -103,7 +116,13 @@ class ServiceGoogleSheet:
                 # добавляем выручку в таблицу
                 logger.info(f"Собрали недельную выручку по всем кабинетам timer: {datetime.datetime.now() - start}")
                 data_str_keys = {str(k): v for k, v in all_accounts_new_revenue_data.items()}
-                self.gs_service_revenue_connect.insert_wild_data_correct(data_dict=data_str_keys, sheet_header="артикул")
+                if data_str_keys:
+                    self.gs_service_revenue_connect.insert_wild_data_correct(
+                        data_dict=data_str_keys,
+                        sheet_header="артикул",
+                    )
+                else:
+                    logger.error("WB API не вернул недельную выручку для столбца %s", week_header)
         gs_connect = GoogleSheet(sheet="Количество заказов", spreadsheet=settings.SPREADSHEET,
                                  creds_json=settings.CREEDS_FILE_NAME)
         date_object = datetime.datetime.today()

@@ -120,13 +120,30 @@ class AnalyticsNMReport:
                     response_data = None
                     for attempt in range(9):
                         try:
-                            async with session.post(url, headers=self.headers, json=json_data) as response:
+                            async with session.post(
+                                url,
+                                headers=self.headers,
+                                json=json_data,
+                                timeout=aiohttp.ClientTimeout(total=60),
+                            ) as response:
 
                                 # Обработка 429 — слишком много запросов
                                 if response.status == 429:
                                     logger.warning(f"Rate limit (429). Attempt {attempt + 1}/9. Waiting 60 seconds...")
                                     await asyncio.sleep(60)
                                     continue
+
+                                if response.status != 200:
+                                    response_body = (await response.text())[:1000]
+                                    message = (
+                                        f"WB sales-funnel вернул HTTP {response.status}. "
+                                        f"Период: {key_dates}. Ответ: {response_body}"
+                                    )
+                                    if response.status >= 500:
+                                        logger.error(message)
+                                        await asyncio.sleep(5)
+                                        continue
+                                    raise RuntimeError(message)
 
                                 response_data = await response.json()
 
@@ -139,13 +156,12 @@ class AnalyticsNMReport:
                                     result_data[nm_id][key_dates] = orders_sum
                                 break
 
-                        except (aiohttp.ClientError, Exception) as e:
+                        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                             logger.exception(f"Attempt {attempt + 1}/9 failed: {e}")
                             await asyncio.sleep(5)
 
                     if response_data is None:
-                        logger.error(f"All 9 attempts failed for period {key_dates}")
-                        break
+                        raise RuntimeError(f"All 9 attempts failed for period {key_dates}")
 
                     products_count = len(response_data.get("data", {}).get("products", []))
                     if products_count < limit:

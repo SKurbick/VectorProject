@@ -1728,6 +1728,15 @@ class GoogleSheetServiceRevenue:
 
             return False
 
+    def header_has_data(self, header):
+        """Проверить, есть ли хотя бы одно значение под указанным заголовком."""
+        headers = self.sheet.row_values(1)
+        if header not in headers:
+            return False
+
+        column_values = self.sheet.col_values(headers.index(header) + 1)
+        return any(str(value).strip() for value in column_values[1:])
+
     @retry_on_quota_exceeded_async()
     async def add_data_to_count_list(self, data_json):
         # сначала мы добавляем новые nmId которых нет в листе "Количество заказов"
