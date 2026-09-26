@@ -1,4 +1,11 @@
-from service.wms_stocks_google_sheet import build_stock_matrix, merge_stock_rows
+import asyncio
+
+from service import wms_stocks_google_sheet
+from service.wms_stocks_google_sheet import (
+    WMSStocksGoogleSheetService,
+    build_stock_matrix,
+    merge_stock_rows,
+)
 
 
 def test_build_stock_matrix_fills_missing_stocks_with_zero():
@@ -60,3 +67,45 @@ def test_merge_stock_rows_preserves_order_appends_new_and_zeros_missing():
         ["new-product", 5, 6, 7],
     ]
     assert added_count == 1
+
+
+def test_sync_many_collects_once_and_updates_each_destination(monkeypatch):
+    service = WMSStocksGoogleSheetService(
+        wms_url="http://wms",
+        spreadsheet="primary spreadsheet",
+        worksheet="primary worksheet",
+        credentials="creds.json",
+    )
+    matrix = [["wild", "STORAGE", "Резервы СЗ"], ["wild1", 10, 2]]
+    collect_calls = 0
+    update_calls = []
+
+    async def fake_collect():
+        nonlocal collect_calls
+        collect_calls += 1
+        return ([{"zone_code": "STORAGE"}], {"wild1": 2}, matrix)
+
+    def fake_update_worksheet(matrix_arg, spreadsheet, worksheet, credentials):
+        update_calls.append((matrix_arg, spreadsheet, worksheet, credentials))
+        return 1, 0
+
+    monkeypatch.setattr(service, "collect", fake_collect)
+    monkeypatch.setattr(
+        wms_stocks_google_sheet, "update_worksheet", fake_update_worksheet
+    )
+
+    results = asyncio.run(
+        service.sync_many(
+            [
+                ("primary spreadsheet", "primary worksheet"),
+                ("UNIT 2.0 (tested)", "WMS остатки"),
+            ]
+        )
+    )
+
+    assert collect_calls == 1
+    assert update_calls == [
+        (matrix, "primary spreadsheet", "primary worksheet", "creds.json"),
+        (matrix, "UNIT 2.0 (tested)", "WMS остатки", "creds.json"),
+    ]
+    assert [result.updated_products for result in results] == [1, 1]

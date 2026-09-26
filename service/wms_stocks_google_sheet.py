@@ -252,18 +252,33 @@ class WMSStocksGoogleSheetService:
         return zones, reserved_by_product, build_stock_matrix(zones, reserved_by_product)
 
     async def sync(self) -> WMSStockSyncResult:
+        """Собрать остатки и обновить основной лист."""
+        return (await self.sync_many([(self.spreadsheet, self.worksheet)]))[0]
+
+    async def sync_many(
+        self, destinations: list[tuple[str, str]]
+    ) -> list[WMSStockSyncResult]:
+        """Один раз собрать остатки и последовательно обновить несколько листов."""
+        if not destinations:
+            return []
+
         zones, reserved_by_product, matrix = await self.collect()
-        updated_count, added_count = await asyncio.to_thread(
-            update_worksheet,
-            matrix,
-            self.spreadsheet,
-            self.worksheet,
-            self.credentials,
-        )
-        return WMSStockSyncResult(
-            zones=len(zones),
-            reserved_products=len(reserved_by_product),
-            matrix_products=len(matrix) - 1,
-            updated_products=updated_count,
-            added_products=added_count,
-        )
+        results = []
+        for spreadsheet, worksheet in destinations:
+            updated_count, added_count = await asyncio.to_thread(
+                update_worksheet,
+                matrix,
+                spreadsheet,
+                worksheet,
+                self.credentials,
+            )
+            results.append(
+                WMSStockSyncResult(
+                    zones=len(zones),
+                    reserved_products=len(reserved_by_product),
+                    matrix_products=len(matrix) - 1,
+                    updated_products=updated_count,
+                    added_products=added_count,
+                )
+            )
+        return results

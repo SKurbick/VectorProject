@@ -42,16 +42,24 @@ async def sync_wms_stocks_to_google_sheet():
         worksheet=settings.WMS_STOCKS_WORKSHEET,
         credentials=settings.CREEDS_FILE_NAME,
     )
-    result = await service.sync()
-    logger.info(
-        "Завершение: остатки WMS актуализированы; "
-        "зон={}, товаров={}, с резервами={}, обновлено={}, добавлено={}",
-        result.zones,
-        result.matrix_products,
-        result.reserved_products,
-        result.updated_products,
-        result.added_products,
-    )
+    destinations = [
+        (settings.WMS_STOCKS_SPREADSHEET, settings.WMS_STOCKS_WORKSHEET),
+        ("UNIT 2.0 (tested)", "WMS остатки"),
+    ]
+    results = await service.sync_many(destinations)
+    for (spreadsheet, worksheet), result in zip(destinations, results):
+        logger.info(
+            "Остатки WMS актуализированы: таблица={!r}, лист={!r}; "
+            "зон={}, товаров={}, с резервами={}, обновлено={}, добавлено={}",
+            spreadsheet,
+            worksheet,
+            result.zones,
+            result.matrix_products,
+            result.reserved_products,
+            result.updated_products,
+            result.added_products,
+        )
+    logger.info("Завершение: актуализация остатков WMS в Google Sheets")
 
 
 
@@ -157,8 +165,12 @@ async def get_actually_data_by_qty():
 @log_job
 async def add_stock_data_in_gs():
     logger.info("Запуск : актуализация СЕРВИСНЫХ остатков")
-    gs_service = gs_service_for_schedule_connection()
-    await gs_service.get_stock_data_on_api(warehouse_ids=[2])
+    gs_service = gs_service_new_good_table_connection(
+        sheet="остатки старой версии",
+        spreadsheet=settings.SPREADSHEET,
+        creds_json=settings.CREEDS_FILE_NAME,
+    )
+    await gs_service.get_stock_data_on_api(add_missing=True)
 
 
 
