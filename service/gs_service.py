@@ -54,8 +54,6 @@ class ServiceGoogleSheet:
     def __init__(self, token, spreadsheet: str, sheet: str, creds_json='creds.json'):
         self.wb_api_token = token
         self.gs_connect = GoogleSheet(creds_json=creds_json, spreadsheet=spreadsheet, sheet=sheet)
-        self.gs_connect_pc = PCGoogleSheet(creds_json=creds_json, spreadsheet=Setting().PC_SPREADSHEET,
-                                           sheet=Setting().PC_SHEET)
         self.gs_service_revenue_connect = GoogleSheetServiceRevenue(creds_json=creds_json, spreadsheet=spreadsheet,
                                                                     sheet=sheet)
         self.sheet = sheet
