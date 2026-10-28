@@ -3,7 +3,6 @@ import json
 import time
 from collections import ChainMap
 from logger import app_logger as logger
-from account_names import normalize_account_name
 import re
 import math
 
@@ -54,60 +53,6 @@ def calculate_sum_for_logistic(for_one_liter: float,
         return result_sum
     else:
         return for_one_liter
-
-
-def add_orders_data(revenue_data: dict):  # добавление или обновление выручки по артикулам и дням в бд
-    with open('database.json', 'r+') as file:
-        # Загрузите данные из файла
-        database = json.load(file)
-        for nm_id in revenue_data:
-            str_nm_id = str(nm_id)
-            if str_nm_id in database["revenue_result"]:  # если артикул есть, то данные будут обновленны или дополненны
-                database["revenue_result"][str_nm_id].update(revenue_data[nm_id])
-            else:  # если артикула нет, то будет добавлен с актуальными данными
-                database["revenue_result"].update({str_nm_id: revenue_data[nm_id]})
-        file.seek(0)
-        json.dump(database, file, indent=4, ensure_ascii=False)
-        file.truncate()
-
-
-# todo deprecated
-# def get_data_for_nm_ids():
-#     with open("database.json", "r", encoding='utf-8') as file:
-#         nm_ids = json.load(file)
-#     return nm_ids["nm_ids_data"]
-
-
-def add_nm_ids_in_db(account, new_nm_ids):
-    """Добавление артикулов в БД"""
-    with open('database.json', 'r+') as file:
-        # Загрузите данные из файла
-        data = json.load(file)
-        account_key = normalize_account_name(account)
-        normalized_accounts = {normalize_account_name(key): key for key in data['account_nm_ids']}
-        stored_key = normalized_accounts.get(account_key, account)
-        if stored_key not in data['account_nm_ids']:
-            data['account_nm_ids'].update({stored_key: []})
-        data['account_nm_ids'][stored_key].extend(new_nm_ids)
-        file.seek(0)
-        json.dump(data, file, indent=4, ensure_ascii=False)
-        file.truncate()
-
-
-def add_data_for_nm_ids(nm_ids_data: dict):
-    with open('database.json', 'r+') as file:
-        # Загрузите данные из файла
-        database = json.load(file)
-        # добавляет данные по артикулу в БД
-        for nm_id in nm_ids_data:
-            if nm_id in database["nm_ids_data"].keys():
-                database["nm_ids_data"][nm_id].update(nm_ids_data[nm_id])
-            else:
-                # print("решил что nmid нет в бд")
-                database["nm_ids_data"].update({nm_id: nm_ids_data[nm_id]})
-        file.seek(0)
-        json.dump(database, file, indent=4, ensure_ascii=False)
-        file.truncate()
 
 
 def total_revenue_for_week(date_dict: dict, revenue_result):
@@ -178,44 +123,6 @@ async def validate_data(nm_ids_db_data, data: dict):
                 result_valid_data[int(nm_id)] = nm_ids_data
 
     return result_valid_data
-
-
-def get_nm_ids_in_db(account):
-    with open("database.json", "r", encoding='utf-8') as file:
-        nm_ids = json.load(file)
-        account_key = normalize_account_name(account)
-        normalized_accounts = {normalize_account_name(key): key for key in nm_ids["account_nm_ids"]}
-        stored_key = normalized_accounts.get(account_key)
-        if stored_key is None:
-            return []
-    return nm_ids["account_nm_ids"][stored_key]
-
-
-# todo deprecated
-def get_warehouse_data():
-    with open("database.json", "r", encoding='utf-8') as file:
-        warehouse_data = json.load(file)
-
-    return warehouse_data["warehouse_data"]
-
-
-def add_data_from_warehouse(warehouse_data):
-    with open('database.json', 'r+') as file:
-        # Загрузите данные из файла
-        database = json.load(file)
-        for account, wh_data in warehouse_data.items():
-            account_key = normalize_account_name(account)
-            normalized_accounts = {
-                normalize_account_name(key): key
-                for key in database["warehouse_data"]
-            }
-            stored_key = normalized_accounts.get(account_key, account)
-            if stored_key not in database["warehouse_data"]:
-                database["warehouse_data"].update({stored_key: {}})
-            database["warehouse_data"][stored_key].update(wh_data)
-        file.seek(0)
-        json.dump(database, file, indent=4, ensure_ascii=False)
-        file.truncate()
 
 
 def column_index_to_letter(index):

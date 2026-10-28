@@ -14,8 +14,9 @@ import requests
 from gspread import Client, service_account
 
 from database.postgresql.database import Database1
+from database.postgresql.repositories.article import ArticleTable
 from database.postgresql.repositories.card_data import CardData
-from utils import get_nm_ids_in_db, column_index_to_letter, can_be_int
+from utils import column_index_to_letter, can_be_int
 import pandas as pd
 
 from logger import app_logger as logger
@@ -520,16 +521,19 @@ class GoogleSheet:
         return column_data
 
     @staticmethod
-    def check_new_nm_ids(account, nm_ids: list):
-        nm_ids_in_db = get_nm_ids_in_db(account=account)
-        result = []
-        if len(nm_ids):
-            result = (set(nm_ids) - set(nm_ids_in_db))
-            return [*result]
-
-        logger.info(f"итог: {result}")
-        logger.info(f"инфа в бд: {nm_ids_in_db}")
-        return result
+    async def check_new_nm_ids(account, nm_ids: list):
+        """Сверить артикулы кабинета с PostgreSQL."""
+        if not nm_ids:
+            return []
+        async with Database1() as db:
+            articles = await ArticleTable(db).get_all_nm_ids()
+        account_key = normalize_account_name(account)
+        known_ids = {
+            int(nm_id)
+            for nm_id, data in articles.items()
+            if normalize_account_name(data['account']) == account_key
+        }
+        return sorted({int(nm_id) for nm_id in nm_ids} - known_ids)
 
     @retry_on_quota_exceeded_async()
     async def add_data_to_count_list(self, data_json):

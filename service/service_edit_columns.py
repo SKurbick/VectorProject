@@ -72,8 +72,7 @@ async def check_new_nm_ids():
                     token=None, sheet=sheet, spreadsheet=spreadsheet, creds_json=creds_json)
                 # retry_to_check_new_nm_ids = False
 
-                result_data_for_update_rows = await service_gs_table.add_new_data_from_table(lk_articles=lk_articles,
-                                                                                             add_data_in_db=False)
+                result_data_for_update_rows = await service_gs_table.add_new_data_from_table(lk_articles=lk_articles)
                 if len(result_data_for_update_rows) > 0:
                     gs_connection().update_rows(data_json=result_data_for_update_rows, edit_column_clean=None)
 

@@ -5,7 +5,7 @@ import time
 import aiohttp
 from aiohttp import ClientSession
 
-from utils import add_data_for_nm_ids, add_data_from_warehouse, process_string, process_local_vendor_code
+from utils import process_string, process_local_vendor_code
 
 import requests
 
@@ -32,12 +32,10 @@ class ListOfCardsContent:
 
     def get_list_of_cards(self, nm_ids_list: list, limit: int = 1, eng_json_data: bool = False,
                           only_edits_data=False, update_articles_data=False, add_data_in_db=True, account=None) -> json:
-        """Получение всех карточек  по совпадению с nm_ids_list"""
+        """Получить карточки без сохранения; add_data_in_db оставлен для совместимости."""
         nm_ids_list_for_edit = [*nm_ids_list]
         url = self.url.format("list")
         card_result_for_match = {}
-        nm_ids_data_for_database = {}
-        data_for_warehouse = {}
         json_obj = {
             "settings": {
                 "cursor": {
@@ -92,17 +90,6 @@ class ListOfCardsContent:
                         #         "Фото": photo,
                         #         # для таблицы будет использоваться последний баркод из списка
                         #     })
-                        # добавляем данные по размерам в БД
-                        nm_ids_data_for_database[str(card["nmID"])] = {
-                            "sizes": card["sizes"],
-                            "vendorCode": card["vendorCode"],
-                        }
-
-                        # добавляем данные по skus с ключом кабинета и артикула
-                        if account not in data_for_warehouse.keys():
-                            data_for_warehouse[account] = {}
-                        data_for_warehouse[account].update({str(card["nmID"]): {"skus": card["sizes"][0]["skus"]}})
-
                         nm_ids_list_for_edit.remove(card["nmID"])
 
                 if not nm_ids_list_for_edit:
@@ -120,10 +107,6 @@ class ListOfCardsContent:
 
                 json_obj["settings"]["cursor"].update(update_data)
 
-        # добавляем данные по размерам и баркодам в БД
-        if add_data_in_db is True:
-            add_data_for_nm_ids(nm_ids_data_for_database)
-            add_data_from_warehouse(data_for_warehouse)
         logger.info("get_list_of_cards")
         # pprint(card_result_for_match)
         if nm_ids_list_for_edit:

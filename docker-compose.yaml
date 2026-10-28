@@ -8,8 +8,6 @@ services:
     image: vector_project_image
     volumes:
       - vector_project_logs:/app/logging
-#      - database_json:/app/database.json
-      - ./database.json:/app/database.json  # файл с хоста → в контейнер
 
     #    networks:
 #      - vector_db_default  # Сеть с БД
@@ -22,4 +20,3 @@ services:
 
 volumes:
   vector_project_logs:
-#  database_json:

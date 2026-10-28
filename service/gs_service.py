@@ -28,7 +28,7 @@ from database.postgresql.repositories.orders_by_federal_district import OrdersBy
 from database.postgresql.repositories.orders_revenues import OrdersRevenuesTable
 from settings import get_wb_tokens, is_fbs_stocks_disabled
 from settings import Setting
-from utils import add_orders_data, calculate_sum_for_logistic, merge_dicts, validate_data, add_nm_ids_in_db, \
+from utils import calculate_sum_for_logistic, merge_dicts, validate_data, \
     get_last_weeks_dates, create_valid_data_from_db
 from database.postgresql.repositories.card_data import CardData
 
@@ -207,7 +207,7 @@ class ServiceGoogleSheet:
             if not token:
                 continue
 
-            nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=articles)
+            nm_ids_result = await self.gs_connect.check_new_nm_ids(account=account, nm_ids=articles)
             if len(nm_ids_result) > 0:
                 logger.info(f"account: {account} | собираем выручку по новым артикулам")
                 analytics = AnalyticsNMReport(token=token)
@@ -224,11 +224,6 @@ class ServiceGoogleSheet:
                 tasks1.append(task1)
                 tasks2.append(task2)
 
-                """добавляем артикулы в БД"""
-                # артикулы добавляем после получения выручки
-                # в текущей реализации новые артикулы будут добавлены в БД до выгрузки данных по артикулу в таблицу
-                add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
-
         results_day_revenue = await asyncio.gather(*tasks1, return_exceptions=True)
         results_week_revenue = await asyncio.gather(*tasks2, return_exceptions=True)
 
@@ -237,8 +232,6 @@ class ServiceGoogleSheet:
                 logger.info(f"Ошибка при получении ежедневной выручки: {res_day}")
             else:
                 all_accounts_new_revenue_data.update(res_day["result_data"])
-                """добавляет данные по ежедневной выручке в БД"""
-                # add_orders_data(res_day["result_data"])
 
         for res_week in results_week_revenue:
             if isinstance(res_week, Exception):
@@ -251,7 +244,7 @@ class ServiceGoogleSheet:
         return all_accounts_new_revenue_data
 
     async def add_new_data_from_table(self, lk_articles, edit_column_clean=None, only_edits_data=False,
-                                      add_data_in_db=True, check_nm_ids_in_db=True):
+                                      check_nm_ids_in_db=True):
         """Функция была изменена. Теперь она просто выдает данные на добавления в таблицу, а не добавляет таблицу внутри функции"""
 
         nm_ids_photo = {}
@@ -265,7 +258,7 @@ class ServiceGoogleSheet:
 
             if check_nm_ids_in_db:
                 "поиск всех артикулов которых нет в БД"
-                nm_ids_result = self.gs_connect.check_new_nm_ids(account=account, nm_ids=nm_ids)
+                nm_ids_result = await self.gs_connect.check_new_nm_ids(account=account, nm_ids=nm_ids)
 
                 if len(nm_ids_result) > 0:
                     logger.info(f"КАБИНЕТ: {account}")
@@ -355,9 +348,6 @@ class ServiceGoogleSheet:
 
                 result_nm_ids_data.update(merge_json_data)
 
-                if add_data_in_db is True:
-                    """добавляем артикулы в БД"""
-                    add_nm_ids_in_db(account=account, new_nm_ids=nm_ids_result)
         if nm_ids_photo:
             self.gs_connect.add_photo(nm_ids_photo)
 
@@ -368,7 +358,7 @@ class ServiceGoogleSheet:
                 async with Database1() as connection:
                     psql_article = ArticleTable(db=connection)
 
-                    # ограничение функции: добавляет данные в psql, но только если их не было в бд json
+                    # Добавляем в PostgreSQL только отсутствующие артикулы.
                     filter_nm_ids = await psql_article.check_nm_ids(account="None", nm_ids=filter_nm_ids_data)
                     if filter_nm_ids:
                         logger.info(f"filter_nm_ids {filter_nm_ids}")
@@ -495,7 +485,6 @@ class ServiceGoogleSheet:
             updated_data = await self.add_new_data_from_table(
                 lk_articles=updates_nm_ids_data,
                 only_edits_data=True,
-                add_data_in_db=False,
                 check_nm_ids_in_db=False,
             )
             return updated_data, edit_column_clean
@@ -558,8 +547,6 @@ class ServiceGoogleSheet:
                             psql_data_update[day] = {}
                         psql_data_update[day].update(account_data)
 
-                add_orders_data(res["result_data"])
-            logger.info("Выручка добавлена в БД")
             # добавляем их таблицу
 
             # проверяем заголовок прошлой недели
@@ -1011,7 +998,7 @@ class ServiceGoogleSheet:
             if len(nm_ids_for_update_data) > 0:
                 logger.info(nm_ids_for_update_data)
                 nm_ids_data_json = await self.add_new_data_from_table(lk_articles=nm_ids_for_update_data,
-                                                                      only_edits_data=True, add_data_in_db=False,
+                                                                      only_edits_data=True,
                                                                       check_nm_ids_in_db=False)
                 # if len(low_limit_qty_data["edit_min_qty"]) > 0:
                 #     logger.info(low_limit_qty_data["edit_min_qty"])

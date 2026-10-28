@@ -82,33 +82,6 @@ async def get_actually_revenues_orders_and_net_profit_data():
     await gs_service.get_actually_revenues_orders_and_net_profit_data()
     logger.info("Завершение : Актуализация данных по выручке, заказам и сумме с чистой прибыли")
 
-#
-# @scheduler.scheduled_job(IntervalTrigger(minutes=10), coalesce=True)
-# @log_job
-# async def job_check_new_nm_ids():
-#     """Смотрит в таблицу, оценивает новые nm_ids"""
-#     logger.info("Запуск : Смотрит в таблицу, оценивает новые nm_ids")
-#     await check_new_nm_ids()
-#     logger.info("Завершение : Смотрит в таблицу, оценивает новые nm_ids")
-
-#
-# @scheduler.scheduled_job(IntervalTrigger(minutes=15), coalesce=True)
-# @log_job
-# async def job_check_edits_columns_and_add_actually_data_to_table():
-#     logger.info("Запуск :"
-#                 "Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
-#     gs_service = gs_service_for_schedule_connection()
-#     service = Service()
-#     async with Database1() as db:
-#         await gs_service.add_actually_data_to_table(db=db)
-#         logger.info("Завершение :"
-#                     "Актуализация информации по ценам, скидкам, габаритам, комиссии, логистики от склада WB до ПВЗ")
-#         logger.info("Запуск : Смотрит в таблицу, оценивает изменения")
-#         result = await check_edits_columns(db=db)
-#         pprint(result)
-#         if result:
-#             logger.info("Завершение : Внесение изменений в таблицу")
-#             await service.actualize_card_data_in_db(result)
 
 
 @scheduler.scheduled_job(IntervalTrigger(minutes=20), coalesce=True)
