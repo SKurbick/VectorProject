@@ -167,8 +167,14 @@ async def main():
     logger.info("Запуск приложения 🦋")
     scheduler.add_listener(job_error_listener, EVENT_JOB_ERROR)
     scheduler.start()
-    with contextlib.suppress(KeyboardInterrupt, SystemExit):
-        await asyncio.Event().wait()
+    try:
+        with contextlib.suppress(KeyboardInterrupt, SystemExit):
+            await asyncio.Event().wait()
+    finally:
+        scheduler.shutdown(wait=True)
+        # AsyncIOScheduler schedules shutdown on the event loop.
+        await asyncio.sleep(0)
+        await Database1.close_pools()
 
 
 if __name__ == "__main__":

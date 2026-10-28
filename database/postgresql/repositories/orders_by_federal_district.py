@@ -23,14 +23,6 @@ class OrdersByFederalDistrict:
         FROM orders_by_federal_district
         WHERE FALSE
         '''
-        await self.db.execute(create_temp_table_query)
-
-        # Загружаем данные во временную таблицу
-        await self.db.copy_records_to_table(
-            "temp_orders",
-            columns=columns,
-            records=records_data
-        )
 
         # Вставляем записи, только если article_id существует в article
         insert_query = '''
@@ -46,13 +38,19 @@ class OrdersByFederalDistrict:
             SET
                 orders_count = EXCLUDED.orders_count;
         '''
-        await self.db.execute(insert_query)
 
         # Удаляем временную таблицу
         drop_temp_table_query = '''
             DROP TABLE temp_orders
         '''
-        await self.db.execute(drop_temp_table_query)
+        # Temporary tables and COPY must use one connection and one transaction.
+        async with self.db.transaction():
+            await self.db.execute(create_temp_table_query)
+            await self.db.copy_records_to_table(
+                "temp_orders", columns=columns, records=records_data
+            )
+            await self.db.execute(insert_query)
+            await self.db.execute(drop_temp_table_query)
 
     async def get_awg_orders_per_days(self, start_day, end_day):
         query = """

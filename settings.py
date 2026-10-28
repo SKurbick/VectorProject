@@ -76,6 +76,13 @@ class DBConfig:
     DB_NAME: str = os.getenv('DB_NAME')
     DB_HOST: str = os.getenv('DB_HOST')
     DB_PORT: int = os.getenv('DB_PORT')
+    DB_POOL_MIN_SIZE: int = int(os.getenv('DB_POOL_MIN_SIZE', '1'))
+    DB_POOL_MAX_SIZE: int = int(os.getenv('DB_POOL_MAX_SIZE', '5'))
+    DB_CONNECT_TIMEOUT: float = float(os.getenv('DB_CONNECT_TIMEOUT', '10'))
+    DB_ACQUIRE_TIMEOUT: float = float(os.getenv('DB_ACQUIRE_TIMEOUT', '30'))
+    DB_COMMAND_TIMEOUT: float = float(os.getenv('DB_COMMAND_TIMEOUT', '250'))
+    DB_CLOSE_TIMEOUT: float = float(os.getenv('DB_CLOSE_TIMEOUT', '30'))
+    DB_APPLICATION_NAME: str = os.getenv('DB_APPLICATION_NAME', 'VectorProject')
 
 
 DATABASE = DBConfig()
